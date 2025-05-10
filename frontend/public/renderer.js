@@ -45,7 +45,8 @@ function showStatus(message, isError = false) {
 // Display list of items from the database
 async function displayItems() {
   try {
-    const items = await window.api.listItems();
+    const response = await window.api.listItems();
+    const items = response.success ? response.items : [];
     itemList.innerHTML = '';
     
     if (items.length === 0) {

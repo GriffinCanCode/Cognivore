@@ -41,15 +41,27 @@ const logLevels = {
 require('winston').addColors(logLevels.colors);
 
 // Custom log format
-const logFormat = printf(({ level, message, timestamp, ...metadata }) => {
+const logFormat = printf(({ level, message, timestamp, context, ...metadata }) => {
   let metaStr = '';
+  
+  // Handle stack traces for errors
   if (Object.keys(metadata).length > 0 && metadata.stack) {
     metaStr = `\n${metadata.stack}`;
-  } else if (Object.keys(metadata).length > 0) {
-    metaStr = `\n${JSON.stringify(metadata, null, 2)}`;
+  } 
+  // Handle general metadata
+  else if (Object.keys(metadata).length > 0) {
+    // Remove circular references and format properly
+    try {
+      metaStr = `\n${JSON.stringify(metadata, null, 2)}`;
+    } catch (e) {
+      metaStr = `\n[Object with circular reference]`;
+    }
   }
   
-  return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
+  // Include context if provided
+  const contextStr = context ? `[${context}] ` : '';
+  
+  return `[${timestamp}] [${level.toUpperCase()}] ${contextStr}${message}${metaStr}`;
 });
 
 // Determine log level based on environment or config
@@ -65,7 +77,7 @@ const fileRotateTransport = new transports.DailyRotateFile({
   maxFiles: config.logging.maxFiles,
   level: getLogLevel(),
   format: combine(
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
     logFormat
   )
 });
@@ -78,7 +90,7 @@ const errorFileRotateTransport = new transports.DailyRotateFile({
   maxFiles: config.logging.errorLogsMaxFiles,
   level: 'error',
   format: combine(
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
     logFormat
   )
 });
@@ -88,7 +100,7 @@ const logger = createLogger({
   levels: logLevels.levels,
   level: getLogLevel(),
   format: combine(
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
     logFormat
   ),
   transports: [
@@ -96,7 +108,7 @@ const logger = createLogger({
     new transports.Console({
       format: combine(
         colorize({ all: config.logging.colorize }),
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
         logFormat
       )
     }),
@@ -107,7 +119,7 @@ const logger = createLogger({
     new transports.File({ 
       filename: path.join(logsDir, 'exceptions.log'),
       format: combine(
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
         logFormat
       )
     })
@@ -122,19 +134,35 @@ logger.stream = {
   }
 };
 
-// Shorthand methods with contextual information
+/**
+ * Creates a context-specific logger
+ * @param {string} context - The context name (service/component)
+ * @returns {Object} - A logger with context-specific methods
+ */
 const createContextLogger = (context) => {
   return {
-    error: (message, meta) => logger.error(`[${context}] ${message}`, meta),
-    warn: (message, meta) => logger.warn(`[${context}] ${message}`, meta),
-    info: (message, meta) => logger.info(`[${context}] ${message}`, meta),
-    http: (message, meta) => logger.http(`[${context}] ${message}`, meta),
-    debug: (message, meta) => logger.debug(`[${context}] ${message}`, meta),
-    trace: (message, meta) => logger.trace(`[${context}] ${message}`, meta)
+    error: (message, meta = {}) => logger.error(message, { context, ...meta }),
+    warn: (message, meta = {}) => logger.warn(message, { context, ...meta }),
+    info: (message, meta = {}) => logger.info(message, { context, ...meta }),
+    http: (message, meta = {}) => logger.http(message, { context, ...meta }),
+    debug: (message, meta = {}) => logger.debug(message, { context, ...meta }),
+    trace: (message, meta = {}) => logger.trace(message, { context, ...meta }),
+    
+    // Add log method for compatibility with common interfaces
+    log: (level, message, meta = {}) => {
+      if (logger.levels[level] !== undefined) {
+        logger.log(level, message, { context, ...meta });
+      } else {
+        logger.info(message, { context, ...meta });
+      }
+    }
   };
 };
 
 module.exports = {
   logger,
-  createContextLogger
+  createContextLogger,
+  getLogLevel,
+  // Export log levels for reference elsewhere in the application
+  logLevels
 }; 

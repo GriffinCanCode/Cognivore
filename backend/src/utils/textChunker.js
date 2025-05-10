@@ -4,6 +4,8 @@
  */
 
 const config = require('../config');
+const { createContextLogger } = require('./logger');
+const logger = createContextLogger('TextChunker');
 
 /**
  * Clean text by removing extra whitespace, normalizing line breaks, etc.
@@ -28,6 +30,10 @@ function cleanText(text) {
 function chunkByCharacters(text, chunkSize = config.processing.chunkSize, overlap = config.processing.chunkOverlap) {
   // If the text is smaller than the chunk size, return it as a single chunk
   if (text.length <= chunkSize) {
+    logger.debug('Text fits in a single chunk, returning as is', { 
+      textLength: text.length, 
+      chunkSize 
+    });
     return [text];
   }
   
@@ -46,11 +52,13 @@ function chunkByCharacters(text, chunkSize = config.processing.chunkSize, overla
       if (sentenceEnd > startIndex + Math.floor(chunkSize / 4)) {
         // We found a good sentence boundary
         endIndex = sentenceEnd;
+        logger.trace('Using sentence boundary for chunk', { startIndex, endIndex });
       } else {
         // Fall back to word boundaries
         const lastSpace = text.lastIndexOf(' ', endIndex);
         if (lastSpace > startIndex + Math.floor(chunkSize / 4)) {
           endIndex = lastSpace + 1; // Include the space in the chunk
+          logger.trace('Using word boundary for chunk', { startIndex, endIndex });
         }
       }
     }
@@ -71,6 +79,14 @@ function chunkByCharacters(text, chunkSize = config.processing.chunkSize, overla
       break;
     }
   }
+  
+  logger.debug(`Split text into ${chunks.length} chunks using character-based chunking`, { 
+    textLength: text.length, 
+    chunkSize,
+    overlap,
+    averageChunkSize: chunks.length > 0 ? 
+      Math.round(chunks.reduce((sum, c) => sum + c.length, 0) / chunks.length) : 0
+  });
   
   return chunks;
 }

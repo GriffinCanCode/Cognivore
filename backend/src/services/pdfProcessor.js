@@ -10,6 +10,8 @@ const pdfParse = require('pdf-parse');
 const { chunkByParagraphs } = require('../utils/textChunker');
 const { generateEmbeddings } = require('./embedding');
 const { addItem } = require('./database');
+const { createContextLogger } = require('../utils/logger');
+const logger = createContextLogger('PDFProcessor');
 
 /**
  * Process a PDF file
@@ -18,10 +20,11 @@ const { addItem } = require('./database');
  */
 async function processPDF(filePath) {
   try {
-    console.log(`Processing PDF: ${filePath}`);
+    logger.info(`Processing PDF: ${filePath}`);
     
     // Check if file exists
     if (!fs.existsSync(filePath)) {
+      logger.error(`File not found: ${filePath}`);
       throw new Error(`File not found: ${filePath}`);
     }
     
@@ -30,6 +33,7 @@ async function processPDF(filePath) {
     
     // Parse the PDF
     const data = await pdfParse(dataBuffer);
+    logger.debug(`PDF parsed successfully`, { pages: data.numpages });
     
     // Extract basic info
     const extractedText = data.text;
@@ -38,14 +42,15 @@ async function processPDF(filePath) {
     
     // Generate a unique ID
     const id = uuidv4();
+    logger.debug(`Generated ID for document: ${id}`);
     
     // Chunk the text
     const textChunks = chunkByParagraphs(extractedText);
-    console.log(`Split into ${textChunks.length} chunks`);
+    logger.info(`Split into ${textChunks.length} chunks`);
     
     // Generate embeddings for each chunk
     const chunkEmbeddings = await generateEmbeddings(textChunks);
-    console.log(`Generated ${chunkEmbeddings.length} embeddings`);
+    logger.info(`Generated ${chunkEmbeddings.length} embeddings`);
     
     // Create the database item
     // For LanceDB, we use the first chunk's embedding as the primary vector
@@ -71,11 +76,15 @@ async function processPDF(filePath) {
     
     // Store in database
     await addItem(item);
-    console.log(`PDF processed and stored with ID: ${id}`);
+    logger.info(`PDF processed and stored with ID: ${id}`);
     
     return item;
   } catch (error) {
-    console.error('Error processing PDF:', error);
+    logger.error('Error processing PDF', { 
+      error: error.message, 
+      stack: error.stack,
+      filePath 
+    });
     throw error;
   }
 }

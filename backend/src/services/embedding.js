@@ -7,10 +7,13 @@ const config = require('../config');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { createContextLogger } = require('../utils/logger');
+const logger = createContextLogger('Embedding');
 
 // Ensure model cache directory exists
 if (!fs.existsSync(config.paths.modelCache)) {
   fs.mkdirSync(config.paths.modelCache, { recursive: true });
+  logger.info(`Created model cache directory: ${config.paths.modelCache}`);
 }
 
 /**
@@ -45,10 +48,13 @@ async function generateEmbedding(text) {
       vector.push(value);
     }
     
-    console.log(`Generated embedding for text of length ${text.length}`);
+    logger.debug(`Generated embedding for text of length ${text.length}`, { 
+      textLength: text.length, 
+      vectorDimensions: vector.length 
+    });
     return vector;
   } catch (error) {
-    console.error('Error generating embedding:', error);
+    logger.error('Error generating embedding', { error: error.message, stack: error.stack });
     // Return a zero vector as fallback
     return new Array(config.embeddings.dimensions).fill(0);
   }
@@ -60,7 +66,7 @@ async function generateEmbedding(text) {
  * @returns {Promise<Array<Array<number>>>} Array of embedding vectors
  */
 async function generateEmbeddings(textChunks) {
-  console.log(`Generating embeddings for ${textChunks.length} chunks`);
+  logger.info(`Generating embeddings for ${textChunks.length} chunks`);
   const embeddings = [];
   
   for (const chunk of textChunks) {
@@ -68,7 +74,7 @@ async function generateEmbeddings(textChunks) {
     embeddings.push(embedding);
   }
   
-  console.log(`Generated ${embeddings.length} embeddings`);
+  logger.info(`Generated ${embeddings.length} embeddings`);
   return embeddings;
 }
 

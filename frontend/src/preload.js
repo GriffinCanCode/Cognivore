@@ -1,8 +1,25 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const { createContextLogger } = require('./utils/logger');
+
+// Inline simple logger implementation
+// This avoids the need for external module dependencies in preload context
+const createSimpleLogger = (context) => {
+  const logLevels = ['error', 'warn', 'info', 'debug'];
+  
+  // Return a logger object with methods for each log level
+  const logger = {};
+  logLevels.forEach(level => {
+    logger[level] = (message, ...args) => {
+      const formattedMessage = `[${context}] ${message}`;
+      console[level](formattedMessage, ...args);
+      return null; // Prevent object exposure to renderer
+    };
+  });
+  
+  return logger;
+};
 
 // Create a renderer-specific logger
-const rendererLogger = createContextLogger('Renderer');
+const rendererLogger = createSimpleLogger('Renderer');
 
 // Expose API to the renderer process
 contextBridge.exposeInMainWorld('api', {
@@ -36,19 +53,19 @@ contextBridge.exposeInMainWorld('api', {
       // Return simplified logger API for the renderer
       return {
         error: (message, ...args) => {
-          rendererLogger.error(`[${context}] ${message}`, ...args);
+          console.error(`[${context}] ${message}`, ...args);
           return null;
         },
         warn: (message, ...args) => {
-          rendererLogger.warn(`[${context}] ${message}`, ...args);
+          console.warn(`[${context}] ${message}`, ...args);
           return null;
         },
         info: (message, ...args) => {
-          rendererLogger.info(`[${context}] ${message}`, ...args);
+          console.info(`[${context}] ${message}`, ...args);
           return null;
         },
         debug: (message, ...args) => {
-          rendererLogger.debug(`[${context}] ${message}`, ...args);
+          console.debug(`[${context}] ${message}`, ...args);
           return null;
         }
       };

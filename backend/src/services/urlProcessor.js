@@ -9,6 +9,8 @@ const { Readability } = require('@mozilla/readability');
 const { chunkByParagraphs } = require('../utils/textChunker');
 const { generateEmbeddings } = require('./embedding');
 const { addItem } = require('./database');
+const { createContextLogger } = require('../utils/logger');
+const logger = createContextLogger('URLProcessor');
 
 /**
  * Process a web URL
@@ -17,23 +19,33 @@ const { addItem } = require('./database');
  */
 async function processURL(url) {
   try {
-    console.log(`Processing URL: ${url}`);
+    logger.info(`Processing URL: ${url}`);
     
     // Validate URL
     try {
       new URL(url);
     } catch (error) {
+      logger.error(`Invalid URL format: ${url}`, { error: error.message });
       throw new Error(`Invalid URL: ${url}`);
     }
     
     // Fetch the webpage
     const response = await fetch(url);
     if (!response.ok) {
+      logger.error(`Failed to fetch URL`, { 
+        url, 
+        status: response.status, 
+        statusText: response.statusText 
+      });
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
     }
     
     // Get the HTML content
     const html = await response.text();
+    logger.debug(`Fetched HTML content`, { 
+      url, 
+      contentLength: html.length 
+    });
     
     // Create a DOM from the HTML
     const dom = new JSDOM(html, { url });
@@ -43,8 +55,16 @@ async function processURL(url) {
     const article = reader.parse();
     
     if (!article) {
+      logger.error(`Failed to extract content from URL`, { url });
       throw new Error(`Failed to extract content from URL: ${url}`);
     }
+    
+    logger.debug(`Content extracted successfully`, { 
+      title: article.title,
+      contentLength: article.textContent.length,
+      hasExcerpt: !!article.excerpt,
+      hasAuthor: !!article.byline
+    });
     
     // Extract basic info
     const extractedText = article.textContent;
@@ -52,14 +72,15 @@ async function processURL(url) {
     
     // Generate a unique ID
     const id = uuidv4();
+    logger.debug(`Generated ID for document: ${id}`);
     
     // Chunk the text
     const textChunks = chunkByParagraphs(extractedText);
-    console.log(`Split into ${textChunks.length} chunks`);
+    logger.info(`Split into ${textChunks.length} chunks`);
     
     // Generate embeddings for each chunk
     const chunkEmbeddings = await generateEmbeddings(textChunks);
-    console.log(`Generated ${chunkEmbeddings.length} embeddings`);
+    logger.info(`Generated ${chunkEmbeddings.length} embeddings`);
     
     // Create the database item
     const item = {
@@ -85,11 +106,15 @@ async function processURL(url) {
     
     // Store in database
     await addItem(item);
-    console.log(`URL processed and stored with ID: ${id}`);
+    logger.info(`URL processed and stored with ID: ${id}`);
     
     return item;
   } catch (error) {
-    console.error('Error processing URL:', error);
+    logger.error('Error processing URL', { 
+      url,
+      error: error.message, 
+      stack: error.stack 
+    });
     throw error;
   }
 }

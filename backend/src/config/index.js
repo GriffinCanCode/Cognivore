@@ -43,6 +43,13 @@ const defaultConfig = {
   }
 };
 
+// Create temporary logger for bootstrapping
+// This gets replaced by the real logger after it's initialized
+let tempLogger = {
+  info: (msg) => console.log(`[INFO] ${msg}`),
+  error: (msg) => console.error(`[ERROR] ${msg}`)
+};
+
 // Create a function to load and merge configurations
 function loadConfig(configPath) {
   let userConfig = {};
@@ -52,9 +59,9 @@ function loadConfig(configPath) {
     try {
       const configStr = fs.readFileSync(configPath, 'utf8');
       userConfig = JSON.parse(configStr);
-      console.log(`Loaded configuration from ${configPath}`);
+      tempLogger.info(`Loaded configuration from ${configPath}`);
     } catch (error) {
-      console.error(`Error loading configuration: ${error.message}`);
+      tempLogger.error(`Error loading configuration: ${error.message}`);
     }
   }
   
@@ -99,7 +106,7 @@ const config = loadConfig(configPath);
 ].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
-    console.log(`Created directory: ${dir}`);
+    tempLogger.info(`Created directory: ${dir}`);
   }
 });
 
