@@ -3,27 +3,20 @@
  * Responsible for generating vector embeddings from text
  */
 
-const { NeuralNetwork } = require('node-nlp');
 const config = require('../config');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // Ensure model cache directory exists
 if (!fs.existsSync(config.paths.modelCache)) {
   fs.mkdirSync(config.paths.modelCache, { recursive: true });
 }
 
-// Initialize the embedding model
-const embeddingModel = new NeuralNetwork({
-  log: false,
-  useAllWordVectors: true
-});
-
 /**
- * Generate an embedding vector for a text chunk
- * Note: This implementation uses a basic approach since node-nlp doesn't have
- * direct support for the specific embedding models like sentence-transformers.
- * For production, consider using a more advanced embedding solution.
+ * Generate a simple embedding vector for a text chunk
+ * Note: This is a simplified implementation for demonstration purposes.
+ * In a production environment, you would use a proper embedding model.
  * 
  * @param {string} text The text to generate an embedding for
  * @returns {Promise<Array<number>>} The embedding vector
@@ -37,22 +30,22 @@ async function generateEmbedding(text) {
       .replace(/\s+/g, ' ')    // Replace multiple spaces with a single space
       .trim();
     
-    // Generate embedding using node-nlp's neural network
-    // This is a simplified approach and doesn't match the quality of dedicated embedding models
-    const result = await embeddingModel.encodeCorpus([processedText]);
+    // For demonstration purposes, create a deterministic but unique vector
+    // based on the hash of the text. This ensures consistent vectors for the same text.
+    // In a real application, you would use a proper embedding model.
+    const hash = crypto.createHash('md5').update(processedText).digest('hex');
     
-    // Ensure we have a fixed-length vector as specified in the config
-    let vector = result[0] || [];
-    
-    // Pad or truncate to match the expected dimensions
-    if (vector.length < config.embeddings.dimensions) {
-      // Pad with zeros to meet the required dimensions
-      vector = [...vector, ...new Array(config.embeddings.dimensions - vector.length).fill(0)];
-    } else if (vector.length > config.embeddings.dimensions) {
-      // Truncate to the required dimensions
-      vector = vector.slice(0, config.embeddings.dimensions);
+    // Convert the hash to a series of numbers to create a vector of the required dimension
+    const vector = [];
+    for (let i = 0; i < config.embeddings.dimensions; i++) {
+      // Use the hash to generate numbers between -1 and 1
+      const bytePosition = i % 16; // md5 hash is 16 bytes
+      const byte = parseInt(hash.substring(bytePosition * 2, bytePosition * 2 + 2), 16);
+      const value = (byte / 255) * 2 - 1; // Convert to range -1 to 1
+      vector.push(value);
     }
     
+    console.log(`Generated embedding for text of length ${text.length}`);
     return vector;
   } catch (error) {
     console.error('Error generating embedding:', error);
@@ -67,6 +60,7 @@ async function generateEmbedding(text) {
  * @returns {Promise<Array<Array<number>>>} Array of embedding vectors
  */
 async function generateEmbeddings(textChunks) {
+  console.log(`Generating embeddings for ${textChunks.length} chunks`);
   const embeddings = [];
   
   for (const chunk of textChunks) {
@@ -74,6 +68,7 @@ async function generateEmbeddings(textChunks) {
     embeddings.push(embedding);
   }
   
+  console.log(`Generated ${embeddings.length} embeddings`);
   return embeddings;
 }
 

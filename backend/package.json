@@ -18,7 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@lancedb/lancedb": "^0.5.0",
+    "@lancedb/lancedb": "^0.4.3",
     "@langchain/community": "^0.0.27",
     "@mozilla/readability": "^0.5.0",
     "jsdom": "^24.0.0",
@@ -26,6 +26,7 @@
     "node-nlp": "^4.27.0",
     "pdf-parse": "^1.1.1",
     "uuid": "^11.1.0",
+    "vectordb": "^0.4.3",
     "youtube-dl-exec": "^2.5.5"
   },
   "devDependencies": {

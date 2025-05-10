@@ -3,7 +3,7 @@
  * Handles LanceDB initialization and operations
  */
 
-const lancedb = require('@lancedb/lancedb');
+const lancedb = require('vectordb');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
@@ -28,26 +28,18 @@ async function initializeDatabase() {
     db = await lancedb.connect(dbPath);
     console.log('Connected to LanceDB');
 
-    // Check if collection exists, if not create it
-    const tables = await db.tableNames();
-    
-    if (!tables.includes(config.database.collection)) {
-      console.log(`Creating collection: ${config.database.collection}`);
+    try {
+      // Try to open the existing collection
+      collection = await db.openTable(config.database.collection);
+      console.log(`Opened existing collection: ${config.database.collection}`);
+    } catch (error) {
+      // Collection doesn't exist, create it
+      console.log(`Creating new collection: ${config.database.collection}`);
       
-      // Define schema for the collection
-      const schema = {
-        id: 'string',
-        source_type: 'string',
-        source_identifier: 'string',
-        title: 'string',
-        original_content_path: 'string',
-        extracted_text: 'string',
-        text_chunks: 'list[string]',
-        // Vector type will be determined by LanceDB at insertion time
-        metadata: 'json'
-      };
+      // Create a simple consistent vector for initialization
+      const sampleVector = new Array(config.embeddings.dimensions).fill(0);
       
-      // Sample data for initialization (will be replaced when actual data is added)
+      // Sample data for initialization
       const sampleData = [{
         id: 'sample',
         source_type: 'sample',
@@ -56,16 +48,16 @@ async function initializeDatabase() {
         original_content_path: '',
         extracted_text: 'This is a sample item to initialize the database.',
         text_chunks: ['This is a sample item to initialize the database.'],
-        vector: new Array(config.embeddings.dimensions).fill(0),
-        metadata: {}
+        vector: sampleVector,
+        metadata: JSON.stringify({
+          sample: true,
+          creation_date: new Date().toISOString()
+        })
       }];
       
       // Create collection
       collection = await db.createTable(config.database.collection, sampleData);
       console.log(`Created collection: ${config.database.collection}`);
-    } else {
-      console.log(`Collection already exists: ${config.database.collection}`);
-      collection = await db.openTable(config.database.collection);
     }
     
     return { db, collection };
@@ -86,6 +78,11 @@ async function addItem(item) {
   }
   
   try {
+    // Ensure metadata is properly stringified if it's an object
+    if (typeof item.metadata === 'object') {
+      item.metadata = JSON.stringify(item.metadata);
+    }
+    
     await collection.add([item]);
     return item;
   } catch (error) {
@@ -124,8 +121,16 @@ async function listItems() {
   }
   
   try {
-    const results = await collection.select(['id', 'title', 'source_type']).execute();
-    return results;
+    // In vectordb (older API), we need to use select() to get specific fields
+    const query = collection.query();
+    const results = await query.execute();
+    
+    // Process results to extract just the needed fields
+    return results.map(item => ({
+      id: item.id,
+      title: item.title,
+      source_type: item.source_type
+    }));
   } catch (error) {
     console.error('Error listing items from database:', error);
     throw error;

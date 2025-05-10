@@ -3,13 +3,13 @@
  * Using mocks since we don't want to actually interact with the database during tests
  */
 
-// Mock the LanceDB module
-jest.mock('@lancedb/lancedb', () => {
+// Mock the vectordb module
+jest.mock('vectordb', () => {
   // Create mock collection
   const mockCollection = {
     add: jest.fn().mockResolvedValue(true),
     delete: jest.fn().mockResolvedValue(true),
-    select: jest.fn().mockReturnValue({
+    query: jest.fn().mockReturnValue({
       execute: jest.fn().mockResolvedValue([
         { id: 'item1', title: 'Item 1', source_type: 'pdf' },
         { id: 'item2', title: 'Item 2', source_type: 'url' }
@@ -24,15 +24,30 @@ jest.mock('@lancedb/lancedb', () => {
     })
   };
 
-  // Create mock db
+  // Create a mock for connect function
+  const connectMock = jest.fn();
+  
+  // Mock db object with methods
   const mockDb = {
-    tableNames: jest.fn().mockResolvedValue(['knowledge_items']),
-    createTable: jest.fn().mockResolvedValue(mockCollection),
-    openTable: jest.fn().mockResolvedValue(mockCollection)
+    openTable: jest.fn(),
+    createTable: jest.fn()
   };
-
+  
+  // Set up connect to return the mockDb
+  connectMock.mockReturnValue(mockDb);
+  
+  // Set up handling for both success and failure cases
+  mockDb.openTable.mockImplementation((tableName) => {
+    if (tableName === 'not_existing_table') {
+      throw new Error('Table does not exist');
+    }
+    return mockCollection;
+  });
+  
+  mockDb.createTable.mockReturnValue(mockCollection);
+  
   return {
-    connect: jest.fn().mockResolvedValue(mockDb)
+    connect: connectMock
   };
 });
 
@@ -62,6 +77,7 @@ jest.mock('../src/config', () => ({
 
 // Now load the database module which will use the mocks
 const { initializeDatabase, addItem, deleteItem, listItems, vectorSearch } = require('../src/services/database');
+const vectordb = require('vectordb');
 
 describe('Database Service', () => {
   beforeEach(() => {
@@ -79,25 +95,36 @@ describe('Database Service', () => {
     });
     
     test('should create collection if it does not exist', async () => {
-      // Mock that table doesn't exist yet
-      const lancedb = require('@lancedb/lancedb');
-      lancedb.connect().tableNames.mockResolvedValueOnce([]);
+      // Set up mock to throw error when trying to open table
+      vectordb.connect().openTable.mockImplementationOnce(() => {
+        throw new Error('Table does not exist');
+      });
       
       await initializeDatabase();
       
       // Should call createTable
-      expect(lancedb.connect().createTable).toHaveBeenCalled();
+      expect(vectordb.connect().createTable).toHaveBeenCalled();
     });
     
     test('should open existing collection if it exists', async () => {
-      // Mock that table already exists
-      const lancedb = require('@lancedb/lancedb');
-      lancedb.connect().tableNames.mockResolvedValueOnce(['knowledge_items']);
+      // Reset mock to return success
+      vectordb.connect().openTable.mockReturnValueOnce({
+        // Simple mock to prevent unhandled promise rejection
+        add: jest.fn().mockResolvedValue(true),
+        delete: jest.fn().mockResolvedValue(true),
+        query: jest.fn().mockReturnValue({
+          execute: jest.fn().mockResolvedValue([])
+        }),
+        search: jest.fn().mockReturnValue({
+          limit: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue([])
+        })
+      });
       
       await initializeDatabase();
       
-      // Should call openTable, not createTable
-      expect(lancedb.connect().openTable).toHaveBeenCalled();
+      // Should call openTable
+      expect(vectordb.connect().openTable).toHaveBeenCalled();
     });
   });
   
@@ -166,13 +193,30 @@ describe('Database Service', () => {
     });
     
     test('should respect the limit parameter', async () => {
+      const searchMock = jest.fn().mockReturnValue({
+        limit: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue([])
+      });
+      
+      // Set up the search mock for our collection
+      const collectionMock = {
+        search: searchMock
+      };
+      
+      // Make sure we use this mock
+      vectordb.connect().openTable.mockReturnValueOnce(collectionMock);
+      
+      // Re-initialize to get our new mock
+      await initializeDatabase();
+      
       const mockVector = new Array(384).fill(0.1);
       await vectorSearch(mockVector, 5);
       
-      // Check that the limit method was called with 5
-      const lancedb = require('@lancedb/lancedb');
-      const collection = lancedb.connect().openTable();
-      expect(collection.search().limit).toHaveBeenCalledWith(5);
+      // Check that search was called with the vector
+      expect(searchMock).toHaveBeenCalledWith(mockVector);
+      
+      // Check that limit was called with 5
+      expect(searchMock().limit).toHaveBeenCalledWith(5);
     });
   });
 }); 
