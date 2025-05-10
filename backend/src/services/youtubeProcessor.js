@@ -11,16 +11,17 @@ const { chunkByParagraphs } = require('../utils/textChunker');
 const { generateEmbeddings } = require('./embedding');
 const { addItem } = require('./database');
 const { createContextLogger } = require('../utils/logger');
+const { 
+  TempFileHandler, 
+  getTempFilePath,
+  ensureTempDir,
+  DEFAULT_TEMP_DIR
+} = require('../utils/tempFileManager');
+
 const logger = createContextLogger('YouTubeProcessor');
 
-// Define temp directory path
-const TEMP_DIR = path.resolve(__dirname, '../../../temp');
-
 // Ensure temp directory exists
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
-  logger.debug(`Created temp directory at: ${TEMP_DIR}`);
-}
+ensureTempDir();
 
 /**
  * Extract YouTube video ID from URL
@@ -82,6 +83,9 @@ async function processYouTube(url) {
     
     logger.debug(`Extracted video ID: ${videoId}`);
     
+    // Create a temp file handler for this operation
+    const tempHandler = new TempFileHandler(videoId);
+    
     // Fetch video info using youtube-dl-exec
     logger.debug(`Fetching video info for ID: ${videoId}`);
     const videoInfo = await youtubeDl(url, {
@@ -119,7 +123,7 @@ async function processYouTube(url) {
         logger.info(`Found subtitles for video: ${videoId}`);
         
         // Use youtube-dl-exec to write the subtitles to a temp file and read them
-        const tempSubtitlePath = path.join(TEMP_DIR, `subtitle_${videoId}.vtt`);
+        const tempSubtitlePath = getTempFilePath('subtitle', videoId, '.vtt');
         
         try {
           await youtubeDl(url, {
@@ -130,9 +134,20 @@ async function processYouTube(url) {
             output: tempSubtitlePath
           });
           
-          // Read the VTT file and extract just the text
-          if (fs.existsSync(tempSubtitlePath)) {
-            const vttContent = fs.readFileSync(tempSubtitlePath, 'utf8');
+          // Configure potential subtitle paths
+          const subtitleHandler = new TempFileHandler(videoId)
+            .addPossiblePaths([
+              tempSubtitlePath,
+              getTempFilePath('subtitle', videoId, '.en.vtt')
+            ])
+            .includeFilesMatching('subtitle')
+            .includeFilesMatching(videoId);
+          
+          // Find and read the subtitle file
+          const existingFile = subtitleHandler.findExistingFile();
+          
+          if (existingFile) {
+            const vttContent = fs.readFileSync(existingFile, 'utf8');
             
             // Simple VTT parsing - extract text lines (skip timings and headers)
             const textLines = vttContent
@@ -147,13 +162,10 @@ async function processYouTube(url) {
             transcript = textLines.join(' ');
             logger.debug(`Extracted transcript from subtitles`, { 
               charCount: transcript.length,
-              path: tempSubtitlePath
+              path: existingFile
             });
-            
-            // Clean up
-            fs.unlinkSync(tempSubtitlePath);
           } else {
-            logger.debug(`Subtitle file not found at: ${tempSubtitlePath}`);
+            logger.debug(`Subtitle file not found`);
           }
         } catch (error) {
           logger.warn(`Error extracting subtitles: ${error.message}`);
@@ -171,8 +183,7 @@ async function processYouTube(url) {
         logger.info(`Using automatic captions for video: ${videoId}`);
         
         // Use similar approach as above but with different options
-        const tempCaptionPath = path.join(TEMP_DIR, `caption_${videoId}.vtt.en.vtt`);
-        const tempOutputBase = path.join(TEMP_DIR, `caption_${videoId}`);
+        const tempCaptionBase = getTempFilePath('caption', videoId, '');
         
         try {
           await youtubeDl(url, {
@@ -180,49 +191,24 @@ async function processYouTube(url) {
             writeAutoSub: true,
             subLang: 'en',
             subFormat: 'vtt',
-            output: tempOutputBase
+            output: tempCaptionBase
           });
           
-          // Try multiple possible filename patterns that youtube-dl might create
-          const possiblePaths = [
-            tempCaptionPath,
-            path.join(TEMP_DIR, `caption_${videoId}.en.vtt`),
-            path.join(TEMP_DIR, `caption_${videoId}.vtt`),
-            path.join(TEMP_DIR, `temp_caption_${videoId}.vtt.en.vtt`)
-          ];
+          // Configure potential caption file paths
+          const captionHandler = new TempFileHandler(videoId)
+            .addPossiblePaths([
+              getTempFilePath('caption', videoId, '.vtt.en.vtt'),
+              getTempFilePath('caption', videoId, '.en.vtt'),
+              getTempFilePath('caption', videoId, '.vtt')
+            ])
+            .addFallbackPaths([
+              `./temp_caption_${videoId}.vtt.en.vtt`,
+              `./temp_caption_${videoId}.vtt`
+            ])
+            .includeFilesMatching('caption')
+            .includeFilesMatching(videoId);
           
-          // Find the first file that exists
-          let existingFile = null;
-          for (const filePath of possiblePaths) {
-            if (fs.existsSync(filePath)) {
-              existingFile = filePath;
-              break;
-            }
-          }
-          
-          // If no specific file found, check for any .vtt files in temp dir with the video ID
-          if (!existingFile) {
-            const files = fs.readdirSync(TEMP_DIR);
-            for (const file of files) {
-              if (file.includes(videoId) && file.endsWith('.vtt')) {
-                existingFile = path.join(TEMP_DIR, file);
-                break;
-              }
-            }
-          }
-          
-          // Fall back to checking current directory for the file
-          if (!existingFile) {
-            const currentDirFile = `./temp_caption_${videoId}.vtt.en.vtt`;
-            if (fs.existsSync(currentDirFile)) {
-              existingFile = currentDirFile;
-              
-              // Move it to the temp directory for consistency
-              fs.copyFileSync(currentDirFile, tempCaptionPath);
-              fs.unlinkSync(currentDirFile);
-              existingFile = tempCaptionPath;
-            }
-          }
+          const existingFile = captionHandler.findExistingFile();
           
           if (existingFile) {
             logger.debug(`Found caption file at: ${existingFile}`);
@@ -242,9 +228,6 @@ async function processYouTube(url) {
               charCount: transcript.length,
               path: existingFile
             });
-            
-            // Clean up
-            fs.unlinkSync(existingFile);
           } else {
             logger.warn(`No caption file found for video ID: ${videoId}`);
           }
@@ -254,18 +237,8 @@ async function processYouTube(url) {
       }
     }
     
-    // Clean up any leftover temp files with this video ID
-    const tempFiles = fs.readdirSync(TEMP_DIR);
-    tempFiles.forEach(file => {
-      if (file.includes(videoId)) {
-        try {
-          fs.unlinkSync(path.join(TEMP_DIR, file));
-          logger.debug(`Cleaned up temp file: ${file}`);
-        } catch (err) {
-          logger.warn(`Failed to clean up temp file: ${file}`, { error: err.message });
-        }
-      }
-    });
+    // Clean up all temp files for this video ID
+    tempHandler.cleanup();
     
     // If we still don't have a transcript, throw an error
     if (!transcript) {
