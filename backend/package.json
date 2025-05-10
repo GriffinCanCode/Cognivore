@@ -1,23 +1,35 @@
 {
-  "name": "backend",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "knowledge-store-backend",
+  "version": "0.1.0",
+  "description": "Backend for Knowledge Store application",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest"
   },
-  "keywords": [],
+  "keywords": [
+    "knowledge",
+    "store",
+    "vector",
+    "database",
+    "embeddings"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "@lancedb/lancedb": "^0.12.0",
-    "@langchain/community": "^0.3.42",
-    "@mozilla/readability": "^0.6.0",
-    "hnswlib-node": "^3.0.0",
-    "jsdom": "^26.1.0",
-    "langchain": "^0.3.24",
-    "node-nlp": "^5.0.0-alpha.5",
+    "@lancedb/lancedb": "^0.5.0",
+    "@langchain/community": "^0.0.27",
+    "@mozilla/readability": "^0.5.0",
+    "jsdom": "^24.0.0",
+    "langchain": "^0.1.17",
+    "node-nlp": "^4.27.0",
     "pdf-parse": "^1.1.1",
-    "youtube-dl-exec": "^3.0.21"
+    "uuid": "^11.1.0",
+    "youtube-dl-exec": "^2.5.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2"
   }
 }

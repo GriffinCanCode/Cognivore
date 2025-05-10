@@ -1,12 +1,29 @@
 {
-  "name": "frontend",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "knowledge-store-frontend",
+  "version": "0.1.0",
+  "description": "Frontend for Knowledge Store application",
+  "main": "src/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "test": "jest"
   },
-  "keywords": [],
+  "keywords": [
+    "knowledge",
+    "store",
+    "electron",
+    "vector",
+    "database"
+  ],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "dependencies": {
+    "electron": "^27.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.0.0"
+  }
 }

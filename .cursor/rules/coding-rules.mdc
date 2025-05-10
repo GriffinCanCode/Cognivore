@@ -1,5 +1,12 @@
 ---
-description:
-globs:
-alwaysApply: false
+description: 
+globs: 
+alwaysApply: true
 ---
+Do not guess, if something is not in context, use tools to locate it.
+
+Always create tests for all new components, and run tests on all edited components. These should by type accurate, and focus on testing cohesion and purpose.
+
+Always check that changes will not break old implementations.
+
+Always use patterns from the file when editing.

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Store</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Knowledge Store</h1>
+      <p>Griffin's personal knowledge management system</p>
+    </header>
+    
+    <main>
+      <section id="content-input">
+        <h2>Add Content</h2>
+        
+        <div class="input-section">
+          <h3>PDF Document</h3>
+          <input type="file" id="pdf-input" accept=".pdf">
+          <button id="process-pdf-btn">Process PDF</button>
+        </div>
+        
+        <div class="input-section">
+          <h3>Web URL</h3>
+          <input type="url" id="url-input" placeholder="https://example.com">
+          <button id="process-url-btn">Process URL</button>
+        </div>
+        
+        <div class="input-section">
+          <h3>YouTube URL</h3>
+          <input type="url" id="youtube-input" placeholder="https://www.youtube.com/watch?v=...">
+          <button id="process-youtube-btn">Process YouTube</button>
+        </div>
+      </section>
+      
+      <section id="content-list">
+        <h2>Stored Content</h2>
+        <button id="refresh-list-btn">Refresh List</button>
+        <ul id="item-list">
+          <!-- Items will be populated dynamically -->
+        </ul>
+      </section>
+    </main>
+    
+    <footer>
+      <p>Knowledge Store - Version 0.1.0</p>
+    </footer>
+  </div>
+  
+  <script src="./renderer.js"></script>
+</body>
+</html> 

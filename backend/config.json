@@ -1,0 +1,14 @@
+{
+  "database": {
+    "path": "./data/vector_db",
+    "name": "knowledge_store"
+  },
+  "processing": {
+    "chunkSize": 1000,
+    "chunkOverlap": 200
+  },
+  "embeddings": {
+    "modelName": "all-MiniLM-L6-v2",
+    "dimensions": 384
+  }
+} 

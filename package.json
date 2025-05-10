@@ -1,0 +1,27 @@
+{
+  "name": "knowledge-store",
+  "version": "0.1.0",
+  "description": "A personal knowledge management system",
+  "main": "frontend/src/main.js",
+  "scripts": {
+    "start": "electron frontend/src/main.js",
+    "dev": "cross-env NODE_ENV=development electron frontend/src/main.js",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm run start",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "test": "cd backend && npm test"
+  },
+  "keywords": [
+    "knowledge",
+    "store",
+    "vector",
+    "database",
+    "electron"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^27.0.0"
+  }
+}
