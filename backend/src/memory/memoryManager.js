@@ -3,7 +3,7 @@
  * Provides memory monitoring and adaptive batch sizing for efficient resource usage
  */
 
-const { createContextLogger } = require('./logger');
+const { createContextLogger } = require('../utils/logger');
 const logger = createContextLogger('MemoryManager');
 
 /**

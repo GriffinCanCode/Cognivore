@@ -121,3 +121,31 @@
 - Simplified test mocks to avoid circular references which were causing excessive memory usage
 - Added Babel transformation for Chai to handle ESM export syntax issues
 - Configured Jest to skip problematic database.test.js until further optimizations can be made
+
+## [0.2.1] - Memory Management Improvements
+
+### Added
+- Implemented advanced memory management system
+  - Created `backend/src/utils/memoryManager.js`: Utility for memory monitoring and dynamic batch sizing
+  - Added adaptive batch size calculation based on document/text size
+  - Implemented memory usage tracking and reporting
+  - Added garbage collection triggering for improved resource management
+  - Enhanced memory utilization by automatically scaling batch sizes for large documents
+  
+### Changed
+- Enhanced BatchProcessor with dynamic batch sizing capabilities
+  - Updated `backend/src/utils/batchers/batchProcessor.js` with memory-aware processing
+  - Added memory monitoring during batch processing
+  - Implemented automatic garbage collection between batch sets
+  - Improved batch sizing adaption for varying document sizes
+- Enhanced document processing pipeline with memory optimization
+  - Updated document processor to auto-detect large document sets and enable memory optimization
+  - Added memory state tracking and reporting throughout the processing pipeline
+  - Updated batch options to support memory-aware parameters
+- Improved test suite with memory management testing
+
+### Fixed
+- Fixed memory issues in PDF processing by implementing dynamic batch sizing
+- Prevented memory leaks in batch processing by cleaning up resources between batches
+- Improved processing of large document sets by automatically adjusting batch sizes
+- Enhanced memory monitoring to identify and address high memory usage patterns

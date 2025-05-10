@@ -46,7 +46,12 @@ class BaseProcessor {
         documentBatchSize: options.batch?.documentBatchSize || 5,
         chunkBatchSize: options.batch?.chunkBatchSize || 10,
         concurrency: options.batch?.concurrency || 2,
-        storeBatchSize: options.batch?.storeBatchSize || 50
+        storeBatchSize: options.batch?.storeBatchSize || 50,
+        dynamicBatchSize: options.batch?.dynamicBatchSize || false,
+        memoryMonitoring: options.batch?.memoryMonitoring || false,
+        targetBatchSizeMB: options.batch?.targetBatchSizeMB || 10,
+        maxBatchSize: options.batch?.maxBatchSize || 50,
+        minBatchSize: options.batch?.minBatchSize || 1
       }
     };
   }
@@ -85,7 +90,12 @@ class DocumentProcessor extends BaseProcessor {
         this.options.chunking,
         {
           batchSize: this.options.batch.documentBatchSize,
-          concurrency: this.options.batch.concurrency
+          concurrency: this.options.batch.concurrency,
+          dynamicBatchSize: this.options.batch.dynamicBatchSize,
+          memoryMonitoring: this.options.batch.memoryMonitoring,
+          targetBatchSizeMB: this.options.batch.targetBatchSizeMB,
+          maxBatchSize: this.options.batch.maxBatchSize,
+          minBatchSize: this.options.batch.minBatchSize
         }
       );
 
@@ -129,7 +139,12 @@ class DocumentProcessor extends BaseProcessor {
           this.options.embedding,
           {
             batchSize: this.options.batch.chunkBatchSize,
-            concurrency: this.options.batch.concurrency
+            concurrency: this.options.batch.concurrency,
+            dynamicBatchSize: this.options.batch.dynamicBatchSize,
+            memoryMonitoring: this.options.batch.memoryMonitoring,
+            targetBatchSizeMB: this.options.batch.targetBatchSizeMB,
+            maxBatchSize: this.options.batch.maxBatchSize,
+            minBatchSize: this.options.batch.minBatchSize
           }
         );
         

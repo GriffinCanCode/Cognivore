@@ -59,7 +59,12 @@ async function batchChunkDocuments(documents, options = {}, batchOptions = {}) {
     batchSize: batchOptions.batchSize || 10,
     concurrency: batchOptions.concurrency || 2,
     delayBetweenBatches: batchOptions.delayBetweenBatches || 0,
-    failFast: batchOptions.failFast || false
+    failFast: batchOptions.failFast || false,
+    dynamicBatchSize: batchOptions.dynamicBatchSize || false,
+    memoryMonitoring: batchOptions.memoryMonitoring || false,
+    targetBatchSizeMB: batchOptions.targetBatchSizeMB || 10,
+    maxBatchSize: batchOptions.maxBatchSize || 50,
+    minBatchSize: batchOptions.minBatchSize || 1
   });
 
   // Set up event listeners for monitoring

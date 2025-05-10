@@ -12,6 +12,8 @@
 *credential*
 id_rsa
 id_dsa
+backend/temp*
+*temp*
 backend/data/vector_db/*
 *backend/data/vector_db/*
 backend/data/vector_db
