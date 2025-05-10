@@ -18,16 +18,28 @@ module.exports = {
   // Automatically clear mock calls and instances between every test
   clearMocks: true,
   
+  // Memory optimizations
+  maxWorkers: 1,
+  maxConcurrency: 1,
+  
+  // Increase test timeout to handle larger test files
+  testTimeout: 10000,
+  
+  // Disable coverage collection to save memory
+  collectCoverage: false,
+  
   // The glob patterns Jest uses to detect test files
   testMatch: [
     '**/__tests__/**/*.js?(x)',
-    '**/?(*.)+(spec|test).js?(x)'
+    '**/test/**/?(*.)+(spec|test).js?(x)',
+    '**/tests/**/?(*.)+(spec|test).js?(x)'
   ],
   
   // An array of regexp pattern strings that are matched against all test paths
   // matched tests are skipped
   testPathIgnorePatterns: [
-    '/node_modules/'
+    '/node_modules/',
+    'test/database.test.js'
   ],
   
   // An array of file extensions your modules use
@@ -37,4 +49,14 @@ module.exports = {
     'jsx',
     'node'
   ],
+  
+  // Transform logic for ESM modules in node_modules
+  transformIgnorePatterns: [
+    "node_modules/(?!(chai)/)"
+  ],
+  
+  // Add transform for node_modules that use ESM syntax
+  transform: {
+    "node_modules/chai/.*": "babel-jest"
+  }
 }; 

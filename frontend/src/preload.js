@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('api', {
   processYouTube: (url) => ipcRenderer.invoke('process-youtube', url),
   deleteItem: (id) => ipcRenderer.invoke('delete-item', id),
   listItems: () => ipcRenderer.invoke('list-items'),
+  // Search method
+  search: (query, limit) => ipcRenderer.invoke('search', query, limit),
   
   // Logger API for renderer process
   logger: {

@@ -10,6 +10,16 @@ const youtubeButton = document.getElementById('process-youtube-btn');
 const refreshButton = document.getElementById('refresh-list-btn');
 const itemList = document.getElementById('item-list');
 
+// Search elements
+const searchInput = document.getElementById('search-input');
+const searchButton = document.getElementById('search-btn');
+const searchResults = document.getElementById('search-results');
+
+// Content viewer elements
+const contentViewer = document.getElementById('content-viewer');
+const contentMetadata = document.querySelector('.content-metadata');
+const contentText = document.querySelector('.content-text');
+
 // Status display helper
 function showStatus(message, isError = false) {
   const statusElement = document.createElement('div');
@@ -105,6 +115,124 @@ async function displayItems() {
   }
 }
 
+// Perform a search with the current query
+async function performSearch() {
+  const query = searchInput.value.trim();
+  
+  if (!query) {
+    showStatus('Please enter a search query', true);
+    return;
+  }
+  
+  try {
+    showStatus(`Searching for: ${query}...`);
+    searchResults.innerHTML = '<p>Searching...</p>';
+    
+    const response = await window.api.search(query, 10);
+    
+    if (!response.success) {
+      throw new Error(response.error || 'Unknown error occurred');
+    }
+    
+    const results = response.results || [];
+    
+    // Display results
+    displaySearchResults(results, query);
+  } catch (error) {
+    showStatus(`Search failed: ${error.message}`, true);
+    searchResults.innerHTML = `<p style="padding: 15px; color: #e74c3c;">Search error: ${error.message}</p>`;
+  }
+}
+
+// Display search results in the UI
+function displaySearchResults(results, query) {
+  searchResults.innerHTML = '';
+  
+  if (results.length === 0) {
+    searchResults.innerHTML = '<p style="padding: 15px; font-style: italic;">No results found for your query.</p>';
+    return;
+  }
+  
+  // Create header
+  const header = document.createElement('div');
+  header.style.padding = '10px 15px';
+  header.style.borderBottom = '1px solid #eee';
+  header.style.backgroundColor = '#f9f9f9';
+  header.innerHTML = `<strong>Found ${results.length} results for "${query}"</strong>`;
+  searchResults.appendChild(header);
+  
+  // Create result items
+  results.forEach(result => {
+    const resultItem = document.createElement('div');
+    resultItem.className = 'search-result-item';
+    
+    // Create title with source info
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'search-result-title';
+    
+    const title = document.createElement('span');
+    title.textContent = result.title;
+    
+    const sourceType = document.createElement('span');
+    sourceType.className = 'search-result-source';
+    sourceType.textContent = result.sourceType.toUpperCase();
+    sourceType.style.backgroundColor = getSourceColor(result.sourceType);
+    sourceType.style.color = 'white';
+    sourceType.style.padding = '2px 6px';
+    sourceType.style.borderRadius = '10px';
+    sourceType.style.fontSize = '0.7rem';
+    
+    titleDiv.appendChild(title);
+    titleDiv.appendChild(sourceType);
+    resultItem.appendChild(titleDiv);
+    
+    // Create text snippet
+    const textDiv = document.createElement('div');
+    textDiv.className = 'search-result-text';
+    textDiv.textContent = result.textChunk;
+    resultItem.appendChild(textDiv);
+    
+    // Add click handler to view the full content
+    resultItem.addEventListener('click', () => {
+      viewItem(result.id, result);
+    });
+    
+    searchResults.appendChild(resultItem);
+  });
+}
+
+// View the full content of an item
+async function viewItem(itemId, preloadedData = null) {
+  try {
+    // In a real implementation, we would fetch the full content by ID
+    // For now, we'll just use the preloaded data from search results
+    if (!preloadedData) {
+      showStatus('Full content viewing not implemented yet.');
+      return;
+    }
+    
+    // Display content viewer
+    contentViewer.style.display = 'block';
+    
+    // Populate metadata section
+    contentMetadata.innerHTML = `
+      <h3>${preloadedData.title}</h3>
+      <div>
+        <p><strong>Source Type:</strong> ${preloadedData.sourceType}</p>
+        <p><strong>Source:</strong> ${preloadedData.sourceIdentifier}</p>
+      </div>
+    `;
+    
+    // Populate text section
+    contentText.textContent = preloadedData.textChunk;
+    
+    // Scroll to content viewer
+    contentViewer.scrollIntoView({ behavior: 'smooth' });
+  } catch (error) {
+    showStatus(`Error viewing item: ${error.message}`, true);
+  }
+}
+
 // Helper to get color based on source type
 function getSourceColor(sourceType) {
   switch (sourceType.toLowerCase()) {
@@ -169,6 +297,16 @@ youtubeButton.addEventListener('click', async () => {
     displayItems(); // Refresh the list
   } catch (error) {
     showStatus(`Failed to process YouTube URL: ${error.message}`, true);
+  }
+});
+
+// Handle search button click
+searchButton.addEventListener('click', performSearch);
+
+// Handle pressing Enter in search input
+searchInput.addEventListener('keypress', (event) => {
+  if (event.key === 'Enter') {
+    performSearch();
   }
 });
 

@@ -14,6 +14,17 @@
     </header>
     
     <main>
+      <section id="search-section">
+        <h2>Search Your Knowledge</h2>
+        <div class="search-container">
+          <input type="text" id="search-input" placeholder="Enter your search query...">
+          <button id="search-btn">Search</button>
+        </div>
+        <div id="search-results">
+          <!-- Search results will be displayed here -->
+        </div>
+      </section>
+      
       <section id="content-input">
         <h2>Add Content</h2>
         
@@ -42,6 +53,16 @@
         <ul id="item-list">
           <!-- Items will be populated dynamically -->
         </ul>
+      </section>
+
+      <section id="content-viewer" style="display: none;">
+        <h2>Content Viewer</h2>
+        <div class="content-metadata">
+          <!-- Metadata will be displayed here -->
+        </div>
+        <div class="content-text">
+          <!-- Content text will be displayed here -->
+        </div>
       </section>
     </main>
     

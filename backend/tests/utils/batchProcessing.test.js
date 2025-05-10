@@ -2,8 +2,6 @@
  * Tests for batch processing utilities
  */
 
-const { expect } = require('chai');
-const sinon = require('sinon');
 const BatchProcessor = require('../../src/utils/batchers/batchProcessor');
 const { batchChunkDocuments } = require('../../src/utils/batchers/chunkerBatch');
 const { batchGenerateEmbeddings } = require('../../src/utils/batchers/embeddingBatch');
@@ -16,30 +14,33 @@ describe('Batch Processing Utilities', () => {
     it('should process items in batches', async () => {
       const processor = new BatchProcessor({ batchSize: 2 });
       const items = [1, 2, 3, 4, 5];
-      const processFn = sinon.stub().callsFake(batch => {
+      const processFn = jest.fn().mockImplementation(batch => {
         return batch.map(item => item * 2);
       });
       
       const results = await processor.process(items, processFn);
       
-      expect(results).to.deep.equal([2, 4, 6, 8, 10]);
-      expect(processFn.callCount).to.equal(3); // 3 batches of size 2 (with last batch having 1 item)
+      expect(results).toEqual([2, 4, 6, 8, 10]);
+      expect(processFn).toHaveBeenCalledTimes(3); // 3 batches of size 2 (with last batch having 1 item)
     });
     
     it('should handle errors with failFast=false', async () => {
       const processor = new BatchProcessor({ batchSize: 2, failFast: false });
       const items = [1, 2, 3, 4, 5];
-      const processFn = sinon.stub();
+      const processFn = jest.fn();
       
       // First batch succeeds, second fails, third succeeds
-      processFn.onFirstCall().returns([2, 4]);
-      processFn.onSecondCall().throws(new Error('Test error'));
-      processFn.onThirdCall().returns([10]);
+      processFn
+        .mockReturnValueOnce([2, 4])
+        .mockImplementationOnce(() => {
+          throw new Error('Test error');
+        })
+        .mockReturnValueOnce([10]);
       
       const results = await processor.process(items, processFn);
       
-      expect(results).to.deep.equal([2, 4, 10]);
-      expect(processFn.callCount).to.equal(3);
+      expect(results).toEqual([2, 4, 10]);
+      expect(processFn).toHaveBeenCalledTimes(3);
     });
     
     it('should emit events during processing', async () => {
@@ -47,9 +48,9 @@ describe('Batch Processing Utilities', () => {
       const items = [1, 2, 3, 4];
       const processFn = batch => batch.map(item => item * 2);
       
-      const batchStartSpy = sinon.spy();
-      const batchCompleteSpy = sinon.spy();
-      const processingCompleteSpy = sinon.spy();
+      const batchStartSpy = jest.fn();
+      const batchCompleteSpy = jest.fn();
+      const processingCompleteSpy = jest.fn();
       
       processor.on('batchStart', batchStartSpy);
       processor.on('batchComplete', batchCompleteSpy);
@@ -57,9 +58,9 @@ describe('Batch Processing Utilities', () => {
       
       await processor.process(items, processFn);
       
-      expect(batchStartSpy.callCount).to.equal(2);
-      expect(batchCompleteSpy.callCount).to.equal(2);
-      expect(processingCompleteSpy.callCount).to.equal(1);
+      expect(batchStartSpy).toHaveBeenCalledTimes(2);
+      expect(batchCompleteSpy).toHaveBeenCalledTimes(2);
+      expect(processingCompleteSpy).toHaveBeenCalledTimes(1);
     });
   });
   
@@ -72,12 +73,12 @@ describe('Batch Processing Utilities', () => {
       
       const results = await batchChunkDocuments(documents, { strategy: 'paragraphs' });
       
-      expect(results).to.have.lengthOf(2);
-      expect(results[0].id).to.equal('doc1');
-      expect(results[1].id).to.equal('doc2');
-      expect(results[0].chunks).to.be.an('array');
-      expect(results[1].chunks).to.be.an('array');
-      expect(results[1].chunks.length).to.be.greaterThan(1); // Should have multiple chunks for doc2
+      expect(results).toHaveLength(2);
+      expect(results[0].id).toBe('doc1');
+      expect(results[1].id).toBe('doc2');
+      expect(Array.isArray(results[0].chunks)).toBe(true);
+      expect(Array.isArray(results[1].chunks)).toBe(true);
+      expect(results[1].chunks.length).toBeGreaterThan(1); // Should have multiple chunks for doc2
     });
   });
   
@@ -91,9 +92,9 @@ describe('Batch Processing Utilities', () => {
       
       const results = await batchGenerateEmbeddings(chunks);
       
-      expect(results).to.have.lengthOf(3);
-      expect(results[0].embedding).to.be.an('array');
-      expect(results[0].content).to.equal(chunks[0]);
+      expect(results).toHaveLength(3);
+      expect(Array.isArray(results[0].embedding)).toBe(true);
+      expect(results[0].content).toBe(chunks[0]);
     });
     
     it('should handle text chunks with metadata', async () => {
@@ -104,10 +105,10 @@ describe('Batch Processing Utilities', () => {
       
       const results = await batchGenerateEmbeddings(chunks, { includeMetadata: true });
       
-      expect(results).to.have.lengthOf(2);
-      expect(results[0].embedding).to.be.an('array');
-      expect(results[0].documentId).to.equal('doc1');
-      expect(results[0].metadata).to.deep.equal({ source: 'test' });
+      expect(results).toHaveLength(2);
+      expect(Array.isArray(results[0].embedding)).toBe(true);
+      expect(results[0].documentId).toBe('doc1');
+      expect(results[0].metadata).toEqual({ source: 'test' });
     });
   });
   
@@ -128,7 +129,7 @@ describe('Batch Processing Utilities', () => {
       ];
       
       // Mock store function
-      const storeFn = sinon.stub().resolves(['stored1', 'stored2']);
+      const storeFn = jest.fn().mockResolvedValue(['stored1', 'stored2']);
       
       const results = await processDocuments(documents, {
         chunking: { strategy: 'paragraphs' },
@@ -136,10 +137,12 @@ describe('Batch Processing Utilities', () => {
         batch: { documentBatchSize: 2, chunkBatchSize: 5 }
       }, storeFn);
       
-      expect(results).to.have.property('documentCount', 2);
-      expect(results).to.have.property('chunkCount').that.is.greaterThan(1);
-      expect(results).to.have.property('embeddingCount').that.is.greaterThan(1);
-      expect(storeFn.called).to.be.true;
+      expect(results).toHaveProperty('documentCount', 2);
+      expect(results).toHaveProperty('chunkCount');
+      expect(results.chunkCount).toBeGreaterThan(1);
+      expect(results).toHaveProperty('embeddingCount');
+      expect(results.embeddingCount).toBeGreaterThan(1);
+      expect(storeFn).toHaveBeenCalled();
     });
     
     it('should process documents without storing', async () => {
@@ -153,8 +156,9 @@ describe('Batch Processing Utilities', () => {
         chunking: { strategy: 'characters', chunkSize: 20 }
       });
       
-      expect(results).to.have.property('documentCount', 2);
-      expect(results).to.have.property('embeddings').that.is.an('array');
+      expect(results).toHaveProperty('documentCount', 2);
+      expect(results).toHaveProperty('embeddings');
+      expect(Array.isArray(results.embeddings)).toBe(true);
     });
   });
   
@@ -166,8 +170,8 @@ describe('Batch Processing Utilities', () => {
       };
       
       const processor = createDocumentProcessor(options);
-      expect(processor.options.chunking.strategy).to.equal('markdown');
-      expect(processor.options.batch.concurrency).to.equal(4);
+      expect(processor.options.chunking.strategy).toBe('markdown');
+      expect(processor.options.batch.concurrency).toBe(4);
     });
     
     it('should create a PDF processor with options', () => {
@@ -177,15 +181,15 @@ describe('Batch Processing Utilities', () => {
       };
       
       const processor = createPDFProcessor(options);
-      expect(processor.options.chunking.strategy).to.equal('paragraphs');
-      expect(processor.options.embedding.includeContent).to.be.false;
+      expect(processor.options.chunking.strategy).toBe('paragraphs');
+      expect(processor.options.embedding.includeContent).toBe(false);
     });
     
     it('should apply default options when not specified', () => {
       const processor = createDocumentProcessor();
-      expect(processor.options.chunking.strategy).to.equal('characters');
-      expect(processor.options.batch.documentBatchSize).to.equal(5);
-      expect(processor.options.embedding.includeContent).to.be.true;
+      expect(processor.options.chunking.strategy).toBe('characters');
+      expect(processor.options.batch.documentBatchSize).toBe(5);
+      expect(processor.options.embedding.includeContent).toBe(true);
     });
   });
 }); 

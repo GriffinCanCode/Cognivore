@@ -5,49 +5,36 @@
 
 // Mock the vectordb module
 jest.mock('vectordb', () => {
-  // Create mock collection
+  // Create simple mock functions that don't hold large object references
+  const mockExecute = jest.fn().mockResolvedValue([
+    { id: 'item1', title: 'Item 1', source_type: 'pdf', _distance: 0.1 },
+    { id: 'item2', title: 'Item 2', source_type: 'url', _distance: 0.3 }
+  ]);
+
+  const mockLimit = jest.fn().mockReturnValue({ execute: mockExecute });
+  
+  const mockSearch = jest.fn().mockReturnValue({ limit: mockLimit });
+  
+  // Create mock collection with simple implementations
   const mockCollection = {
     add: jest.fn().mockResolvedValue(true),
     delete: jest.fn().mockResolvedValue(true),
-    query: jest.fn().mockReturnValue({
-      execute: jest.fn().mockResolvedValue([
-        { id: 'item1', title: 'Item 1', source_type: 'pdf' },
-        { id: 'item2', title: 'Item 2', source_type: 'url' }
-      ])
-    }),
-    search: jest.fn().mockReturnValue({
-      limit: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue([
-        { id: 'item1', title: 'Item 1', source_type: 'pdf', _distance: 0.1 },
-        { id: 'item2', title: 'Item 2', source_type: 'url', _distance: 0.3 }
-      ])
-    })
+    search: mockSearch
   };
 
   // Create a mock for connect function
-  const connectMock = jest.fn();
-  
-  // Mock db object with methods
   const mockDb = {
-    openTable: jest.fn(),
-    createTable: jest.fn()
+    openTable: jest.fn().mockImplementation((tableName) => {
+      if (tableName === 'not_existing_table') {
+        throw new Error('Table does not exist');
+      }
+      return mockCollection;
+    }),
+    createTable: jest.fn().mockReturnValue(mockCollection)
   };
   
-  // Set up connect to return the mockDb
-  connectMock.mockReturnValue(mockDb);
-  
-  // Set up handling for both success and failure cases
-  mockDb.openTable.mockImplementation((tableName) => {
-    if (tableName === 'not_existing_table') {
-      throw new Error('Table does not exist');
-    }
-    return mockCollection;
-  });
-  
-  mockDb.createTable.mockReturnValue(mockCollection);
-  
   return {
-    connect: connectMock
+    connect: jest.fn().mockReturnValue(mockDb)
   };
 });
 
@@ -85,6 +72,13 @@ describe('Database Service', () => {
     jest.clearAllMocks();
   });
   
+  // Run after all tests to clean up
+  afterAll(() => {
+    // Reset all mocks and clear memory
+    jest.resetModules();
+    jest.resetAllMocks();
+  });
+  
   describe('initializeDatabase', () => {
     test('should initialize database and return the collection', async () => {
       const result = await initializeDatabase();
@@ -112,9 +106,6 @@ describe('Database Service', () => {
         // Simple mock to prevent unhandled promise rejection
         add: jest.fn().mockResolvedValue(true),
         delete: jest.fn().mockResolvedValue(true),
-        query: jest.fn().mockReturnValue({
-          execute: jest.fn().mockResolvedValue([])
-        }),
         search: jest.fn().mockReturnValue({
           limit: jest.fn().mockReturnThis(),
           execute: jest.fn().mockResolvedValue([])
@@ -193,24 +184,11 @@ describe('Database Service', () => {
     });
     
     test('should respect the limit parameter', async () => {
-      const searchMock = jest.fn().mockReturnValue({
-        limit: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue([])
-      });
-      
-      // Set up the search mock for our collection
-      const collectionMock = {
-        search: searchMock
-      };
-      
-      // Make sure we use this mock
-      vectordb.connect().openTable.mockReturnValueOnce(collectionMock);
-      
-      // Re-initialize to get our new mock
-      await initializeDatabase();
-      
       const mockVector = new Array(384).fill(0.1);
       await vectorSearch(mockVector, 5);
+      
+      // Get the vectordb mock
+      const searchMock = require('vectordb').connect().openTable().search;
       
       // Check that search was called with the vector
       expect(searchMock).toHaveBeenCalledWith(mockVector);
