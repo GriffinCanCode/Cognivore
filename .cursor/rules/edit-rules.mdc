@@ -1,0 +1,9 @@
+---
+description: When adding new features.
+globs: 
+alwaysApply: false
+---
+Always check [test-rules.mdc](mdc:.cursor/rules/test-rules.mdc) first before edits, and ensure you test components that are added and add tests for new ones.
+
+Make sure edits always are relevant to the tech stack, for example, do not use new implementation patterns for libraries that in this project are using older versions.
+

@@ -121,9 +121,10 @@ async function listItems() {
   }
   
   try {
-    // In vectordb (older API), we need to use select() to get specific fields
-    const query = collection.query();
-    const results = await query.execute();
+    // Since neither query() nor scan() is available, use search with a dummy vector
+    // This should return all items when no specific vector search is performed
+    const sampleVector = new Array(config.embeddings.dimensions).fill(0);
+    const results = await collection.search(sampleVector).limit(1000).execute();
     
     // Process results to extract just the needed fields
     return results.map(item => ({

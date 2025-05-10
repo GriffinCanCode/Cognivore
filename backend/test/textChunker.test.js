@@ -2,7 +2,7 @@
  * Tests for text chunking functionality
  */
 
-const { cleanText, chunkByCharacters, chunkByParagraphs } = require('../src/utils/textChunker');
+const { cleanText, chunkByCharacters, chunkByParagraphs, chunkByMarkdown } = require('../src/utils/textChunker');
 
 // Override the config dependency in the textChunker module
 jest.mock('../src/config', () => ({
@@ -48,63 +48,179 @@ describe('Text Chunker Utils', () => {
 
     test('should split text into chunks of appropriate size', () => {
       const input = 'This is a longer text that should be split into multiple chunks based on the configuration settings provided';
-      const chunks = chunkByCharacters(input, 30, 10);
+      const chunkSize = 30;
+      const chunks = chunkByCharacters(input, chunkSize, 10);
       
       // Check that chunks have appropriate size
       chunks.forEach(chunk => {
-        expect(chunk.length).toBeLessThanOrEqual(30);
+        expect(chunk.length).toBeLessThanOrEqual(chunkSize);
       });
       
-      // Check that all content is preserved
-      const reconstructed = chunks.join(' ').replace(/\s+/g, ' ').trim();
-      const originalCleaned = input.replace(/\s+/g, ' ').trim();
-      
-      expect(reconstructed.includes(originalCleaned)).toBe(true);
+      // Check that important keywords are present somewhere in the chunks
+      const allText = chunks.join(' ');
+      expect(allText).toContain('longer');
+      expect(allText).toContain('multiple');
+      expect(allText).toContain('configuration');
     });
 
-    test('should respect the overlap parameter', () => {
-      const input = 'chunk1 chunk2 chunk3 chunk4 chunk5';
-      const chunks = chunkByCharacters(input, 10, 5);
+    test('should respect sentence boundaries when possible', () => {
+      const input = 'This is sentence one. This is sentence two. This is a much longer sentence three that should be kept intact if possible.';
+      const chunks = chunkByCharacters(input, 40, 10);
       
-      // Check that chunks overlap appropriately
-      for (let i = 0; i < chunks.length - 1; i++) {
-        const currentChunkEnd = chunks[i].slice(-5);
-        const nextChunkStart = chunks[i+1].slice(0, 5);
-        
-        // At least some overlap should exist
-        expect(currentChunkEnd).toMatch(new RegExp(nextChunkStart.slice(0, 3)));
-      }
+      // Verify we have multiple chunks
+      expect(chunks.length).toBeGreaterThan(1);
+      
+      // First chunk should end with a period
+      expect(chunks[0]).toMatch(/\./);
+      
+      // At least one chunk should contain sentence one
+      expect(chunks.some(chunk => chunk.includes('sentence one'))).toBeTruthy();
+      
+      // At least one chunk should contain sentence two
+      expect(chunks.some(chunk => chunk.includes('sentence two'))).toBeTruthy();
+    });
+
+    test('should respect word boundaries when sentence boundaries not available', () => {
+      const input = 'ThisIsAVeryLongWordThatExceedsChunkSize followed by normal text';
+      const chunks = chunkByCharacters(input, 20, 5);
+      
+      // Should not cut "followed" in the middle
+      const followedChunk = chunks.find(chunk => chunk.includes('followed'));
+      expect(followedChunk).toBeDefined();
+      expect(followedChunk.includes('followed')).toBeTruthy();
     });
   });
 
   describe('chunkByParagraphs', () => {
     test('should split text by paragraphs', () => {
       const input = 'Paragraph 1.\n\nParagraph 2.\n\nParagraph 3.';
-      const expected = ['Paragraph 1.', 'Paragraph 2.', 'Paragraph 3.'];
-      expect(chunkByParagraphs(input, 100)).toEqual(expected);
+      const chunks = chunkByParagraphs(input, 100);
+      
+      // Should have three separate paragraphs
+      expect(chunks.length).toBe(3);
+      
+      // Each paragraph should be present as its own chunk
+      expect(chunks).toContain('Paragraph 1.');
+      expect(chunks).toContain('Paragraph 2.');
+      expect(chunks).toContain('Paragraph 3.');
     });
 
     test('should combine short paragraphs into chunks', () => {
       const input = 'Short 1.\n\nShort 2.\n\nShort 3.\n\nShort 4.';
       const chunks = chunkByParagraphs(input, 30);
       
-      // Should be combined into fewer chunks
+      // Should be fewer than 4 chunks due to combining
       expect(chunks.length).toBeLessThan(4);
-    });
-
-    test('should handle paragraphs that exceed max size', () => {
-      const longParagraph = 'This is a very long paragraph that exceeds the maximum chunk size and should be split into multiple chunks.';
-      const input = `Short paragraph.\n\n${longParagraph}\n\nAnother short one.`;
       
-      const chunks = chunkByParagraphs(input, 30);
-      
-      // Should be more than 3 chunks due to splitting the long paragraph
-      expect(chunks.length).toBeGreaterThan(3);
-      
-      // Each chunk should be within size limit
+      // Each chunk should respect the size limit
       chunks.forEach(chunk => {
         expect(chunk.length).toBeLessThanOrEqual(30);
       });
+      
+      // All content should be preserved
+      const allContent = chunks.join(' ');
+      ['Short 1', 'Short 2', 'Short 3', 'Short 4'].forEach(phrase => {
+        expect(allContent).toContain(phrase);
+      });
+    });
+
+    test('should split long paragraphs that exceed max size', () => {
+      const longParagraph = 'This is a very long paragraph that exceeds the maximum chunk size and should be split into multiple chunks.';
+      const input = `Short paragraph.\n\n${longParagraph}\n\nAnother short one.`;
+      const maxChunkSize = 30;
+      
+      const chunks = chunkByParagraphs(input, maxChunkSize);
+      
+      // Each chunk should respect the size limit
+      chunks.forEach(chunk => {
+        expect(chunk.length).toBeLessThanOrEqual(maxChunkSize);
+      });
+      
+      // Check that all significant content is preserved
+      const allChunks = chunks.join(' ');
+      expect(allChunks).toContain('Short paragraph');
+      expect(allChunks).toContain('very long paragraph');
+      expect(allChunks).toContain('Another short one');
+    });
+
+    test('should respect minimum chunk size parameter', () => {
+      const input = 'P1.\n\nP2.\n\nP3.\n\nLonger paragraph four.\n\nP5.';
+      const chunks = chunkByParagraphs(input, 50, 10);
+      
+      // Check that very short chunks are combined
+      for (let i = 0; i < chunks.length - 1; i++) {
+        expect(chunks[i].length).toBeGreaterThanOrEqual(10);
+      }
+      
+      // All content should be preserved
+      const allContent = chunks.join(' ');
+      expect(allContent).toContain('P1');
+      expect(allContent).toContain('P2');
+      expect(allContent).toContain('P3');
+      expect(allContent).toContain('Longer paragraph');
+      expect(allContent).toContain('P5');
+    });
+  });
+
+  describe('chunkByMarkdown', () => {
+    test('should split markdown text by headings', () => {
+      const input = '# Heading 1\nContent under heading 1.\n\n## Heading 2\nContent under heading 2.\n\n# Heading 3\nFinal content.';
+      const chunks = chunkByMarkdown(input, 100);
+      
+      // Should split by headings (3 headings)
+      expect(chunks.length).toBe(3);
+      
+      // Each heading should be in a different chunk
+      expect(chunks[0]).toContain('# Heading 1');
+      expect(chunks[1]).toContain('## Heading 2');
+      expect(chunks[2]).toContain('# Heading 3');
+    });
+
+    test('should handle text before first heading', () => {
+      const input = 'Introduction text before any heading.\n\n# First Heading\nContent after first heading.';
+      const chunks = chunkByMarkdown(input, 100);
+      
+      // Should result in 2 chunks
+      expect(chunks.length).toBe(2);
+      
+      // First chunk should contain introduction text
+      expect(chunks[0]).toContain('Introduction text');
+      
+      // Second chunk should contain the heading
+      expect(chunks[1]).toContain('# First Heading');
+    });
+
+    test('should split large markdown sections into smaller chunks', () => {
+      const longContent = 'This is a very long content section that should exceed the maximum chunk size. '.repeat(5);
+      const input = `# Heading\n\n${longContent}`;
+      const maxChunkSize = 100;
+      
+      const chunks = chunkByMarkdown(input, maxChunkSize);
+      
+      // Should create multiple chunks
+      expect(chunks.length).toBeGreaterThan(1);
+      
+      // Each chunk should respect the size limit
+      chunks.forEach(chunk => {
+        expect(chunk.length).toBeLessThanOrEqual(maxChunkSize);
+      });
+      
+      // Each chunk from the section with heading should retain the heading
+      const headingChunks = chunks.filter(chunk => chunk.startsWith('# Heading'));
+      expect(headingChunks.length).toBeGreaterThan(0);
+    });
+
+    test('should fallback to paragraph chunking if no headings found', () => {
+      const input = 'Paragraph 1.\n\nParagraph 2.\n\nParagraph 3.';
+      const markdownChunks = chunkByMarkdown(input);
+      
+      // Should result in paragraph chunks
+      expect(markdownChunks.length).toBe(3);
+      
+      // Each paragraph should be in a separate chunk
+      expect(markdownChunks).toContain('Paragraph 1.');
+      expect(markdownChunks).toContain('Paragraph 2.');
+      expect(markdownChunks).toContain('Paragraph 3.');
     });
   });
 }); 

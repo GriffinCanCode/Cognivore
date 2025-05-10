@@ -1,6 +1,6 @@
 {
   "database": {
-    "path": "./data/vector_db",
+    "path": "./backend/data/vector_db",
     "name": "knowledge_store"
   },
   "processing": {

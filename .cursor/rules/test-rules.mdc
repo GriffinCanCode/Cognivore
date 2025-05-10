@@ -1,0 +1,10 @@
+---
+description: 
+globs: *.test*
+alwaysApply: false
+---
+Do not harcode answers to tests.
+
+Never adjust the file you are testing to better fit the test, adjust the test to better fit our implentation but only if that doesn't defeat its purpose as a test.
+
+Favor answers that maintain our ecosystem and its robustness.
