@@ -30,6 +30,16 @@ const defaultConfig = {
   paths: {
     modelCache: path.join(__dirname, '../../models'), // Local storage for downloaded models
     tempDir: path.join(__dirname, '../../temp'), // Temporary file storage
+    logsDir: path.join(__dirname, '../../logs'), // Log file storage
+  },
+  
+  // Logging configuration
+  logging: {
+    level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
+    maxFiles: process.env.LOG_MAX_FILES || '14d', // Keep logs for 14 days
+    maxSize: process.env.LOG_MAX_SIZE || '20m', // 20MB per file
+    colorize: true, // Colorize console output
+    errorLogsMaxFiles: '30d', // Keep error logs longer
   }
 };
 
@@ -68,6 +78,10 @@ function loadConfig(configPath) {
     paths: {
       ...defaultConfig.paths,
       ...(userConfig.paths || {})
+    },
+    logging: {
+      ...defaultConfig.logging,
+      ...(userConfig.logging || {})
     }
   };
 }
@@ -77,7 +91,12 @@ const configPath = process.env.CONFIG_PATH || path.join(__dirname, '../../config
 const config = loadConfig(configPath);
 
 // Create necessary directories if they don't exist
-[config.database.path, config.paths.modelCache, config.paths.tempDir].forEach(dir => {
+[
+  config.database.path, 
+  config.paths.modelCache, 
+  config.paths.tempDir,
+  config.paths.logsDir
+].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
     console.log(`Created directory: ${dir}`);

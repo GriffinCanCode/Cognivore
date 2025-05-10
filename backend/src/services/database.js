@@ -7,6 +7,8 @@ const lancedb = require('vectordb');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const { createContextLogger } = require('../utils/logger');
+const logger = createContextLogger('Database');
 
 let db;
 let collection;
@@ -21,20 +23,20 @@ async function initializeDatabase() {
     const dbPath = config.database.path;
     if (!fs.existsSync(dbPath)) {
       fs.mkdirSync(dbPath, { recursive: true });
-      console.log(`Created database directory: ${dbPath}`);
+      logger.info(`Created database directory: ${dbPath}`);
     }
 
     // Connect to LanceDB
     db = await lancedb.connect(dbPath);
-    console.log('Connected to LanceDB');
+    logger.info('Connected to LanceDB');
 
     try {
       // Try to open the existing collection
       collection = await db.openTable(config.database.collection);
-      console.log(`Opened existing collection: ${config.database.collection}`);
+      logger.info(`Opened existing collection: ${config.database.collection}`);
     } catch (error) {
       // Collection doesn't exist, create it
-      console.log(`Creating new collection: ${config.database.collection}`);
+      logger.info(`Creating new collection: ${config.database.collection}`);
       
       // Create a simple consistent vector for initialization
       const sampleVector = new Array(config.embeddings.dimensions).fill(0);
@@ -57,12 +59,12 @@ async function initializeDatabase() {
       
       // Create collection
       collection = await db.createTable(config.database.collection, sampleData);
-      console.log(`Created collection: ${config.database.collection}`);
+      logger.info(`Created collection: ${config.database.collection}`);
     }
     
     return { db, collection };
   } catch (error) {
-    console.error('Error initializing database:', error);
+    logger.error('Error initializing database:', error);
     throw error;
   }
 }
@@ -86,7 +88,7 @@ async function addItem(item) {
     await collection.add([item]);
     return item;
   } catch (error) {
-    console.error('Error adding item to database:', error);
+    logger.error('Error adding item to database:', error);
     throw error;
   }
 }
@@ -106,7 +108,7 @@ async function deleteItem(id) {
     await collection.delete(`id='${id}'`);
     return true;
   } catch (error) {
-    console.error(`Error deleting item with ID ${id}:`, error);
+    logger.error(`Error deleting item with ID ${id}:`, error);
     throw error;
   }
 }
@@ -133,7 +135,7 @@ async function listItems() {
       source_type: item.source_type
     }));
   } catch (error) {
-    console.error('Error listing items from database:', error);
+    logger.error('Error listing items from database:', error);
     throw error;
   }
 }
@@ -157,7 +159,7 @@ async function vectorSearch(queryVector, limit = 5) {
     
     return results;
   } catch (error) {
-    console.error('Error performing vector search:', error);
+    logger.error('Error performing vector search:', error);
     throw error;
   }
 }

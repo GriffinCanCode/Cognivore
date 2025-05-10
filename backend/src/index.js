@@ -5,26 +5,36 @@
 
 const config = require('./config');
 const { initializeDatabase } = require('./services/database');
+const { logger } = require('./utils/logger');
 
 async function main() {
-  console.log('Starting Knowledge Store Backend...');
+  logger.info('Starting Knowledge Store Backend...');
   
   try {
     // Initialize vector database
-    console.log('Initializing database...');
+    logger.info('Initializing database...');
     const db = await initializeDatabase();
-    console.log(`Database initialized at ${config.database.path}`);
+    logger.info(`Database initialized at ${config.database.path}`);
     
     // Database is ready for use by the content processing pipelines
-    console.log('Knowledge Store Backend is ready!');
+    logger.info('Knowledge Store Backend is ready!');
     
     // Keep the process running
     process.on('SIGINT', async () => {
-      console.log('Shutting down...');
+      logger.info('Shutting down...');
       process.exit(0);
     });
+
+    // Global error handlers
+    process.on('uncaughtException', (error) => {
+      logger.error('Uncaught Exception:', error);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('Unhandled Promise Rejection:', { reason, promise });
+    });
   } catch (error) {
-    console.error('Error initializing backend:', error);
+    logger.error('Error initializing backend:', error);
     process.exit(1);
   }
 }

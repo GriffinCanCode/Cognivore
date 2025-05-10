@@ -49,7 +49,3 @@ If you encounter errors with the database operations:
 2. Verify that you're using the compatible API methods for that version
 3. For operations that aren't working, check if the method exists by inspecting the collection object
 4. If needed, use workarounds similar to the one in `listItems`
-
-## Long-term Recommendation
-
-Consider migrating to the newer `@lancedb/lancedb` package, which has better documentation and support. The migration would require updating all database operations to use the newer API, but would future-proof the application.
