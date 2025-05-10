@@ -5,6 +5,15 @@
  * It mocks common dependencies that tests rely on.
  */
 
+// Mock Electron module for tests that use IPC
+// This allows tests to run in a Node.js environment without actual Electron
+const electronMock = {
+  ipcMain: {
+    handle: jest.fn()
+  }
+};
+jest.mock('electron', () => electronMock, { virtual: true });
+
 // Mock the config module to prevent dependency issues in tests
 jest.mock('../src/config', () => {
   return {

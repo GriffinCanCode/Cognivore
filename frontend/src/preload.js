@@ -1,76 +1,78 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Inline simple logger implementation
-// This avoids the need for external module dependencies in preload context
-const createSimpleLogger = (context) => {
-  const logLevels = ['error', 'warn', 'info', 'debug'];
-  
-  // Return a logger object with methods for each log level
-  const logger = {};
-  logLevels.forEach(level => {
-    logger[level] = (message, ...args) => {
-      const formattedMessage = `[${context}] ${message}`;
-      console[level](formattedMessage, ...args);
-      return null; // Prevent object exposure to renderer
-    };
-  });
-  
-  return logger;
+// Inline logger to avoid module issues in the preload context
+const log = {
+  info: (message) => console.log(`[INFO] ${message}`),
+  error: (message, error) => console.error(`[ERROR] ${message}`, error)
 };
 
-// Create a renderer-specific logger
-const rendererLogger = createSimpleLogger('Renderer');
-
-// Expose API to the renderer process
-contextBridge.exposeInMainWorld('api', {
-  // Data processing methods
-  processPDF: (filePath) => ipcRenderer.invoke('process-pdf', filePath),
-  processURL: (url) => ipcRenderer.invoke('process-url', url),
-  processYouTube: (url) => ipcRenderer.invoke('process-youtube', url),
-  deleteItem: (id) => ipcRenderer.invoke('delete-item', id),
-  listItems: () => ipcRenderer.invoke('list-items'),
-  // Search method
-  search: (query, limit) => ipcRenderer.invoke('search', query, limit),
+// Define API methods to expose to renderer process
+const api = {
+  // PDF processing
+  processPDF: async (filePath) => {
+    try {
+      return await ipcRenderer.invoke('process-pdf', filePath);
+    } catch (error) {
+      log.error('Error processing PDF:', error);
+      throw error;
+    }
+  },
   
-  // Logger API for renderer process
-  logger: {
-    error: (message, ...args) => {
-      rendererLogger.error(message, ...args);
-      return null; // Return null to avoid exposing complex objects to renderer
-    },
-    warn: (message, ...args) => {
-      rendererLogger.warn(message, ...args);
-      return null;
-    },
-    info: (message, ...args) => {
-      rendererLogger.info(message, ...args);
-      return null;
-    },
-    debug: (message, ...args) => {
-      rendererLogger.debug(message, ...args);
-      return null;
-    },
-    // Helpers for specific contexts in renderer
-    createContextLogger: (context) => {
-      // Return simplified logger API for the renderer
-      return {
-        error: (message, ...args) => {
-          console.error(`[${context}] ${message}`, ...args);
-          return null;
-        },
-        warn: (message, ...args) => {
-          console.warn(`[${context}] ${message}`, ...args);
-          return null;
-        },
-        info: (message, ...args) => {
-          console.info(`[${context}] ${message}`, ...args);
-          return null;
-        },
-        debug: (message, ...args) => {
-          console.debug(`[${context}] ${message}`, ...args);
-          return null;
-        }
-      };
+  // URL processing
+  processURL: async (url) => {
+    try {
+      return await ipcRenderer.invoke('process-url', url);
+    } catch (error) {
+      log.error('Error processing URL:', error);
+      throw error;
+    }
+  },
+  
+  // YouTube URL processing
+  processYouTube: async (url) => {
+    try {
+      return await ipcRenderer.invoke('process-youtube', url);
+    } catch (error) {
+      log.error('Error processing YouTube URL:', error);
+      throw error;
+    }
+  },
+  
+  // List all items in the database
+  listItems: async () => {
+    try {
+      return await ipcRenderer.invoke('list-items');
+    } catch (error) {
+      log.error('Error listing items:', error);
+      throw error;
+    }
+  },
+  
+  // Delete an item from the database
+  deleteItem: async (itemId) => {
+    try {
+      return await ipcRenderer.invoke('delete-item', itemId);
+    } catch (error) {
+      log.error('Error deleting item:', error);
+      throw error;
+    }
+  },
+  
+  // Search items in the database
+  search: async (query, limit = 10) => {
+    try {
+      return await ipcRenderer.invoke('search', { query, limit });
+    } catch (error) {
+      log.error('Error searching:', error);
+      throw error;
     }
   }
-}); 
+};
+
+// Expose the API to the renderer process
+try {
+  contextBridge.exposeInMainWorld('api', api);
+  log.info('API exposed to renderer process');
+} catch (error) {
+  log.error('Failed to expose API:', error);
+} 

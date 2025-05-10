@@ -3,7 +3,6 @@
  * Focuses on ensuring IPC channels are correctly set up
  */
 
-const { expect } = require('chai');
 const sinon = require('sinon');
 const proxyquire = require('proxyquire').noCallThru();
 const path = require('path');
@@ -19,6 +18,7 @@ describe('IPC Communication', () => {
     // Create stubs for IPC and services
     handlers = {};
     
+    // Create a proper ipcMain stub with a handle method
     ipcMainStub = {
       handle: sinon.stub().callsFake((channel, handler) => {
         handlers[channel] = handler;
@@ -54,9 +54,11 @@ describe('IPC Communication', () => {
     const loggerStub = { info: sinon.stub(), debug: sinon.stub(), error: sinon.stub() };
     const createLoggerStub = sinon.stub().returns(loggerStub);
 
-    // Create the electron mock with proper structure
+    // The mocking approach needs to be modified to ensure proper access to the ipcMain.handle
+    // Mock the electron module with a getter for ipcMain to ensure it's properly accessible
     const electronMock = {
-      ipcMain: ipcMainStub
+      // Use Object.defineProperty to make a getter that returns our ipcMainStub
+      get ipcMain() { return ipcMainStub; }
     };
 
     const mocks = {
@@ -75,20 +77,20 @@ describe('IPC Communication', () => {
     ipcHandlers.initializeIpcHandlers();
     
     // Verify that all expected IPC channels are registered
-    expect(ipcMainStub.handle.callCount).to.be.at.least(5);
+    expect(ipcMainStub.handle.callCount).toBeGreaterThanOrEqual(5);
     
     // Check for specific channel registrations
     const registeredChannels = Object.keys(handlers);
     
     // Core functionality channels
-    expect(registeredChannels).to.include('process-pdf');
-    expect(registeredChannels).to.include('process-url');
-    expect(registeredChannels).to.include('process-youtube');
-    expect(registeredChannels).to.include('delete-item');
-    expect(registeredChannels).to.include('list-items');
+    expect(registeredChannels).toContain('process-pdf');
+    expect(registeredChannels).toContain('process-url');
+    expect(registeredChannels).toContain('process-youtube');
+    expect(registeredChannels).toContain('delete-item');
+    expect(registeredChannels).toContain('list-items');
     
     // Search channel
-    expect(registeredChannels).to.include('search');
+    expect(registeredChannels).toContain('search');
   });
   
   it('should call the search service with proper parameters', async () => {
@@ -96,9 +98,9 @@ describe('IPC Communication', () => {
     const loggerStub = { info: sinon.stub(), debug: sinon.stub(), error: sinon.stub() };
     const createLoggerStub = sinon.stub().returns(loggerStub);
 
-    // Create the electron mock with proper structure
+    // Use the same improved mocking approach
     const electronMock = {
-      ipcMain: ipcMainStub
+      get ipcMain() { return ipcMainStub; }
     };
 
     const mocks = {
@@ -118,19 +120,20 @@ describe('IPC Communication', () => {
     
     // Get the search handler function
     const searchHandler = handlers['search'];
-    expect(searchHandler).to.exist;
+    expect(searchHandler).toBeDefined();
     
     // Call the handler with test data
     const result = await searchHandler({}, 'test query', 5);
     
     // Verify the service was called with proper args
-    expect(searchServiceStub.semanticSearch.calledOnce).to.be.true;
-    expect(searchServiceStub.semanticSearch.firstCall.args[0]).to.equal('test query');
-    expect(searchServiceStub.semanticSearch.firstCall.args[1]).to.equal(5);
+    expect(searchServiceStub.semanticSearch.calledOnce).toBe(true);
+    expect(searchServiceStub.semanticSearch.firstCall.args[0]).toBe('test query');
+    expect(searchServiceStub.semanticSearch.firstCall.args[1]).toBe(5);
     
     // Verify the handler returns the expected response structure
-    expect(result).to.have.property('success', true);
-    expect(result).to.have.property('results').that.is.an('array');
+    expect(result).toHaveProperty('success', true);
+    expect(result).toHaveProperty('results');
+    expect(Array.isArray(result.results)).toBe(true);
   });
   
   it('should handle search errors properly', async () => {
@@ -141,9 +144,9 @@ describe('IPC Communication', () => {
     const loggerStub = { info: sinon.stub(), debug: sinon.stub(), error: sinon.stub() };
     const createLoggerStub = sinon.stub().returns(loggerStub);
 
-    // Create the electron mock with proper structure
+    // Use the improved mocking approach
     const electronMock = {
-      ipcMain: ipcMainStub
+      get ipcMain() { return ipcMainStub; }
     };
 
     const mocks = {
@@ -163,13 +166,13 @@ describe('IPC Communication', () => {
     
     // Get the search handler function
     const searchHandler = handlers['search'];
-    expect(searchHandler).to.exist;
+    expect(searchHandler).toBeDefined();
     
     // Call the handler with test data
     const result = await searchHandler({}, 'test query', 5);
     
     // Verify the handler returns error response
-    expect(result).to.have.property('success', false);
-    expect(result).to.have.property('error', 'Search failed');
+    expect(result).toHaveProperty('success', false);
+    expect(result).toHaveProperty('error', 'Search failed');
   });
 }); 

@@ -38,6 +38,39 @@ jest.mock('vectordb', () => {
   };
 });
 
+// Mock the memory module
+jest.mock('../src/memory', () => {
+  return {
+    memoryManager: {
+      monitorMemory: jest.fn().mockReturnValue({
+        heapUsedMB: 100,
+        heapTotalMB: 200,
+        heapUsedRatio: 0.5,
+        memoryUsageTrend: 'stable'
+      })
+    },
+    batchOptimizer: {
+      calculateOptimalBatchSize: jest.fn().mockReturnValue(100)
+    },
+    dbMemoryManager: {
+      getConnectionStats: jest.fn().mockReturnValue({})
+    },
+    registerConnection: jest.fn().mockImplementation((name, conn) => conn),
+    optimizeQuery: jest.fn().mockImplementation((fn) => fn),
+    getStatistics: jest.fn().mockReturnValue({
+      connections: {},
+      queries: {},
+      cache: { hits: 0, misses: 0 },
+      memory: { heapUsedMB: 100 }
+    }),
+    analyzeQueryPerformance: jest.fn().mockReturnValue({
+      issues: [],
+      recommendations: []
+    }),
+    clearQueryCache: jest.fn()
+  };
+});
+
 // Mock the fs module
 jest.mock('fs', () => ({
   existsSync: jest.fn().mockReturnValue(true),
@@ -63,8 +96,24 @@ jest.mock('../src/config', () => ({
 }));
 
 // Now load the database module which will use the mocks
-const { initializeDatabase, addItem, deleteItem, listItems, vectorSearch } = require('../src/services/database');
+const { 
+  initializeDatabase, 
+  addItem, 
+  deleteItem, 
+  listItems, 
+  vectorSearch,
+  getDatabaseStats,
+  analyzeDatabasePerformance
+} = require('../src/services/database');
+
 const vectordb = require('vectordb');
+const { 
+  registerConnection, 
+  optimizeQuery, 
+  memoryManager, 
+  getStatistics, 
+  analyzeQueryPerformance 
+} = require('../src/memory');
 
 describe('Database Service', () => {
   beforeEach(() => {
@@ -86,6 +135,19 @@ describe('Database Service', () => {
       expect(result).toBeDefined();
       expect(result.db).toBeDefined();
       expect(result.collection).toBeDefined();
+      
+      // Check memory monitoring was called
+      expect(memoryManager.monitorMemory).toHaveBeenCalledTimes(2);
+      
+      // Check connection registration
+      expect(registerConnection).toHaveBeenCalledWith(
+        'lancedb-main',
+        expect.anything(),
+        expect.objectContaining({
+          type: 'vectordb',
+          isPrimary: true
+        })
+      );
     });
     
     test('should create collection if it does not exist', async () => {
@@ -135,6 +197,8 @@ describe('Database Service', () => {
       const result = await addItem(mockItem);
       
       expect(result).toEqual(mockItem);
+      // Check optimizeQuery was called during module initialization
+      expect(optimizeQuery).toHaveBeenCalled();
     });
   });
   
@@ -181,6 +245,9 @@ describe('Database Service', () => {
       expect(results.length).toBe(2);
       expect(results[0].id).toBe('item1');
       expect(results[1].id).toBe('item2');
+      
+      // Check that memory was monitored before search
+      expect(memoryManager.monitorMemory).toHaveBeenCalled();
     });
     
     test('should respect the limit parameter', async () => {
@@ -195,6 +262,33 @@ describe('Database Service', () => {
       
       // Check that limit was called with 5
       expect(searchMock().limit).toHaveBeenCalledWith(5);
+    });
+  });
+  
+  describe('Memory management functions', () => {
+    test('getDatabaseStats should return statistics', () => {
+      const stats = getDatabaseStats();
+      
+      expect(stats).toBeDefined();
+      expect(stats.memory).toBeDefined();
+      expect(stats.connections).toBeDefined();
+      expect(stats.queries).toBeDefined();
+      expect(stats.cache).toBeDefined();
+      
+      // Check that getStatistics was called
+      expect(getStatistics).toHaveBeenCalled();
+      expect(memoryManager.monitorMemory).toHaveBeenCalled();
+    });
+    
+    test('analyzeDatabasePerformance should analyze performance', () => {
+      const analysis = analyzeDatabasePerformance();
+      
+      expect(analysis).toBeDefined();
+      expect(analysis.issues).toBeDefined();
+      expect(analysis.recommendations).toBeDefined();
+      
+      // Check that analyzeQueryPerformance was called
+      expect(analyzeQueryPerformance).toHaveBeenCalled();
     });
   });
 }); 

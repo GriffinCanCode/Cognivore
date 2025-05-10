@@ -3,74 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval';">
   <title>Knowledge Store</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles/main.css">
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>Knowledge Store</h1>
-      <p>Griffin's personal knowledge management system</p>
-    </header>
-    
-    <main>
-      <section id="search-section">
-        <h2>Search Your Knowledge</h2>
-        <div class="search-container">
-          <input type="text" id="search-input" placeholder="Enter your search query...">
-          <button id="search-btn">Search</button>
-        </div>
-        <div id="search-results">
-          <!-- Search results will be displayed here -->
-        </div>
-      </section>
-      
-      <section id="content-input">
-        <h2>Add Content</h2>
-        
-        <div class="input-section">
-          <h3>PDF Document</h3>
-          <input type="file" id="pdf-input" accept=".pdf">
-          <button id="process-pdf-btn">Process PDF</button>
-        </div>
-        
-        <div class="input-section">
-          <h3>Web URL</h3>
-          <input type="url" id="url-input" placeholder="https://example.com">
-          <button id="process-url-btn">Process URL</button>
-        </div>
-        
-        <div class="input-section">
-          <h3>YouTube URL</h3>
-          <input type="url" id="youtube-input" placeholder="https://www.youtube.com/watch?v=...">
-          <button id="process-youtube-btn">Process YouTube</button>
-        </div>
-      </section>
-      
-      <section id="content-list">
-        <h2>Stored Content</h2>
-        <button id="refresh-list-btn">Refresh List</button>
-        <ul id="item-list">
-          <!-- Items will be populated dynamically -->
-        </ul>
-      </section>
-
-      <section id="content-viewer" style="display: none;">
-        <h2>Content Viewer</h2>
-        <div class="content-metadata">
-          <!-- Metadata will be displayed here -->
-        </div>
-        <div class="content-text">
-          <!-- Content text will be displayed here -->
-        </div>
-      </section>
-    </main>
-    
-    <footer>
-      <p>Knowledge Store - Version 0.1.0</p>
-    </footer>
-  </div>
-  
-  <script src="./renderer.js"></script>
+  <div id="app"></div>
+  <script src="./bundle.js"></script>
 </body>
 </html> 

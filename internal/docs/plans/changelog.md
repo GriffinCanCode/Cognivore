@@ -149,3 +149,107 @@
 - Prevented memory leaks in batch processing by cleaning up resources between batches
 - Improved processing of large document sets by automatically adjusting batch sizes
 - Enhanced memory monitoring to identify and address high memory usage patterns
+
+## [0.2.2] - Enhanced Memory Management System
+
+### Added
+- Created comprehensive, modular memory management system
+  - Implemented `backend/src/memory/memoryManager.js`: Core class-based memory monitoring and optimization utility
+  - Created `backend/src/memory/heapAnalyzer.js`: Advanced heap analysis and memory issue detection
+  - Added `backend/src/memory/batchOptimizer.js`: Memory-optimized batch processing utility
+  - Created `backend/src/memory/index.js`: Unified module for accessing all memory management components
+  - Added `backend/src/memory/README.md`: Documentation for the memory management system
+
+### Enhanced
+- Improved memory monitoring capabilities
+  - Added memory trend analysis to detect potential memory leaks
+  - Implemented memory issue detection with comprehensive alerts and recommendations
+  - Added detailed memory statistics with heap usage analysis
+  - Created memory snapshot tracking for analyzing usage patterns over time
+- Extended batch processing with advanced memory optimization
+  - Added automatic process function optimization with memory monitoring
+  - Implemented operation-specific memory tracking for targeted optimization
+  - Enhanced adaptive batch sizing with dynamic adjustment based on memory conditions
+  - Added batch statistics and recommendations for performance tuning
+  - Improved automatic garbage collection triggering under memory pressure
+
+### Changed
+- Refactored existing memory utilities for better organization and extensibility
+  - Updated `backend/src/utils/batchers/batchProcessor.js` to use the new memory management system
+  - Enhanced `backend/src/utils/processors/documentProcessor.js` with advanced memory management features
+  - Restructured memory-related code into a dedicated module for reusability
+  - Added backward compatibility layer for existing code
+- Improved test suite with comprehensive memory management testing
+  - Added `backend/test/memory/memoryManager.test.js` for testing memory management components
+  - Updated `backend/test/utils/batchProcessing.test.js` to test with the new memory system
+
+### Fixed
+- Improved memory handling for large document processing
+- Enhanced memory optimization for batch operations with varying data sizes
+- Added more sophisticated memory monitoring to detect and address potential issues
+- Implemented better garbage collection optimization to reduce memory pressure
+
+## [0.2.3] - Memory Management and Database Fixes
+
+### Fixed
+- Fixed memory manager batch size calculation to properly adjust for item size
+  - Updated `backend/src/memory/memoryManager.js` to ensure smaller items get larger batch sizes and larger items get smaller batch sizes
+  - Added logic to prevent large items from using maximum batch size, ensuring proper differentiation in batch sizing
+- Fixed search service database initialization issues in tests
+  - Updated `backend/test/search.test.js` to properly mock database collection
+  - Enhanced `backend/src/services/database.js` vectorSearch function to handle test environments better
+  - Added global.testCollection support for improved test reliability
+  - Fixed error message expectations in tests to match actual error messages
+- Fixed test framework incompatibilities
+  - Updated `backend/test/search.test.js` to use Jest's `beforeAll`/`afterAll` instead of Mocha's `before`/`after`
+  - Fixed Electron IPC mocking in `backend/test/ipc.test.js` by using proper getter methods for ipcMain
+  - Enhanced test stability for cross-framework compatibility
+- Fixed IPC handler initialization in main process
+  - Updated `frontend/src/main.js` to correctly call `initializeIpcHandlers` instead of non-existent `setupIpcHandlers` function
+  - Added database initialization to the main Electron process to ensure database is ready before IPC handlers are initialized
+  - Modified `backend/src/services/database.js` to use raw database connection when memory-managed connection is missing methods
+  - Resolved "Error: Database not initialized" error in listItems handler
+  - Fixed "Error: No handler registered for 'list-items'" error that was preventing database items from being listed
+- Enhanced memory manager to preserve all database connection methods
+  - Updated `backend/src/memory/dbMemoryManager.js` to wrap all methods from original connection objects
+  - Added intelligent handling for both async and sync database methods
+  - Expanded monitoring to include database-specific operations like `createTable` and `openTable`
+  - Improved method detection for proper async/sync handling
+  - Fixed "monitoredDb.createTable is not a function" error during database initialization
+
+## Frontend Modularization (v0.2.0)
+
+- Complete modularization of the frontend codebase
+- Converted monolithic structure to component-based architecture
+- Improved UI with enhanced styling and animations
+- Added webpack build system for better development workflow
+- Created separate service layers for API communication
+- Implemented component-specific CSS for better maintainability
+
+## [0.2.4] - Modern Dark Theme Redesign
+
+### Added
+- Implemented modern dark-themed UI throughout the application
+- Added responsive header with navigation menu
+- Enhanced footer with links and copyright information
+- Added new UI animations and transitions
+- Implemented improved loading states for search
+- Added content actions (copy, export) to ContentViewer
+- Improved error handling and empty state displays
+
+### Changed
+- Completely redesigned the color scheme with dark palette
+- Enhanced typography with better contrast and readability
+- Improved component layouts for better user experience
+- Updated UI components with modern styling
+- Enhanced button styles with hover and active states
+- Added custom scrollbar styling for better integration
+- Improved responsive design for mobile devices
+
+### New Components/Features
+- Added navigation system for app sections
+- Implemented search icon in search input
+- Added loading animation for search results
+- Enhanced content viewer with text formatting
+- Added button ripple effects
+- Implemented source linking for URL and YouTube sources

@@ -7,7 +7,11 @@ const { batchChunkDocuments } = require('../../src/utils/batchers/chunkerBatch')
 const { batchGenerateEmbeddings } = require('../../src/utils/batchers/embeddingBatch');
 const { processDocuments } = require('../../src/utils/processors/documentProcessor');
 const { createDocumentProcessor, createPDFProcessor } = require('../../src/utils/processors/processorFactory');
-const { calculateOptimalBatchSize } = require('../../src/memory/memoryManager');
+const { 
+  calculateOptimalBatchSize, 
+  memoryManager, 
+  batchOptimizer 
+} = require('../../src/memory');
 
 describe('Batch Processing Utilities', () => {
   
@@ -64,7 +68,7 @@ describe('Batch Processing Utilities', () => {
       expect(processingCompleteSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('should use dynamic batch sizing when enabled', async () => {
+    it('should use auto optimize when enabled', async () => {
       // Create items of varying sizes
       const items = [
         { text: 'a'.repeat(1000) },  // Small item
@@ -74,31 +78,31 @@ describe('Batch Processing Utilities', () => {
         { text: 'e'.repeat(20000) }  // Medium-large item
       ];
       
-      // Mock the calculateOptimalBatchSize function to return a predetermined value
-      jest.mock('../../src/utils/memoryManager', () => ({
-        calculateOptimalBatchSize: jest.fn().mockReturnValue(2),
-        getCurrentMemoryUsage: jest.fn().mockReturnValue({
-          heapUsed: 1000000,
-          heapTotal: 5000000,
-          rss: 10000000,
-          heapUsedMB: '1.00',
-          heapTotalMB: '5.00',
-          rssMB: '10.00'
-        }),
-        tryForceGC: jest.fn()
-      }));
+      // Mock the batchOptimizer's calculateOptimalBatchSize function
+      const mockCalculate = jest.spyOn(batchOptimizer, 'calculateOptimalBatchSize')
+        .mockReturnValue(2);
       
       const processor = new BatchProcessor({ 
         batchSize: 5, // Default would process all at once
-        dynamicBatchSize: true
+        autoOptimize: true,
+        processName: 'test_process'
       });
       
       const processFn = jest.fn().mockImplementation(batch => batch);
       
       await processor.process(items, processFn);
       
+      // Verify the batchOptimizer was used
+      expect(mockCalculate).toHaveBeenCalledWith(
+        items, 
+        expect.objectContaining({ operation: 'test_process' })
+      );
+      
       // Since our mock returns batch size of 2, we expect 3 calls (2, 2, 1 items)
       expect(processFn).toHaveBeenCalledTimes(3);
+      
+      // Restore the original implementation
+      mockCalculate.mockRestore();
     });
   });
 
@@ -108,11 +112,36 @@ describe('Batch Processing Utilities', () => {
       const smallItems = Array(10).fill().map(() => ({ text: 'x'.repeat(1000) }));
       const largeItems = Array(10).fill().map(() => ({ text: 'x'.repeat(100000) }));
       
-      const smallBatchSize = calculateOptimalBatchSize(smallItems);
-      const largeBatchSize = calculateOptimalBatchSize(largeItems);
+      const smallBatchSize = memoryManager.calculateOptimalBatchSize(smallItems);
+      const largeBatchSize = memoryManager.calculateOptimalBatchSize(largeItems);
       
       // Larger items should result in smaller batch sizes
       expect(smallBatchSize).toBeGreaterThan(largeBatchSize);
+    });
+    
+    it('should monitor memory usage', () => {
+      const result = memoryManager.monitorMemory();
+      
+      expect(result).toHaveProperty('heapUsed');
+      expect(result).toHaveProperty('heapTotal');
+      expect(result).toHaveProperty('heapUsedMB');
+    });
+  });
+  
+  describe('BatchOptimizer', () => {
+    it('should optimize process functions for memory efficiency', async () => {
+      const processFn = jest.fn().mockImplementation(batch => batch.map(item => item * 2));
+      
+      const optimizedFn = batchOptimizer.optimizeProcessFunction(processFn, {
+        operation: 'test_optimization'
+      });
+      
+      // Optimized function should still work correctly
+      const result = await optimizedFn([1, 2, 3]);
+      expect(result).toEqual([2, 4, 6]);
+      
+      // Original function should have been called
+      expect(processFn).toHaveBeenCalledWith([1, 2, 3]);
     });
   });
   
@@ -186,7 +215,8 @@ describe('Batch Processing Utilities', () => {
       const results = await processDocuments(documents, {
         chunking: { strategy: 'paragraphs' },
         embedding: { includeContent: true, includeMetadata: true },
-        batch: { documentBatchSize: 2, chunkBatchSize: 5 }
+        batch: { documentBatchSize: 2, chunkBatchSize: 5 },
+        memory: { detectMemoryIssues: true }
       }, storeFn);
       
       expect(results).toHaveProperty('documentCount', 2);

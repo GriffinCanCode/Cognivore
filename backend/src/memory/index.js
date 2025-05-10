@@ -6,6 +6,7 @@
 const { memoryManager, MemoryManager, ...memoryManagerFunctions } = require('./memoryManager');
 const { heapAnalyzer, HeapAnalyzer, ...heapAnalyzerFunctions } = require('./heapAnalyzer');
 const { batchOptimizer, BatchOptimizer, ...batchOptimizerFunctions } = require('./batchOptimizer');
+const { dbMemoryManager, DbMemoryManager, ...dbMemoryManagerFunctions } = require('./dbMemoryManager');
 
 /**
  * Create a custom memory management configuration with specific settings
@@ -14,6 +15,7 @@ const { batchOptimizer, BatchOptimizer, ...batchOptimizerFunctions } = require('
  * @param {Object} [options.memoryManager] MemoryManager configuration
  * @param {Object} [options.heapAnalyzer] HeapAnalyzer configuration
  * @param {Object} [options.batchOptimizer] BatchOptimizer configuration
+ * @param {Object} [options.dbMemoryManager] DbMemoryManager configuration
  * @returns {Object} Configured memory management utilities
  */
 function createMemoryManager(options = {}) {
@@ -25,11 +27,15 @@ function createMemoryManager(options = {}) {
   
   const customBatchOptimizer = options.batchOptimizer ? 
     new BatchOptimizer(options.batchOptimizer) : batchOptimizer;
+    
+  const customDbMemoryManager = options.dbMemoryManager ? 
+    new DbMemoryManager(options.dbMemoryManager) : dbMemoryManager;
   
   return {
     memoryManager: customMemoryManager,
     heapAnalyzer: customHeapAnalyzer,
     batchOptimizer: customBatchOptimizer,
+    dbMemoryManager: customDbMemoryManager,
     
     // Memory manager functions
     calculateOptimalBatchSize: (items, opts) => 
@@ -51,7 +57,19 @@ function createMemoryManager(options = {}) {
     optimizeProcessFunction: (fn, opts) => 
       customBatchOptimizer.optimizeProcessFunction(fn, opts),
     getBatchStatistics: () => 
-      customBatchOptimizer.getBatchStatistics()
+      customBatchOptimizer.getBatchStatistics(),
+      
+    // Database memory manager functions
+    registerConnection: (id, conn, opts) => 
+      customDbMemoryManager.registerConnection(id, conn, opts),
+    optimizeQuery: (fn, opts) => 
+      customDbMemoryManager.optimizeQuery(fn, opts),
+    getDbStatistics: () => 
+      customDbMemoryManager.getStatistics(),
+    analyzeQueryPerformance: () => 
+      customDbMemoryManager.analyzeQueryPerformance(),
+    clearQueryCache: () => 
+      customDbMemoryManager.clearQueryCache()
   };
 }
 
@@ -61,11 +79,13 @@ module.exports = {
   memoryManager,
   heapAnalyzer,
   batchOptimizer,
+  dbMemoryManager,
   
   // Classes for custom instances
   MemoryManager,
   HeapAnalyzer,
   BatchOptimizer,
+  DbMemoryManager,
   
   // Factory function
   createMemoryManager,
@@ -73,5 +93,6 @@ module.exports = {
   // Direct function exports for convenience
   ...memoryManagerFunctions,
   ...heapAnalyzerFunctions,
-  ...batchOptimizerFunctions
+  ...batchOptimizerFunctions,
+  ...dbMemoryManagerFunctions
 }; 

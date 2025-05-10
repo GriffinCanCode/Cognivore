@@ -3,37 +3,6 @@ description:
 globs: database.*,database.js
 alwaysApply: false
 ---
-# LanceDB Compatibility Maintenance
-
-## Current Fix Explanation
-
-The Knowledge Store application uses the deprecated `vectordb` package (v0.4.3) rather than the newer `@lancedb/lancedb` package, which has caused compatibility issues in the `listItems` function in `database.js`.
-
-The original implementation attempted to use `.query()` method which doesn't exist in the older vectordb package API. We then tried `.scan()` which also wasn't available.
-
-**Current Working Solution:**
-The current fix uses a workaround by creating a dummy vector and using the `search()` method with a large limit value to retrieve all items:
-
-```javascript
-// Since neither query() nor scan() is available, use search with a dummy vector
-// This should return all items when no specific vector search is performed
-const sampleVector = new Array(config.embeddings.dimensions).fill(0);
-const results = await collection.search(sampleVector).limit(1000).execute();
-```
-
-## Upgrade Considerations
-
-If you want to upgrade the application to use the newer `@lancedb/lancedb` package:
-
-1. Update package.json to remove `vectordb` and rely solely on `@lancedb/lancedb`
-2. Change the import statement to `const lancedb = require('@lancedb/lancedb')`
-3. Update the `listItems` function to use the newer API: 
-   ```javascript
-   const results = await collection.query().execute();
-   ```
-
-## Maintaining Current Implementation
-
 When making changes to `database.js` with the current `vectordb` package:
 
 1. **Do not use** `collection.query()` or `collection.scan()` methods as they don't exist

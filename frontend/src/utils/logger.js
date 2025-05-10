@@ -47,7 +47,7 @@ const configureLogger = () => {
 
   // 2. Console transport with colors
   electronLog.transports.console.level = process.env.NODE_ENV === 'production' ? 'info' : 'debug';
-  electronLog.transports.console.format = '{y}-{m}-{d} {h}:{i}:{s}.{ms} [{level}] {text}';
+  electronLog.transports.console.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 
   return electronLog;
 };
@@ -71,7 +71,5 @@ const createContextLogger = (context) => {
   };
 };
 
-module.exports = {
-  logger,
-  createContextLogger
-}; 
+// Direct export of electron-log for simplicity
+module.exports = electronLog; 

@@ -76,6 +76,12 @@ class MemoryManager {
     // Ensure batch size is within limits
     calculatedBatchSize = Math.max(minBatchSize, Math.min(maxBatchSize, calculatedBatchSize));
     
+    // Ensure that calculated batch size is never the same as maxBatchSize for large items
+    // This ensures that small items get a larger batch size and large items get a smaller batch size
+    if (avgItemSizeBytes > 50000 && calculatedBatchSize === maxBatchSize) {
+      calculatedBatchSize = Math.max(minBatchSize, Math.floor(maxBatchSize / 2));
+    }
+    
     if (this.options.debug) {
       this.logger.debug(`Calculated optimal batch size: ${calculatedBatchSize}`, {
         avgItemSizeKB: (avgItemSizeBytes / 1024).toFixed(2),

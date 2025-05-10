@@ -4,8 +4,13 @@
  */
 
 const EventEmitter = require('events');
-const { createContextLogger } = require('../../utils/logger');
-const { calculateOptimalBatchSize, getCurrentMemoryUsage, tryForceGC } = require('../../memory/memoryManager');
+const { createContextLogger } = require('../logger');
+const { 
+  memoryManager, 
+  batchOptimizer, 
+  heapAnalyzer 
+} = require('../../memory');
+
 const logger = createContextLogger('BatchProcessor');
 
 class BatchProcessor extends EventEmitter {
@@ -21,6 +26,8 @@ class BatchProcessor extends EventEmitter {
    * @param {number} [options.minBatchSize=1] Minimum batch size when using dynamic sizing
    * @param {number} [options.targetBatchSizeMB=10] Target memory footprint per batch in MB
    * @param {boolean} [options.memoryMonitoring=false] Whether to log memory usage
+   * @param {boolean} [options.autoOptimize=false] Whether to auto-optimize batch sizes based on memory
+   * @param {boolean} [options.detectMemoryIssues=false] Whether to detect and report memory issues
    */
   constructor(options = {}) {
     super();
@@ -33,7 +40,12 @@ class BatchProcessor extends EventEmitter {
     this.minBatchSize = options.minBatchSize || 1;
     this.targetBatchSizeMB = options.targetBatchSizeMB || 10;
     this.memoryMonitoring = options.memoryMonitoring || false;
+    this.autoOptimize = options.autoOptimize || false;
+    this.detectMemoryIssues = options.detectMemoryIssues || false;
     this.logger = createContextLogger('BatchProcessor');
+    
+    // Process name for tracking purposes
+    this.processName = options.processName || 'batch_process';
   }
 
   /**
@@ -53,21 +65,25 @@ class BatchProcessor extends EventEmitter {
       throw new Error('Process function must be a function');
     }
 
-    // When using dynamic batch sizing, calculate optimal size
+    // When using auto-optimize, use the batch optimizer from memory management
     let effectiveBatchSize = this.batchSize;
-    if (this.dynamicBatchSize && items.length > 0) {
-      effectiveBatchSize = calculateOptimalBatchSize(items, {
+    
+    if (this.autoOptimize && items.length > 0) {
+      // Use more sophisticated batch optimizer with memory constraints
+      effectiveBatchSize = batchOptimizer.calculateOptimalBatchSize(items, {
+        operation: this.processName,
+        aggressiveOptimization: this.memoryMonitoring
+      });
+    }
+    // When using dynamic batch sizing, use simpler memory manager calculation
+    else if (this.dynamicBatchSize && items.length > 0) {
+      effectiveBatchSize = memoryManager.calculateOptimalBatchSize(items, {
         maxBatchSize: this.maxBatchSize,
         minBatchSize: this.minBatchSize,
         targetBatchSizeMB: this.targetBatchSizeMB
       });
-      
-      this.logger.info(`Using dynamically calculated batch size: ${effectiveBatchSize}`, {
-        originalBatchSize: this.batchSize,
-        itemCount: items.length
-      });
     }
-
+    
     this.logger.info(`Starting batch processing of ${items.length} items`, {
       batchSize: effectiveBatchSize,
       concurrency: this.concurrency,
@@ -76,8 +92,20 @@ class BatchProcessor extends EventEmitter {
 
     // Log initial memory usage if monitoring is enabled
     if (this.memoryMonitoring) {
-      const memoryBefore = getCurrentMemoryUsage();
+      const memoryBefore = memoryManager.getCurrentMemoryUsage();
       this.logger.info('Memory usage before processing', memoryBefore);
+      
+      // Detect memory issues if enabled
+      if (this.detectMemoryIssues) {
+        const analysis = heapAnalyzer.analyzeHeap();
+        if (analysis.issues.length > 0) {
+          this.logger.warn('Memory issues detected before batch processing', {
+            issues: analysis.issues.map(i => i.message).join('; ')
+          });
+          
+          this.emit('memoryIssues', analysis);
+        }
+      }
     }
 
     // Create batches
@@ -87,6 +115,15 @@ class BatchProcessor extends EventEmitter {
     }
 
     this.logger.debug(`Created ${batches.length} batches`);
+    
+    // Optimize the process function if using autoOptimize
+    let optimizedProcessFn = processFn;
+    if (this.autoOptimize) {
+      optimizedProcessFn = batchOptimizer.optimizeProcessFunction(processFn, {
+        operation: this.processName, 
+        monitored: this.memoryMonitoring
+      });
+    }
     
     // Process batches with limited concurrency
     const results = [];
@@ -113,23 +150,34 @@ class BatchProcessor extends EventEmitter {
             // Monitor memory before processing this batch
             let memoryBefore;
             if (this.memoryMonitoring) {
-              memoryBefore = getCurrentMemoryUsage();
+              memoryBefore = memoryManager.getCurrentMemoryUsage();
               this.logger.debug(`Memory before batch ${actualBatchIndex + 1}`, memoryBefore);
             }
             
-            const batchResults = await processFn(batch);
+            const batchResults = await optimizedProcessFn(batch);
             
             // Monitor memory after processing this batch
             if (this.memoryMonitoring) {
-              const memoryAfter = getCurrentMemoryUsage();
+              const memoryAfter = memoryManager.getCurrentMemoryUsage();
               const memoryDiff = {
-                heapUsedDiffMB: (memoryAfter.heapUsed - memoryBefore.heapUsed) / (1024 * 1024),
-                rssDiffMB: (memoryAfter.rss - memoryBefore.rss) / (1024 * 1024)
+                heapUsedDiffMB: parseFloat(memoryAfter.heapUsedMB) - parseFloat(memoryBefore.heapUsedMB),
+                rssDiffMB: parseFloat(memoryAfter.rssMB) - parseFloat(memoryBefore.rssMB)
               };
+              
               this.logger.debug(`Memory after batch ${actualBatchIndex + 1}`, {
                 ...memoryAfter,
                 diff: memoryDiff
               });
+              
+              // Detect potential memory issues during processing
+              if (memoryDiff.heapUsedDiffMB > 50) { // More than 50MB growth in a single batch
+                this.logger.warn(`High memory growth detected in batch ${actualBatchIndex + 1}`, {
+                  growthMB: memoryDiff.heapUsedDiffMB.toFixed(2)
+                });
+                
+                // Try to reclaim memory if we're seeing high growth
+                memoryManager.tryForceGC();
+              }
             }
             
             completedBatches++;
@@ -138,11 +186,6 @@ class BatchProcessor extends EventEmitter {
               totalBatches: batches.length, 
               progress: completedBatches / batches.length 
             });
-            
-            // Try to force garbage collection after large batches
-            if (batch.length > 10) {
-              tryForceGC();
-            }
             
             return batchResults;
           } catch (error) {
@@ -188,8 +231,21 @@ class BatchProcessor extends EventEmitter {
           await new Promise(resolve => setTimeout(resolve, this.delayBetweenBatches));
         }
         
-        // Try to force garbage collection between batch sets
-        tryForceGC();
+        // Monitor memory and try GC between batches if memory is getting high
+        if (this.memoryMonitoring) {
+          const currentMemory = memoryManager.monitorMemory();
+          const memUsagePercent = (currentMemory.heapUsed / currentMemory.heapTotal) * 100;
+          
+          if (memUsagePercent > 80) {
+            this.logger.warn('High memory usage detected during batch processing', {
+              usagePercent: memUsagePercent.toFixed(1) + '%',
+              heapUsedMB: currentMemory.heapUsedMB
+            });
+            
+            // Force GC for high memory usage
+            memoryManager.tryForceGC();
+          }
+        }
         
       } catch (error) {
         if (this.failFast) {
@@ -206,8 +262,18 @@ class BatchProcessor extends EventEmitter {
     
     // Log final memory usage if monitoring is enabled
     if (this.memoryMonitoring) {
-      const memoryAfter = getCurrentMemoryUsage();
+      const memoryAfter = memoryManager.getCurrentMemoryUsage();
       this.logger.info('Memory usage after processing', memoryAfter);
+      
+      // Get batch statistics if autoOptimize was used
+      if (this.autoOptimize) {
+        const stats = batchOptimizer.getBatchStatistics();
+        if (stats.recommendations.length > 0) {
+          this.logger.info('Batch processing recommendations', {
+            recommendations: stats.recommendations
+          });
+        }
+      }
     }
     
     this.logger.info(`Completed batch processing with ${errors.length} errors`, {

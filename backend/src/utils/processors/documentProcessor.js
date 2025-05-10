@@ -4,7 +4,7 @@
  */
 
 const { createDocumentProcessor } = require('./processorFactory');
-const { getCurrentMemoryUsage } = require('../../memory/memoryManager');
+const { memoryManager, heapAnalyzer } = require('../../memory');
 const { createContextLogger } = require('../logger');
 
 const logger = createContextLogger('DocumentProcessor');
@@ -29,14 +29,45 @@ const logger = createContextLogger('DocumentProcessor');
  * @param {number} [options.batch.chunkBatchSize=10] Chunks per batch
  * @param {number} [options.batch.concurrency=2] Concurrent batches
  * @param {boolean} [options.batch.dynamicBatchSize=false] Use dynamic batch sizing
+ * @param {boolean} [options.batch.autoOptimize=false] Use memory-optimized batch processing
  * @param {boolean} [options.batch.memoryMonitoring=false] Monitor memory usage
+ * @param {Object} [options.memory] Memory management options
+ * @param {boolean} [options.memory.detectMemoryIssues=false] Detect memory issues during processing
+ * @param {boolean} [options.memory.forceGCOnCompletion=false] Force garbage collection after processing
  * @param {Function} [storeFunction] Optional function to store embeddings
  * @returns {Promise<Object>} Processing results
  */
 async function processDocuments(documents, options = {}, storeFunction = null) {
   // Log initial memory state
-  const initialMemory = getCurrentMemoryUsage();
+  const initialMemory = memoryManager.getCurrentMemoryUsage();
   logger.debug('Initial memory state before document processing', initialMemory);
+  
+  // Extract memory options or use defaults
+  const memoryOptions = options.memory || {};
+  const detectMemoryIssues = memoryOptions.detectMemoryIssues || false;
+  const forceGCOnCompletion = memoryOptions.forceGCOnCompletion || false;
+  
+  // Check for potential memory issues before processing
+  if (detectMemoryIssues) {
+    const preAnalysis = heapAnalyzer.analyzeHeap();
+    if (preAnalysis.issues.length > 0) {
+      logger.warn('Memory issues detected before document processing', {
+        issues: preAnalysis.issues.map(i => i.message).join('; ')
+      });
+      
+      // If we're detecting severe memory issues, try to mitigate
+      const severeIssues = preAnalysis.issues.filter(i => i.severity === 'high');
+      if (severeIssues.length > 0) {
+        logger.warn('Attempting to mitigate severe memory issues');
+        memoryManager.tryForceGC();
+        
+        // Enable auto-optimization if not already enabled
+        if (!options.batch) options.batch = {};
+        options.batch.autoOptimize = true;
+        options.batch.memoryMonitoring = true;
+      }
+    }
+  }
   
   // Enable memory optimization features if documents are large
   const totalDocSize = documents.reduce((sum, doc) => sum + (doc.text?.length || 0), 0);
@@ -51,8 +82,12 @@ async function processDocuments(documents, options = {}, storeFunction = null) {
     
     // Auto-enable memory optimization for large documents
     if (!options.batch) options.batch = {};
-    options.batch.dynamicBatchSize = true;
+    options.batch.autoOptimize = true;
     options.batch.memoryMonitoring = true;
+    options.batch.processName = 'document_processing';
+    
+    // Add memory-specific batch processor options
+    options.batch.detectMemoryIssues = detectMemoryIssues;
   }
   
   // Create a document processor with the provided options
@@ -62,15 +97,32 @@ async function processDocuments(documents, options = {}, storeFunction = null) {
     // Process the documents
     const result = await processor.processDocuments(documents, storeFunction);
     
+    // Force garbage collection if requested
+    if (forceGCOnCompletion) {
+      memoryManager.tryForceGC();
+    }
+    
     // Log final memory state
-    const finalMemory = getCurrentMemoryUsage();
+    const finalMemory = memoryManager.getCurrentMemoryUsage();
     logger.debug('Final memory state after document processing', {
       ...finalMemory,
       diffMB: {
-        heapUsed: ((finalMemory.heapUsed - initialMemory.heapUsed) / (1024 * 1024)).toFixed(2),
-        rss: ((finalMemory.rss - initialMemory.rss) / (1024 * 1024)).toFixed(2)
+        heapUsed: (parseFloat(finalMemory.heapUsedMB) - parseFloat(initialMemory.heapUsedMB)).toFixed(2),
+        rss: (parseFloat(finalMemory.rssMB) - parseFloat(initialMemory.rssMB)).toFixed(2)
       }
     });
+    
+    // Check for memory issues after processing
+    if (detectMemoryIssues) {
+      const postAnalysis = heapAnalyzer.analyzeHeap();
+      
+      // If memory usage is significantly higher after processing, might indicate a leak
+      if (postAnalysis.issues.some(i => i.type === 'potential_leak')) {
+        logger.warn('Potential memory leak detected after document processing', {
+          recommendations: postAnalysis.recommends.map(r => r.message).join('; ')
+        });
+      }
+    }
     
     return result;
   } catch (error) {
@@ -78,6 +130,10 @@ async function processDocuments(documents, options = {}, storeFunction = null) {
       error: error.message,
       stack: error.stack
     });
+    
+    // Try to recover memory on error
+    memoryManager.tryForceGC();
+    
     throw error;
   }
 }
