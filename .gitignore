@@ -12,6 +12,15 @@
 *credential*
 id_rsa
 id_dsa
+backend/data/vector_db/*
+*backend/data/vector_db/*
+backend/data/vector_db
+backend/data/vector_db_backup
+backend/data/vector_db_backup_2
+backend/data/vector_db_backup_3
+backend/data/vector_db_backup_4
+backend/data/vector_db_backup_5
+backend/data/vector_db_backup_6
 
 # Development artifacts
 __pycache__/
