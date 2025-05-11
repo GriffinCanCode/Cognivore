@@ -1,3 +1,11 @@
+## [0.3.27] - Removed Deprecated Sidebar Navigation Items
+
+### Changed
+- Removed deprecated "Search" and "Categories" buttons from sidebar
+  - Removed items from navItems array in Sidebar.js
+  - Updated CSS animation delays in sidebar.css to match fewer navigation items
+  - These features have been replaced by agent and Mnemosyne functionality
+
 ## [0.3.26] - Advanced Memory Management for Embedding Operations
 
 ### Added
