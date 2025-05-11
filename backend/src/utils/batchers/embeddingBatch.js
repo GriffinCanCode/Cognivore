@@ -5,8 +5,9 @@
 
 const { createContextLogger } = require('../../utils/logger');
 const BatchProcessor = require('./batchProcessor');
-const { generateEmbedding } = require('../../services/embedding');
+const embeddingService = require('../../services/embedding');
 const config = require('../../config');
+const { memoryManager } = require('../../memory');
 
 const logger = createContextLogger('EmbeddingBatch');
 
@@ -110,7 +111,8 @@ async function processChunk(chunk, options = {}) {
   const { includeContent = true, includeMetadata = true } = options;
   
   try {
-    const embedding = await generateEmbedding(chunk.content);
+    // Use generateEmbedding for single chunks instead of generateEmbeddingsBatch
+    const embedding = await embeddingService.generateEmbedding(chunk.content);
     
     const result = {
       embedding
@@ -190,8 +192,176 @@ async function batchEmbedAndStore(chunks, storeFn, options = {}) {
   return results;
 }
 
+/**
+ * Process text chunks in batches for embedding generation
+ * 
+ * @param {Array<string>} chunks Array of text chunks to process
+ * @param {Object} options Batch processing options
+ * @param {number} [options.batchSize=5] Maximum number of chunks to process in each batch
+ * @param {number} [options.concurrency=1] Number of batches to process in parallel
+ * @param {number} [options.maxRetries=3] Maximum number of retries for failed requests
+ * @param {number} [options.maxQueueSize=100] Maximum number of pending batches
+ * @param {boolean} [options.skipCache=false] Whether to skip the embedding cache
+ * @returns {Promise<Array<Array<number>>>} Array of embedding vectors
+ */
+async function processBatches(chunks, options = {}) {
+  // Default options
+  const config = {
+    batchSize: options.batchSize || 5,
+    concurrency: options.concurrency || 1,
+    maxRetries: options.maxRetries || 3,
+    maxQueueSize: options.maxQueueSize || 100,
+    skipCache: options.skipCache || false,
+    timeout: options.timeout || 60000, // 1 minute timeout
+    delayBetweenBatches: options.delayBetweenBatches || 1000 // 1 second delay between batch groups
+  };
+  
+  // Estimate average chunk size to dynamically adjust batch parameters
+  if (chunks.length > 0) {
+    const avgChunkSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0) / chunks.length;
+    logger.debug(`Average chunk size: ${avgChunkSize} characters`);
+    
+    // Auto-adjust parameters for very large chunks
+    if (avgChunkSize > 5000) {
+      config.batchSize = Math.min(config.batchSize, 3);
+      config.concurrency = 1;
+      config.delayBetweenBatches = 2000;
+      logger.info(`Adjusted batch parameters for large chunks: batchSize=${config.batchSize}, concurrency=${config.concurrency}`);
+    }
+  }
+  
+  logger.info(`Processing ${chunks.length} chunks for embedding generation`, {
+    batchSize: config.batchSize,
+    concurrency: config.concurrency,
+    maxRetries: config.maxRetries
+  });
+  
+  // Create batches
+  const batches = [];
+  for (let i = 0; i < chunks.length; i += config.batchSize) {
+    batches.push(chunks.slice(i, i + config.batchSize));
+  }
+  
+  logger.debug(`Created ${batches.length} batches for processing`);
+  
+  // Process batches with rate limiting
+  const results = [];
+  const errors = [];
+  
+  // Track memory usage
+  const memBefore = memoryManager.monitorMemory();
+  logger.debug(`Memory before batch processing: ${memBefore.heapUsedMB}MB`);
+  
+  // Process batches
+  for (let i = 0; i < batches.length; i += config.concurrency) {
+    const currentBatchGroup = batches.slice(i, i + config.concurrency);
+    const batchGroupIndex = Math.floor(i / config.concurrency) + 1;
+    const totalBatchGroups = Math.ceil(batches.length / config.concurrency);
+    
+    logger.debug(`Processing batch group ${batchGroupIndex}/${totalBatchGroups} (${currentBatchGroup.length} batches)`);
+    
+    try {
+      // Process batches in this group concurrently, but with a timeout
+      const batchPromises = currentBatchGroup.map(async (batch, batchIndex) => {
+        try {
+          // Use the embeddingService's batch function for multiple chunks
+          const batchResults = await Promise.race([
+            embeddingService.generateEmbeddingsBatch(batch),
+            
+            // Timeout promise
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Batch ${batchIndex} timed out after ${config.timeout}ms`)), 
+              config.timeout)
+            )
+          ]);
+          
+          return batchResults;
+        } catch (error) {
+          logger.error(`Error processing batch ${batchIndex} in group ${batchGroupIndex}:`, {
+            error: error.message,
+            chunksCount: batch.length
+          });
+          
+          errors.push({
+            batchIndex: i + batchIndex,
+            error: error.message,
+            chunksCount: batch.length
+          });
+          
+          // Return zero vectors for this batch as fallback
+          return batch.map(() => new Array(768).fill(0));
+        }
+      });
+      
+      // Wait for all batches in this group to complete
+      const batchGroupResults = await Promise.all(batchPromises);
+      
+      // Flatten and add to results
+      batchGroupResults.forEach(batchResult => {
+        results.push(...batchResult);
+      });
+      
+      // Check memory usage after each batch group
+      const memAfter = memoryManager.monitorMemory();
+      
+      if (memAfter.heapUsedRatio > 0.7) {
+        logger.warn(`High memory usage detected: ${memAfter.heapUsedMB}MB (${Math.round(memAfter.heapUsedRatio * 100)}%)`);
+        
+        // Force garbage collection if available
+        if (global.gc) {
+          logger.debug('Requesting garbage collection');
+          global.gc();
+        }
+      }
+      
+      // Add delay between batch groups to respect rate limits
+      if (i + config.concurrency < batches.length) {
+        logger.debug(`Waiting ${config.delayBetweenBatches}ms before next batch group`);
+        await new Promise(resolve => setTimeout(resolve, config.delayBetweenBatches));
+      }
+      
+    } catch (groupError) {
+      logger.error(`Error processing batch group ${batchGroupIndex}:`, {
+        error: groupError.message
+      });
+      
+      // Add brief delay for recovery
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+  
+  // Final memory check
+  const memAfter = memoryManager.monitorMemory();
+  logger.debug(`Memory after batch processing: ${memAfter.heapUsedMB}MB (${Math.round(memAfter.heapUsedRatio * 100)}%)`);
+  
+  // Log error summary if any occurred
+  if (errors.length > 0) {
+    logger.warn(`Completed with ${errors.length} batch errors out of ${batches.length} batches`);
+  } else {
+    logger.info(`Successfully processed all ${batches.length} batches`);
+  }
+  
+  // Validate results
+  if (results.length !== chunks.length) {
+    logger.warn(`Result count mismatch: expected ${chunks.length}, got ${results.length}`);
+    
+    // Pad with zero vectors if necessary to match input
+    while (results.length < chunks.length) {
+      results.push(new Array(768).fill(0));
+    }
+    
+    // Trim if somehow we got more results than expected
+    if (results.length > chunks.length) {
+      results.splice(chunks.length);
+    }
+  }
+  
+  return results;
+}
+
 module.exports = {
   batchGenerateEmbeddings,
   processChunk,
-  batchEmbedAndStore
+  batchEmbedAndStore,
+  processBatches
 }; 

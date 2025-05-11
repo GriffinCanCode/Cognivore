@@ -27,8 +27,26 @@ function initializeIpcHandlers() {
   // Initialize tools service
   toolsService.initialize();
 
+  // Safe handler registration function to avoid conflicts
+  const safelyRegisterHandler = (channel, handler) => {
+    try {
+      // Attempt to register the handler
+      ipcMain.handle(channel, handler);
+      logger.debug(`Registered IPC handler for: ${channel}`);
+    } catch (error) {
+      // If it fails because the handler already exists, log it but don't fail
+      if (error.message && error.message.includes('Attempted to register a second handler')) {
+        logger.info(`Handler for ${channel} already registered, skipping`);
+      } else {
+        // For other errors, log and rethrow
+        logger.error(`Error registering handler for ${channel}:`, error);
+        throw error;
+      }
+    }
+  };
+
   // Health check handler
-  ipcMain.handle('health-check', async () => {
+  safelyRegisterHandler('health-check', async () => {
     try {
       logger.debug('Health check requested');
       return { status: 'ok', timestamp: new Date().toISOString() };
@@ -39,7 +57,7 @@ function initializeIpcHandlers() {
   });
 
   // Get config
-  ipcMain.handle('get-config', async () => {
+  safelyRegisterHandler('get-config', async () => {
     try {
       logger.debug('Config requested');
       
@@ -48,7 +66,7 @@ function initializeIpcHandlers() {
       
       return { 
         llmModel: process.env.LLM_MODEL || 'gemini-2.0-flash',
-        embeddingModel: process.env.EMBEDDING_MODEL || 'embedding-001',
+        embeddingModel: process.env.EMBEDDING_MODEL || 'text-embedding-005',
         apiKeyValid: isApiKeyValid
       };
     } catch (error) {
@@ -58,7 +76,7 @@ function initializeIpcHandlers() {
   });
 
   // Process PDF
-  ipcMain.handle('process-pdf', async (event, filePath) => {
+  safelyRegisterHandler('process-pdf', async (event, filePath) => {
     try {
       logger.info(`Processing PDF: ${filePath}`);
       const result = await processPDF(filePath);
@@ -71,7 +89,7 @@ function initializeIpcHandlers() {
   });
 
   // Process URL
-  ipcMain.handle('process-url', async (event, url) => {
+  safelyRegisterHandler('process-url', async (event, url) => {
     try {
       logger.info(`Processing URL: ${url}`);
       const result = await processURL(url);
@@ -84,7 +102,7 @@ function initializeIpcHandlers() {
   });
 
   // Process YouTube
-  ipcMain.handle('process-youtube', async (event, url) => {
+  safelyRegisterHandler('process-youtube', async (event, url) => {
     try {
       logger.info(`Processing YouTube: ${url}`);
       const result = await processYouTube(url);
@@ -97,7 +115,7 @@ function initializeIpcHandlers() {
   });
 
   // Delete item
-  ipcMain.handle('delete-item', async (event, id) => {
+  safelyRegisterHandler('delete-item', async (event, id) => {
     try {
       logger.info(`Deleting item: ${id}`);
       const result = await deleteItem(id);
@@ -110,7 +128,7 @@ function initializeIpcHandlers() {
   });
 
   // List items
-  ipcMain.handle('list-items', async (event) => {
+  safelyRegisterHandler('list-items', async (event) => {
     try {
       logger.info('Listing items');
       const items = await listItems();
@@ -123,7 +141,7 @@ function initializeIpcHandlers() {
   });
 
   // Semantic search
-  ipcMain.handle('search', async (event, query, limit = 5) => {
+  safelyRegisterHandler('search', async (event, query, limit = 5) => {
     try {
       logger.info(`Searching for: "${query}"`);
       const results = await semanticSearch(query, limit);
@@ -136,7 +154,7 @@ function initializeIpcHandlers() {
   });
 
   // Get available tools
-  ipcMain.handle('get-available-tools', async (event) => {
+  safelyRegisterHandler('get-available-tools', async (event) => {
     try {
       logger.info('Retrieving available tools');
       const tools = toolsService.getAvailableTools();
@@ -149,7 +167,7 @@ function initializeIpcHandlers() {
   });
 
   // Execute tool
-  ipcMain.handle('execute-tool', async (event, toolName, params) => {
+  safelyRegisterHandler('execute-tool', async (event, toolName, params) => {
     try {
       logger.info(`Executing tool: ${toolName}`);
       const result = await toolsService.executeTool(toolName, params);
@@ -162,7 +180,7 @@ function initializeIpcHandlers() {
   });
 
   // Generate document summary
-  ipcMain.handle('generate-summary', async (event, documentId, content, title) => {
+  safelyRegisterHandler('generate-summary', async (event, documentId, content, title) => {
     try {
       logger.info(`Generating summary for document: ${documentId}`);
       const result = await toolsService.executeTool('summary', { documentId, content, title });
@@ -175,7 +193,7 @@ function initializeIpcHandlers() {
   });
 
   // LLM chat
-  ipcMain.handle('chat', async (event, params) => {
+  safelyRegisterHandler('chat', async (event, params) => {
     try {
       logger.info(`Chat request received with model: ${params.model || 'default'}`);
       
@@ -193,7 +211,7 @@ function initializeIpcHandlers() {
   });
 
   // Generate embeddings
-  ipcMain.handle('generate-embeddings', async (event, params) => {
+  safelyRegisterHandler('generate-embeddings', async (event, params) => {
     try {
       logger.info('Embeddings generation requested');
       
@@ -211,7 +229,7 @@ function initializeIpcHandlers() {
   });
 
   // Execute tool call (from LLM)
-  ipcMain.handle('execute-tool-call', async (event, params) => {
+  safelyRegisterHandler('execute-tool-call', async (event, params) => {
     try {
       logger.info(`Tool call execution requested: ${params.toolName}`);
       
@@ -229,7 +247,7 @@ function initializeIpcHandlers() {
   });
 
   // Semantic RAG search (advanced with options)
-  ipcMain.handle('semantic-search', async (event, query, queryVector, options = {}) => {
+  safelyRegisterHandler('semantic-search', async (event, query, queryVector, options = {}) => {
     try {
       logger.info(`Advanced semantic search for: "${query}"`);
       

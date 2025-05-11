@@ -6,6 +6,8 @@
 const lancedb = require('vectordb');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
+const util = require('util');
 const config = require('../config');
 const { createContextLogger } = require('../utils/logger');
 const { 
@@ -18,11 +20,32 @@ const {
   analyzeQueryPerformance
 } = require('../memory');
 
+// Promisify zlib functions
+const gzipAsync = util.promisify(zlib.gzip);
+const gunzipAsync = util.promisify(zlib.gunzip);
+
 const logger = createContextLogger('Database');
 
 let db;
 let collection;
 let monitoredDb;
+
+// Ensure storage directories exist
+const ensureStorageDirectories = () => {
+  const storagePaths = [
+    config.storage?.pdfPath || path.join(config.database.path, 'pdf_storage'),
+    config.storage?.webPath || path.join(config.database.path, 'web_storage'),
+    config.storage?.videoPath || path.join(config.database.path, 'video_storage'),
+    config.storage?.transcriptPath || path.join(config.database.path, 'transcript_storage')
+  ];
+  
+  storagePaths.forEach(dirPath => {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+      logger.info(`Created storage directory: ${dirPath}`);
+    }
+  });
+};
 
 /**
  * Initialize the vector database
@@ -36,6 +59,9 @@ async function initializeDatabase() {
       fs.mkdirSync(dbPath, { recursive: true });
       logger.info(`Created database directory: ${dbPath}`);
     }
+    
+    // Ensure file storage directories exist
+    ensureStorageDirectories();
 
     // Monitor memory before connecting
     const memBefore = memoryManager.monitorMemory();
@@ -73,6 +99,11 @@ async function initializeDatabase() {
         extracted_text: 'This is a sample item to initialize the database.',
         text_chunks: ['This is a sample item to initialize the database.'],
         vector: sampleVector,
+        summary: 'Sample summary',
+        file_path: '',
+        file_size: 0,
+        transcript: '',
+        compressed: false,
         metadata: JSON.stringify({
           sample: true,
           creation_date: new Date().toISOString()
@@ -102,6 +133,143 @@ async function initializeDatabase() {
 }
 
 /**
+ * Compress text data using gzip
+ * @param {string} text - The text to compress
+ * @returns {Promise<Buffer>} - Compressed data
+ */
+async function compressText(text) {
+  try {
+    return await gzipAsync(Buffer.from(text, 'utf8'));
+  } catch (error) {
+    logger.error('Error compressing text:', error);
+    return Buffer.from(text, 'utf8'); // Return uncompressed as fallback
+  }
+}
+
+/**
+ * Decompress text data
+ * @param {Buffer} compressed - The compressed data
+ * @returns {Promise<string>} - Decompressed text
+ */
+async function decompressText(compressed) {
+  try {
+    const buffer = await gunzipAsync(compressed);
+    return buffer.toString('utf8');
+  } catch (error) {
+    logger.error('Error decompressing text:', error);
+    return compressed.toString('utf8'); // Return as-is as fallback
+  }
+}
+
+/**
+ * Store a file in the appropriate storage directory
+ * @param {string} sourcePath - Original file path
+ * @param {string} sourceType - Type of content (pdf, url, youtube)
+ * @param {string} identifier - Unique identifier for the file
+ * @returns {Promise<Object>} - File storage information
+ */
+async function storeFile(sourcePath, sourceType, identifier) {
+  try {
+    // Determine target storage directory based on source type
+    let targetDir;
+    switch (sourceType) {
+      case 'pdf':
+        targetDir = config.storage?.pdfPath || path.join(config.database.path, 'pdf_storage');
+        break;
+      case 'url':
+        targetDir = config.storage?.webPath || path.join(config.database.path, 'web_storage');
+        break;
+      case 'youtube':
+        targetDir = config.storage?.videoPath || path.join(config.database.path, 'video_storage');
+        break;
+      default:
+        targetDir = path.join(config.database.path, 'misc_storage');
+    }
+    
+    // Ensure directory exists
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    
+    // Generate target filename
+    const fileExt = path.extname(sourcePath) || '.bin';
+    const filename = `${identifier}${fileExt}`;
+    const targetPath = path.join(targetDir, filename);
+    
+    // Check if file already exists
+    if (fs.existsSync(targetPath)) {
+      logger.debug(`File already exists at ${targetPath}, skipping copy`);
+      const stats = fs.statSync(targetPath);
+      return {
+        path: targetPath,
+        size: stats.size,
+        exists: true
+      };
+    }
+    
+    // Copy file to storage location
+    if (fs.existsSync(sourcePath)) {
+      fs.copyFileSync(sourcePath, targetPath);
+      const stats = fs.statSync(targetPath);
+      logger.info(`Stored file: ${targetPath} (${stats.size} bytes)`);
+      return {
+        path: targetPath,
+        size: stats.size,
+        exists: false
+      };
+    } else {
+      throw new Error(`Source file not found: ${sourcePath}`);
+    }
+  } catch (error) {
+    logger.error(`Error storing file: ${error.message}`, { sourcePath, sourceType });
+    return {
+      path: sourcePath,
+      size: 0,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Store transcript data for video content
+ * @param {string} transcript - The transcript text
+ * @param {string} identifier - Unique identifier 
+ * @returns {Promise<Object>} - Transcript storage information
+ */
+async function storeTranscript(transcript, identifier) {
+  try {
+    const targetDir = config.storage?.transcriptPath || 
+                     path.join(config.database.path, 'transcript_storage');
+    
+    // Ensure directory exists
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    
+    // Generate target filename
+    const targetPath = path.join(targetDir, `${identifier}.txt`);
+    
+    // Compress transcript
+    const compressed = await compressText(transcript);
+    
+    // Write compressed transcript to file
+    fs.writeFileSync(targetPath + '.gz', compressed);
+    
+    logger.info(`Stored compressed transcript: ${targetPath}.gz (${compressed.length} bytes)`);
+    return {
+      path: targetPath + '.gz',
+      size: compressed.length,
+      compressed: true
+    };
+  } catch (error) {
+    logger.error(`Error storing transcript: ${error.message}`);
+    return {
+      error: error.message
+    };
+  }
+}
+
+/**
  * Add a new item to the database
  * @param {Object} item The item to add
  * @returns {Promise<Object>} The added item
@@ -113,13 +281,129 @@ const addItem = optimizeQuery(
     }
     
     try {
-      // Ensure metadata is properly stringified if it's an object
-      if (typeof item.metadata === 'object') {
-        item.metadata = JSON.stringify(item.metadata);
+      // Handle camelCase to snake_case conversion for database fields
+      const dbItem = { ...item };
+      
+      // Convert extractedText to extracted_text if present
+      if (dbItem.extractedText !== undefined) {
+        dbItem.extracted_text = dbItem.extractedText;
+        delete dbItem.extractedText;
+        logger.debug('Converted extractedText to extracted_text for database compatibility');
       }
       
-      await collection.add([item]);
-      return item;
+      // Ensure text_chunks field exists, it's required by the vectordb schema
+      if (!dbItem.text_chunks) {
+        // Create text_chunks from extracted_text if available
+        if (dbItem.extracted_text) {
+          if (typeof dbItem.extracted_text === 'string') {
+            // Create a single chunk if it's just a string
+            dbItem.text_chunks = [dbItem.extracted_text];
+            logger.debug('Created text_chunks from extracted_text');
+          }
+        } else if (item.extractedText) {
+          // Use the original extractedText if available
+          dbItem.text_chunks = [item.extractedText];
+          logger.debug('Created text_chunks from original extractedText');
+        } else {
+          // Create an empty array as fallback
+          dbItem.text_chunks = ['No text content available'];
+          logger.warn('No text content found, using placeholder for text_chunks');
+        }
+      } else if (typeof dbItem.text_chunks === 'string') {
+        // If text_chunks is a string, convert it to an array
+        try {
+          // Try parsing it first in case it's a stringified JSON array
+          dbItem.text_chunks = JSON.parse(dbItem.text_chunks);
+        } catch (e) {
+          // If parsing fails, treat it as a single string chunk
+          dbItem.text_chunks = [dbItem.text_chunks];
+        }
+        logger.debug('Ensured text_chunks is an array');
+      }
+      
+      // Ensure summary field exists, it's required by the vectordb schema
+      if (!dbItem.summary) {
+        // Generate a simple summary based on title or other fields
+        if (dbItem.title) {
+          dbItem.summary = `Summary of ${dbItem.title}`;
+          logger.debug('Created placeholder summary from title');
+        } else if (dbItem.source_type && dbItem.source_identifier) {
+          dbItem.summary = `Content from ${dbItem.source_type}: ${dbItem.source_identifier}`;
+          logger.debug('Created placeholder summary from source info');
+        } else {
+          // Default summary
+          dbItem.summary = 'No summary available';
+          logger.debug('Created default placeholder summary');
+        }
+      }
+      
+      // Ensure transcript field exists, it's required by the vectordb schema
+      if (dbItem.transcript === undefined) {
+        // Only add transcript field if not present to avoid overwriting existing data
+        if (dbItem.source_type === 'youtube') {
+          // For YouTube, we might get a transcript later, so use a pending message
+          dbItem.transcript = '[Transcript pending]';
+          logger.debug('Created placeholder transcript for YouTube content');
+        } else {
+          // For non-video content, set a default value
+          dbItem.transcript = '';
+          logger.debug('Set empty transcript for non-video content');
+        }
+      }
+
+      // Ensure compressed field exists, it's required by the vectordb schema
+      if (dbItem.compressed === undefined) {
+        dbItem.compressed = false;
+        logger.debug('Set default compressed flag to false');
+      }
+      
+      // Ensure metadata is properly stringified if it's an object
+      if (typeof dbItem.metadata === 'object') {
+        dbItem.metadata = JSON.stringify(dbItem.metadata);
+      }
+      
+      // Handle file storage if needed
+      if (dbItem.source_type && dbItem.original_content_path) {
+        const fileInfo = await storeFile(
+          dbItem.original_content_path,
+          dbItem.source_type,
+          dbItem.id || crypto.randomUUID()
+        );
+        
+        if (!dbItem.id) {
+          dbItem.id = path.basename(fileInfo.path, path.extname(fileInfo.path));
+        }
+        
+        // Update item with file information
+        dbItem.file_path = fileInfo.path;
+        dbItem.file_size = fileInfo.size;
+      }
+      
+      // Handle transcript storage for YouTube videos
+      if (dbItem.source_type === 'youtube' && dbItem.transcript) {
+        const transcriptInfo = await storeTranscript(
+          dbItem.transcript,
+          dbItem.id || crypto.randomUUID()
+        );
+        
+        if (transcriptInfo.path) {
+          dbItem.transcript_path = transcriptInfo.path;
+          dbItem.transcript_compressed = true;
+          
+          // Replace original transcript with path to avoid duplicate storage
+          if (dbItem.transcript && dbItem.transcript.length > 100) {
+            dbItem.transcript = `[Stored at ${transcriptInfo.path}]`;
+          }
+        }
+      }
+      
+      // Add timestamp if not present
+      if (!dbItem.created_at) {
+        dbItem.created_at = new Date().toISOString();
+      }
+      
+      await collection.add([dbItem]);
+      return item; // Return the original item for consistency with the rest of the code
     } catch (error) {
       logger.error('Error adding item to database:', error);
       throw error;
@@ -142,9 +426,62 @@ const deleteItem = optimizeQuery(
       throw new Error('Database not initialized');
     }
     
+    if (!id) {
+      throw new Error('Item ID is required for deletion');
+    }
+    
+    logger.info(`Attempting to delete item with ID: ${id}`);
+    
     try {
+      // Get item to retrieve file path before deletion
+      const sampleVector = new Array(config.embeddings.dimensions).fill(0);
+      logger.debug(`Searching for item with ID: ${id} before deletion`);
+      
+      const results = await collection.search(sampleVector).limit(1000).execute();
+      const item = results.find(result => result.id === id);
+      
+      if (!item) {
+        logger.warn(`Item with ID ${id} not found for deletion`);
+        // Return true as the end result is the same - item doesn't exist
+        return true;
+      }
+      
+      logger.debug(`Found item for deletion: ${id}, title: ${item.title || 'Untitled'}`);
+      
+      // Delete associated files if they exist
+      if (item.file_path) {
+        try {
+          if (fs.existsSync(item.file_path)) {
+            fs.unlinkSync(item.file_path);
+            logger.info(`Deleted file: ${item.file_path}`);
+          } else {
+            logger.warn(`File does not exist: ${item.file_path}`);
+          }
+        } catch (fileError) {
+          // Log but don't fail the whole operation if file deletion fails
+          logger.error(`Error deleting file ${item.file_path}:`, fileError);
+        }
+      }
+      
+      if (item.transcript_path) {
+        try {
+          if (fs.existsSync(item.transcript_path)) {
+            fs.unlinkSync(item.transcript_path);
+            logger.info(`Deleted transcript: ${item.transcript_path}`);
+          } else {
+            logger.warn(`Transcript file does not exist: ${item.transcript_path}`);
+          }
+        } catch (transcriptError) {
+          // Log but don't fail the whole operation if transcript deletion fails
+          logger.error(`Error deleting transcript ${item.transcript_path}:`, transcriptError);
+        }
+      }
+      
       // LanceDB uses a SQL-like query language
+      logger.debug(`Executing database delete for item: ${id}`);
       await collection.delete(`id='${id}'`);
+      logger.info(`Successfully deleted item with ID: ${id} from database`);
+      
       return true;
     } catch (error) {
       logger.error(`Error deleting item with ID ${id}:`, error);
@@ -174,11 +511,33 @@ const listItems = optimizeQuery(
       const results = await collection.search(sampleVector).limit(1000).execute();
       
       // Process results to extract just the needed fields
-      return results.map(item => ({
-        id: item.id,
-        title: item.title,
-        source_type: item.source_type
-      }));
+      return results.map(item => {
+        // Generate preview from available text
+        let preview = '';
+        if (item.text_chunks && Array.isArray(item.text_chunks) && item.text_chunks.length > 0) {
+          // Join first few chunks for a longer preview
+          preview = item.text_chunks.slice(0, 3).join(' ');
+          // Limit preview length
+          if (preview.length > 500) {
+            preview = preview.substring(0, 497) + '...';
+          }
+        } else if (item.extracted_text) {
+          preview = item.extracted_text;
+          // Limit preview length
+          if (preview.length > 500) {
+            preview = preview.substring(0, 497) + '...';
+          }
+        }
+        
+        return {
+          id: item.id,
+          title: item.title || 'Untitled',
+          source_type: item.source_type,
+          source_identifier: item.source_identifier,
+          preview: preview,
+          created_at: item.created_at
+        };
+      });
     } catch (error) {
       logger.error('Error listing items from database:', error);
       throw error;
@@ -422,7 +781,8 @@ const getItemById = optimizeQuery(
       // Default options
       const {
         includeVector = false,
-        includeContent = true
+        includeContent = true,
+        includeTranscript = false,
       } = options;
       
       // Since we can't directly query by ID with the current vectordb API,
@@ -454,7 +814,11 @@ const getItemById = optimizeQuery(
         sourceType: item.source_type,
         sourceId: item.source_identifier,
         metadata,
-        originalPath: item.original_content_path
+        originalPath: item.original_content_path,
+        filePath: item.file_path,
+        fileSize: item.file_size,
+        summary: item.summary || null,
+        createdAt: item.created_at
       };
       
       // Include content if requested
@@ -470,6 +834,22 @@ const getItemById = optimizeQuery(
           }
         } else if (item.extracted_text) {
           response.content = item.extracted_text;
+        }
+      }
+      
+      // Include transcript if requested and available
+      if (includeTranscript && item.source_type === 'youtube') {
+        if (item.transcript_path && fs.existsSync(item.transcript_path)) {
+          // Load and decompress transcript
+          const compressed = fs.readFileSync(item.transcript_path);
+          try {
+            response.transcript = await decompressText(compressed);
+          } catch (e) {
+            logger.warn(`Failed to decompress transcript for item ${id}: ${e.message}`);
+            response.transcript = '[Transcript decompression failed]';
+          }
+        } else if (item.transcript) {
+          response.transcript = item.transcript;
         }
       }
       
@@ -524,5 +904,9 @@ module.exports = {
   semanticSearch,
   getItemById,
   getDatabaseStats,
-  analyzeDatabasePerformance
+  analyzeDatabasePerformance,
+  storeFile,
+  storeTranscript,
+  compressText,
+  decompressText
 }; 

@@ -10,6 +10,7 @@ import ContentViewer from './ContentViewer.js';
 import SearchSection from './SearchSection.js';
 import Header from './Header.js';
 import Mnemosyne from './Mnemosyne.js';
+import Sieve from './Sieve.js';
 import DocProcessor from '../services/DocProcessorService.js';
 import logger from '../utils/logger.js';
 
@@ -32,6 +33,7 @@ class App {
     this.currentSection = 'ai-assistant'; // Default section
     this.documentManager = null; // Document processor
     this.mnemosyne = null; // Mnemosyne component
+    this.sieve = null; // Sieve component
     
     // Bind methods
     this.handleNavigation = this.handleNavigation.bind(this);
@@ -66,6 +68,9 @@ class App {
     
     // Create Mnemosyne component
     this.mnemosyne = new Mnemosyne(notificationService);
+    
+    // Create Sieve component
+    this.sieve = new Sieve(notificationService, this.documentManager);
     
     // Create content viewer
     this.contentViewer = new ContentViewer();
@@ -145,6 +150,9 @@ class App {
         if (this.mnemosyne) {
           this.mnemosyne.refreshItems();
         }
+        if (this.sieve) {
+          this.sieve.refreshItems();
+        }
         break;
         
       default:
@@ -171,14 +179,22 @@ class App {
     if (this.mnemosyne) {
       this.mnemosyne.refreshItems();
     }
+    if (this.sieve) {
+      this.sieve.refreshItems();
+    }
   }
 
   /**
-   * Handle sidebar navigation item clicks
+   * Handle navigation item clicks
    * @param {string} itemId - The ID of the clicked item
    */
   handleNavigation(itemId) {
     appLogger.info(`Navigation: ${itemId}`);
+    
+    // If this is the same section as current, do nothing
+    if (this.currentSection === itemId) {
+      return;
+    }
     
     // Set active navigation item
     this.sidebar.setActiveItem(itemId);
@@ -276,6 +292,11 @@ class App {
     const sidebarElement = this.sidebar.render();
     this.container.appendChild(sidebarElement);
     
+    // Ensure sidebar shows the correct active state (only if needed)
+    if (this.sidebar && this.currentSection) {
+      this.sidebar.setActiveItem(this.currentSection);
+    }
+    
     // Create main content
     const mainContent = document.createElement('div');
     mainContent.className = 'main-content';
@@ -313,6 +334,21 @@ class App {
         mainContent.appendChild(this.contentViewer.render());
         break;
         
+      case 'sieve':
+        // Render Sieve component
+        appLogger.info('Rendering Sieve component');
+        const sieveElement = this.sieve.render();
+        mainContent.appendChild(sieveElement);
+        
+        // Initialize Sieve
+        setTimeout(() => {
+          this.sieve.initialize();
+        }, 100);
+        
+        // Add content viewer for viewing selected items
+        mainContent.appendChild(this.contentViewer.render());
+        break;
+        
       case 'search':
         // Render search view
         mainContent.appendChild(this.searchSection.render());
@@ -328,12 +364,6 @@ class App {
         underConstruction.textContent = 'This section is under construction.';
         mainContent.appendChild(underConstruction);
     }
-    
-    // Add theme switcher to main content
-    mainContent.appendChild(this.themeSwitcher.render());
-    
-    // Add footer
-    mainContent.appendChild(this.footer.render());
     
     this.container.appendChild(mainContent);
     
@@ -368,6 +398,7 @@ class App {
     if (this.themeSwitcher) { /* no cleanup needed */ }
     if (this.footer) { /* no cleanup needed */ }
     if (this.mnemosyne) { /* no cleanup needed */ }
+    if (this.sieve) this.sieve.cleanup();
     if (this.contentViewer) { /* no cleanup needed */ }
     if (this.searchSection) { /* no cleanup needed */ }
     if (this.header) { /* no cleanup needed */ }
@@ -406,6 +437,7 @@ class App {
     this.themeSwitcher = null;
     this.footer = null;
     this.mnemosyne = null;
+    this.sieve = null;
     this.contentViewer = null;
     this.searchSection = null;
     this.header = null;

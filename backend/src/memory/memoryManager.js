@@ -16,17 +16,23 @@ class MemoryManager {
    * @param {boolean} [options.debug=false] Enable debug logging
    * @param {boolean} [options.autoGC=false] Attempt automatic garbage collection when threshold is reached
    * @param {number} [options.gcThresholdPct=80] Percentage of heap usage that triggers GC (if autoGC enabled)
+   * @param {number} [options.embeddingBatchLimit=20] Maximum number of embeddings to process in a single batch
+   * @param {number} [options.largeDocThresholdKB=500] Size in KB above which a document is considered large
    */
   constructor(options = {}) {
     this.options = {
       debug: options.debug || false,
       autoGC: options.autoGC || false,
-      gcThresholdPct: options.gcThresholdPct || 80
+      gcThresholdPct: options.gcThresholdPct || 80,
+      embeddingBatchLimit: options.embeddingBatchLimit || 20,
+      largeDocThresholdKB: options.largeDocThresholdKB || 500
     };
     
     this.logger = createContextLogger('MemoryManager');
     this._memorySnapshots = [];
     this._initialized = true;
+    this._activeBatches = 0;
+    this._lastGCTime = 0;
     
     if (this.options.debug) {
       this.logger.info('Memory manager initialized with options:', this.options);
@@ -42,6 +48,7 @@ class MemoryManager {
    * @param {number} [options.minBatchSize=1] - Minimum batch size to use
    * @param {number} [options.targetBatchSizeMB=10] - Target batch size in MB
    * @param {Function} [options.sizeCalculator] - Function to calculate size of an item
+   * @param {boolean} [options.isEmbedding=false] - Whether the batch is for embedding operations
    * @returns {number} - Calculated optimal batch size
    */
   calculateOptimalBatchSize(items, options = {}) {
@@ -49,12 +56,50 @@ class MemoryManager {
       maxBatchSize = 50,
       minBatchSize = 1,
       targetBatchSizeMB = 10,
-      sizeCalculator = this.calculateItemSize
+      sizeCalculator = this.calculateItemSize,
+      isEmbedding = false
     } = options;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       this.logger.warn('Invalid or empty items array provided for batch size calculation');
       return maxBatchSize; // Default to max when no data available
+    }
+
+    // If this is for embeddings, apply stricter limits based on current memory state
+    if (isEmbedding) {
+      const memUsage = this.getCurrentMemoryUsage();
+      const heapUtilizationPct = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      
+      // If already under memory pressure, use smallest batch size for embeddings
+      if (heapUtilizationPct > this.options.gcThresholdPct) {
+        this.logger.warn('Memory pressure detected, using minimal batch size for embeddings');
+        return minBatchSize;
+      }
+      
+      // For embeddings, cap at embeddingBatchLimit regardless of calculated size
+      const embeddingMax = Math.min(maxBatchSize, this.options.embeddingBatchLimit);
+      
+      // Reduce batch size if we have multiple active batches
+      if (this._activeBatches > 1) {
+        return Math.max(minBatchSize, Math.floor(embeddingMax / this._activeBatches));
+      }
+      
+      // Check if items contain large documents
+      const sampleSize = Math.min(items.length, 5);
+      const sampled = items.length <= 5 ? items : this.sampleItems(items, sampleSize);
+      
+      for (const item of sampled) {
+        const itemSize = sizeCalculator(item);
+        const itemSizeKB = itemSize / 1024;
+        
+        // If any sampled item is large, reduce batch size
+        if (itemSizeKB > this.options.largeDocThresholdKB) {
+          this.logger.info(`Large document detected (${itemSizeKB.toFixed(1)}KB), reducing batch size`);
+          return Math.max(minBatchSize, Math.floor(embeddingMax / 2));
+        }
+      }
+      
+      return embeddingMax;
     }
 
     // Sample the items (all items if < 10, otherwise up to 10)
@@ -94,6 +139,43 @@ class MemoryManager {
   }
 
   /**
+   * Track the start of a batch processing operation
+   * 
+   * @param {Object} options Options for batch tracking
+   * @param {string} [options.type='default'] Type of batch operation (e.g., 'embedding', 'processing')
+   * @param {number} [options.size=0] Number of items in the batch
+   * @returns {Object} Batch tracker object with release method
+   */
+  trackBatch(options = {}) {
+    const { type = 'default', size = 0 } = options;
+    
+    this._activeBatches++;
+    
+    if (this.options.debug) {
+      this.logger.debug(`Starting batch operation (${type}), active batches: ${this._activeBatches}`);
+    }
+    
+    // Return a tracker object with release method
+    return {
+      type,
+      size,
+      startTime: Date.now(),
+      release: () => {
+        this._activeBatches = Math.max(0, this._activeBatches - 1);
+        
+        if (this.options.debug) {
+          this.logger.debug(`Released batch operation (${type}), active batches: ${this._activeBatches}`);
+        }
+        
+        // Try to reclaim memory after a batch completes
+        if (type === 'embedding' && size > 5) {
+          this.tryForceGC();
+        }
+      }
+    };
+  }
+
+  /**
    * Calculate the approximate memory size of an item in bytes
    * 
    * @param {any} item - Item to calculate size for
@@ -123,6 +205,12 @@ class MemoryManager {
         return item.chunks.reduce((sum, chunk) => {
           return sum + (typeof chunk === 'string' ? chunk.length * 2 : 0);
         }, 0);
+      }
+      
+      // Handle embedding vectors directly
+      if (item.vector && Array.isArray(item.vector)) {
+        // Each embedding value is a float (4 bytes) plus some overhead
+        return item.vector.length * 4 + 100;
       }
       
       // Fallback for general objects: use JSON size as estimate
@@ -179,7 +267,8 @@ class MemoryManager {
       heapUsedMB: (memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
       heapTotalMB: (memoryUsage.heapTotal / 1024 / 1024).toFixed(2),
       rssMB: (memoryUsage.rss / 1024 / 1024).toFixed(2),
-      utilization: (memoryUsage.heapUsed / memoryUsage.heapTotal * 100).toFixed(1) + '%'
+      utilization: (memoryUsage.heapUsed / memoryUsage.heapTotal * 100).toFixed(1) + '%',
+      activeBatches: this._activeBatches
     };
   }
 
@@ -189,16 +278,45 @@ class MemoryManager {
    * Note: This requires running Node with --expose-gc flag
    * e.g. node --expose-gc your-script.js
    * 
+   * @param {Object} options Options for garbage collection
+   * @param {boolean} [options.force=false] Force GC even if cooldown period hasn't elapsed
    * @returns {boolean} Whether garbage collection was triggered
    */
-  tryForceGC() {
+  tryForceGC(options = {}) {
+    const now = Date.now();
+    const cooldownPeriod = 2000; // 2 seconds between GC attempts
+    
+    // Skip GC if we've recently tried unless forced
+    if (!options.force && now - this._lastGCTime < cooldownPeriod) {
+      return false;
+    }
+    
     if (global.gc) {
       if (this.options.debug) {
         this.logger.debug('Triggering manual garbage collection');
       }
+      
+      this._lastGCTime = now;
       global.gc();
+      
+      // For higher memory pressure, try a second GC pass after a short delay
+      const memUsage = this.getCurrentMemoryUsage();
+      const heapUtilization = parseFloat(memUsage.utilization);
+      
+      if (heapUtilization > 75) {
+        setTimeout(() => {
+          if (global.gc) {
+            global.gc();
+            if (this.options.debug) {
+              this.logger.debug('Running second garbage collection pass');
+            }
+          }
+        }, 500);
+      }
+      
       return true;
     }
+    
     return false;
   }
 
@@ -229,20 +347,22 @@ class MemoryManager {
       (this.options.autoGC && heapUtilizationPct >= this.options.gcThresholdPct);
     
     if (shouldTriggerGC) {
-      this.tryForceGC();
+      const gcTriggered = this.tryForceGC({force: options.forceGC});
       
-      // Get updated memory usage after GC
-      const afterGC = this.getCurrentMemoryUsage();
-      const memoryFreed = memUsage.heapUsed - afterGC.heapUsed;
-      
-      if (this.options.debug && memoryFreed > 0) {
-        this.logger.info(`GC freed ${(memoryFreed / (1024 * 1024)).toFixed(2)}MB of memory`, {
-          before: memUsage.heapUsedMB + 'MB',
-          after: afterGC.heapUsedMB + 'MB'
-        });
+      if (gcTriggered) {
+        // Get updated memory usage after GC
+        const afterGC = this.getCurrentMemoryUsage();
+        const memoryFreed = memUsage.heapUsed - afterGC.heapUsed;
+        
+        if (this.options.debug && memoryFreed > 0) {
+          this.logger.info(`GC freed ${(memoryFreed / (1024 * 1024)).toFixed(2)}MB of memory`, {
+            before: memUsage.heapUsedMB + 'MB',
+            after: afterGC.heapUsedMB + 'MB'
+          });
+        }
+        
+        return afterGC;
       }
-      
-      return afterGC;
     }
     
     return memUsage;
@@ -293,6 +413,26 @@ class MemoryManager {
       timeWindowMs
     };
   }
+  
+  /**
+   * Check if system is currently under memory pressure
+   * 
+   * @returns {boolean} True if system is under memory pressure
+   */
+  isUnderMemoryPressure() {
+    const memUsage = this.getCurrentMemoryUsage();
+    const heapUtilizationPct = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+    return heapUtilizationPct > this.options.gcThresholdPct;
+  }
+  
+  /**
+   * Get the number of active batch operations
+   * 
+   * @returns {number} Number of active batches
+   */
+  getActiveBatchCount() {
+    return this._activeBatches;
+  }
 }
 
 // Create and export a singleton instance
@@ -310,7 +450,10 @@ module.exports = {
   calculateOptimalBatchSize: (items, options) => memoryManager.calculateOptimalBatchSize(items, options),
   calculateItemSize: (item) => memoryManager.calculateItemSize(item),
   getCurrentMemoryUsage: () => memoryManager.getCurrentMemoryUsage(),
-  tryForceGC: () => memoryManager.tryForceGC(),
+  tryForceGC: (options) => memoryManager.tryForceGC(options),
   monitorMemory: (options) => memoryManager.monitorMemory(options),
-  getMemoryTrend: (options) => memoryManager.getMemoryTrend(options)
+  getMemoryTrend: (options) => memoryManager.getMemoryTrend(options),
+  trackBatch: (options) => memoryManager.trackBatch(options),
+  isUnderMemoryPressure: () => memoryManager.isUnderMemoryPressure(),
+  getActiveBatchCount: () => memoryManager.getActiveBatchCount()
 }; 

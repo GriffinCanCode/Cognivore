@@ -154,8 +154,8 @@ function createMainWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           isDev 
-            ? "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
-            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
+            ? "default-src 'self'; script-src 'self' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
+            : "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
         ]
       }
     });
@@ -195,7 +195,7 @@ function setupEssentialIpcHandlers() {
     logger.info('IPC: Get config request received');
     return {
       llmModel: process.env.LLM_MODEL || 'gemini-2.5-flash',
-      embeddingModel: process.env.EMBEDDING_MODEL || 'embedding-001',
+      embeddingModel: process.env.EMBEDDING_MODEL || 'text-embedding-005',
       serverVersion: '1.0.0'
     };
   });

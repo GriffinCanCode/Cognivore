@@ -1,214 +1,175 @@
 /**
- * Batch Optimizer Module
- * Provides adaptive batch sizing and memory optimization for batch operations
+ * Batch Optimizer for Memory-Efficient Embedding Operations
+ * Provides methods to process large embedding tasks with optimal memory usage
  */
 
 const { createContextLogger } = require('../utils/logger');
 const { memoryManager } = require('./memoryManager');
-const { heapAnalyzer } = require('./heapAnalyzer');
+const { dbMemoryManager } = require('./dbMemoryManager');
 const logger = createContextLogger('BatchOptimizer');
 
 /**
- * Optimizes batch processing operations based on memory constraints
+ * Process a large collection of items in memory-efficient batches
+ * with automatic handling of memory pressure
+ * 
+ * @param {Array<any>} items Array of items to process
+ * @param {Function} processFn Async function that processes a batch of items
+ * @param {Object} options Configuration options
+ * @param {number} [options.maxBatchSize=50] Maximum items per batch
+ * @param {number} [options.minBatchSize=1] Minimum items per batch
+ * @param {number} [options.delay=0] Delay between batches in ms
+ * @param {string} [options.operationType='default'] Type of operation for logging
+ * @param {boolean} [options.isEmbedding=false] Whether this is an embedding operation
+ * @param {Function} [options.onProgress] Progress callback function
+ * @param {Function} [options.shouldContinue] Function that returns whether to continue processing
+ * @returns {Promise<Array<any>>} Combined results from all batches
  */
-class BatchOptimizer {
-  /**
-   * Create a new BatchOptimizer instance
-   * @param {Object} options Configuration options
-   * @param {number} [options.defaultBatchSize=10] Default batch size when no optimization is needed
-   * @param {number} [options.maxBatchSize=100] Maximum allowed batch size
-   * @param {number} [options.minBatchSize=1] Minimum allowed batch size
-   * @param {number} [options.targetUtilizationPct=70] Target memory utilization percentage
-   * @param {boolean} [options.autoAdjust=true] Whether to automatically adjust batch sizes
-   * @param {boolean} [options.preProcessGC=false] Whether to force GC before large batch operations
-   * @param {boolean} [options.debug=false] Enable debug logging
-   */
-  constructor(options = {}) {
-    this.options = {
-      defaultBatchSize: options.defaultBatchSize || 10,
-      maxBatchSize: options.maxBatchSize || 100,
-      minBatchSize: options.minBatchSize || 1,
-      targetUtilizationPct: options.targetUtilizationPct || 70,
-      autoAdjust: options.autoAdjust !== undefined ? options.autoAdjust : true,
-      preProcessGC: options.preProcessGC || false,
-      debug: options.debug || false
-    };
-    
-    this.logger = createContextLogger('BatchOptimizer');
-    this._lastBatchSizes = [];
-    this._itemSizeCache = new Map();
+async function processInBatches(items, processFn, options = {}) {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return [];
   }
-
-  /**
-   * Calculate the optimal batch size based on memory constraints and item characteristics
-   * 
-   * @param {Array<any>} items Items to process in batches
-   * @param {Object} options Additional options
-   * @param {string} [options.operation] Name of operation for logging
-   * @param {boolean} [options.aggressiveOptimization=false] Use more aggressive optimization for critical operations
-   * @returns {number} Optimal batch size
-   */
-  calculateOptimalBatchSize(items, options = {}) {
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return this.options.defaultBatchSize;
-    }
-    
-    // Get current memory usage
-    const memUsage = memoryManager.getCurrentMemoryUsage();
-    const heapUtilizationPct = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-    
-    // If memory utilization is already high, use more aggressive optimization
-    const aggressive = options.aggressiveOptimization || 
-      heapUtilizationPct > (this.options.targetUtilizationPct + 15);
-    
-    // Use memory manager's calculation as a base
-    const baseSize = memoryManager.calculateOptimalBatchSize(items, {
-      maxBatchSize: aggressive ? Math.floor(this.options.maxBatchSize / 2) : this.options.maxBatchSize,
-      minBatchSize: this.options.minBatchSize,
-      targetBatchSizeMB: aggressive ? 5 : 10
-    });
-    
-    // Store this calculation for tracking
-    this._lastBatchSizes.push({
-      timestamp: Date.now(),
-      size: baseSize,
-      operation: options.operation || 'unknown',
-      itemCount: items.length,
-      memoryUsage: memUsage
-    });
-    
-    // Keep only the most recent 20 calculations
-    if (this._lastBatchSizes.length > 20) {
-      this._lastBatchSizes.shift();
-    }
-    
-    // Debug logging
-    if (this.options.debug) {
-      this.logger.debug(`Calculated batch size: ${baseSize}`, {
-        operation: options.operation || 'unknown',
-        itemCount: items.length,
-        memoryUtilization: heapUtilizationPct.toFixed(1) + '%',
-        aggressive
-      });
-    }
-    
-    return baseSize;
+  
+  if (typeof processFn !== 'function') {
+    throw new Error('Process function must be a function');
   }
-
-  /**
-   * Optimize a process function to be memory efficient
-   * 
-   * @param {Function} processFn The original process function that takes a batch of items
-   * @param {Object} options Options for optimization
-   * @param {string} [options.operation] Name of operation for logging
-   * @param {boolean} [options.monitored=true] Whether to monitor memory during execution
-   * @returns {Function} An optimized version of the process function
-   */
-  optimizeProcessFunction(processFn, options = {}) {
-    if (typeof processFn !== 'function') {
-      throw new Error('Process function must be a function');
-    }
+  
+  const {
+    maxBatchSize = 50,
+    minBatchSize = 1,
+    delay = 0,
+    operationType = 'default',
+    isEmbedding = false,
+    onProgress = null,
+    shouldContinue = () => true
+  } = options;
+  
+  logger.info(`Starting batch processing of ${items.length} items (${operationType})`);
+  
+  // Track the batch operation
+  const batchTracker = memoryManager.trackBatch({
+    type: operationType,
+    size: items.length
+  });
+  
+  try {
+    const results = [];
+    let processedCount = 0;
+    let currentIndex = 0;
     
-    const operation = options.operation || 'unknown';
-    const monitored = options.monitored !== undefined ? options.monitored : true;
-    
-    // Return an optimized wrapper function
-    return async (batch) => {
-      if (this.options.preProcessGC && batch.length > 5) {
-        // For large batches, try to reclaim memory before processing
-        memoryManager.tryForceGC();
+    while (currentIndex < items.length) {
+      // Check if we should continue processing
+      if (!shouldContinue()) {
+        logger.info(`Batch processing stopped by continue check at ${processedCount}/${items.length} items`);
+        break;
       }
       
-      // Capture memory before processing
-      let memBefore;
-      if (monitored) {
-        memBefore = memoryManager.getCurrentMemoryUsage();
-      }
+      // Get memory-optimized batch size based on current conditions
+      const batchSize = memoryManager.calculateOptimalBatchSize(
+        items.slice(currentIndex),
+        { 
+          maxBatchSize, 
+          minBatchSize,
+          isEmbedding,
+          targetBatchSizeMB: isEmbedding ? 5 : 10 // Use smaller target size for embeddings
+        }
+      );
       
-      // Execute the original function
-      const results = await processFn(batch);
+      // Extract the current batch
+      const endIndex = Math.min(currentIndex + batchSize, items.length);
+      const batch = items.slice(currentIndex, endIndex);
       
-      // Analyze memory after processing
-      if (monitored) {
-        const memAfter = memoryManager.getCurrentMemoryUsage();
-        const memPerItem = (memAfter.heapUsed - memBefore.heapUsed) / batch.length;
+      // Process the batch
+      logger.debug(`Processing batch ${processedCount}/${items.length} with size ${batch.length}`);
+      
+      try {
+        // Check if system is under memory pressure
+        if (dbMemoryManager.isUnderMemoryPressure() || memoryManager.isUnderMemoryPressure()) {
+          logger.warn(`Memory pressure detected, pausing before next batch`);
+          
+          // Clear any caches
+          dbMemoryManager.clearQueryCache();
+          
+          // Force garbage collection with delay
+          await new Promise(resolve => {
+            memoryManager.tryForceGC({force: true});
+            setTimeout(() => {
+              memoryManager.tryForceGC({force: true});
+              resolve();
+            }, 1000);
+          });
+          
+          // Additional delay when under memory pressure
+          if (delay < 500) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
         
-        // Cache the memory usage per item for this operation
-        this._itemSizeCache.set(operation, {
-          timestamp: Date.now(),
-          bytesPerItem: memPerItem,
-          sampleSize: batch.length
+        // Process the batch
+        const batchResults = await processFn(batch, {
+          batchIndex: processedCount,
+          totalBatches: Math.ceil(items.length / batchSize),
+          isLastBatch: endIndex >= items.length
         });
         
-        // If we detect high memory growth, trigger GC
-        if (memAfter.heapUsed - memBefore.heapUsed > 50 * 1024 * 1024) { // 50MB growth
-          memoryManager.tryForceGC();
+        // Add batch results to overall results
+        if (Array.isArray(batchResults)) {
+          results.push(...batchResults);
+        } else if (batchResults !== undefined && batchResults !== null) {
+          results.push(batchResults);
         }
+        
+        // Update progress
+        processedCount += batch.length;
+        currentIndex = endIndex;
+        
+        // Call progress callback if provided
+        if (typeof onProgress === 'function') {
+          onProgress(processedCount, items.length);
+        }
+        
+        // Add delay between batches if specified
+        if (delay > 0 && currentIndex < items.length) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        // Monitor memory after each batch
+        memoryManager.monitorMemory();
+        
+      } catch (error) {
+        logger.error(`Error processing batch at index ${currentIndex}:`, error);
+        throw error; // Re-throw to be caught by the outer try/catch
       }
-      
-      return results;
-    };
-  }
-
-  /**
-   * Get memory usage statistics for previous batch operations
-   * 
-   * @returns {Object} Statistics about batch operations and memory usage
-   */
-  getBatchStatistics() {
-    return {
-      batchSizes: this._lastBatchSizes,
-      itemSizeEstimates: Array.from(this._itemSizeCache.entries()).map(([operation, data]) => ({
-        operation,
-        ...data,
-        bytesPerItemKB: (data.bytesPerItem / 1024).toFixed(2)
-      })),
-      recommendations: this._generateRecommendations()
-    };
-  }
-
-  /**
-   * Generate recommendations based on observed batch processing patterns
-   * @private
-   * @returns {Array<Object>} List of recommendations
-   */
-  _generateRecommendations() {
-    const recommendations = [];
-    
-    // Check for overly large batch sizes
-    const largeBatches = this._lastBatchSizes.filter(b => b.size > 50);
-    if (largeBatches.length > 5) {
-      recommendations.push({
-        type: 'batch_size',
-        message: 'Consider reducing max batch size for more consistent memory usage',
-        suggestedValue: Math.ceil(largeBatches.reduce((sum, b) => sum + b.size, 0) / largeBatches.length / 2)
-      });
     }
     
-    // Check for memory intensive operations
-    const intensiveOps = Array.from(this._itemSizeCache.entries())
-      .filter(([_, data]) => data.bytesPerItem > 1024 * 1024) // More than 1MB per item
-      .map(([op, _]) => op);
+    logger.info(`Completed batch processing ${processedCount}/${items.length} items`);
+    return results;
     
-    if (intensiveOps.length > 0) {
-      recommendations.push({
-        type: 'memory_intensive',
-        message: `These operations consume significant memory per item: ${intensiveOps.join(', ')}`,
-        operations: intensiveOps
-      });
-    }
-    
-    return recommendations;
+  } finally {
+    // Release the batch tracker
+    batchTracker.release();
   }
 }
 
-// Create a singleton instance
-const batchOptimizer = new BatchOptimizer();
+/**
+ * Optimized function specifically for embedding text documents
+ * 
+ * @param {Array<any>} documents Documents to embed
+ * @param {Function} embedFn Function that creates embeddings for a batch
+ * @param {Object} options Configuration options
+ * @returns {Promise<Array<any>>} Documents with embeddings
+ */
+async function embedDocumentsInBatches(documents, embedFn, options = {}) {
+  return processInBatches(documents, embedFn, {
+    ...options,
+    operationType: 'embedding',
+    isEmbedding: true,
+    maxBatchSize: options.maxBatchSize || 20,
+    minBatchSize: options.minBatchSize || 1,
+    delay: options.delay || 200 // Add small delay between embedding batches
+  });
+}
 
 module.exports = {
-  BatchOptimizer,
-  batchOptimizer,
-  calculateOptimalBatchSize: (items, options) => batchOptimizer.calculateOptimalBatchSize(items, options),
-  optimizeProcessFunction: (fn, options) => batchOptimizer.optimizeProcessFunction(fn, options),
-  getBatchStatistics: () => batchOptimizer.getBatchStatistics()
+  processInBatches,
+  embedDocumentsInBatches
 }; 

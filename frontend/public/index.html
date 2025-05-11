@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://localhost:3001 https://*.googleapis.com; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://localhost:3001 https://*.googleapis.com; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; model-src 'self' blob:;">
   <meta name="color-scheme" content="dark">
   <title>Knowledge Store</title>
   <link href="./styles/main.css" rel="stylesheet">
@@ -15,9 +15,15 @@
   <link rel="stylesheet" href="./styles/components/header.css">
   <link rel="stylesheet" href="./styles/components/theme-switcher.css">
   <link rel="stylesheet" href="./styles/components/thinking-visualization.css">
+  <link rel="stylesheet" href="./styles/components/sieve.css">
   <link rel="stylesheet" href="./mnemosyne.css">
   <!-- GSAP Animation Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <!-- Three.js and GLTF Loader for 3D Muse Model -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- Custom Muse Loader -->
+  <script src="./scripts/muse-loader.js"></script>
 </head>
 <body class="dark-theme">
   <div id="app"></div>

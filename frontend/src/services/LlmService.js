@@ -4,7 +4,7 @@ import systemPrompt from './systemPrompt';
 class LlmService {
   constructor() {
     this.defaultModel = 'gemini-2.0-flash'; // Update to supported model
-    this.defaultEmbeddingModel = 'embedding-001'; // Fallback embedding model
+    this.defaultEmbeddingModel = 'text-embedding-005'; // Fallback embedding model
     this.config = null;
     this.configPromise = this.loadConfig();
     this.apiKeyMissing = false;
@@ -216,11 +216,32 @@ class LlmService {
           toolsMetadata: options.tools || this.getDefaultTools()
         });
       
-      // Insert system message at the beginning
+      // Gemini 2.0 Flash doesn't support system roles, so we convert it to a user message
+      // with special formatting to indicate it's instructions
       formattedHistory.unshift({
-        role: 'system',
-        content: systemPromptText
+        role: 'user',
+        content: `[SYSTEM INSTRUCTIONS]\n${systemPromptText}\n[END SYSTEM INSTRUCTIONS]`
       });
+      
+      // Add a model response to maintain the conversation flow
+      formattedHistory.unshift({
+        role: 'model',
+        content: 'I understand my instructions and will follow them.'
+      });
+    } else {
+      // If there's already a system message, convert it to a user message for Gemini
+      formattedHistory[0] = {
+        role: 'user',
+        content: `[SYSTEM INSTRUCTIONS]\n${formattedHistory[0].content}\n[END SYSTEM INSTRUCTIONS]`
+      };
+      
+      // Add a model response if there isn't already one
+      if (formattedHistory.length === 1 || formattedHistory[1].role !== 'model') {
+        formattedHistory.splice(1, 0, {
+          role: 'model',
+          content: 'I understand my instructions and will follow them.'
+        });
+      }
     }
     
     return formattedHistory;

@@ -9,6 +9,17 @@
   },
   "embeddings": {
     "modelName": "all-MiniLM-L6-v2",
-    "dimensions": 384
+    "dimensions": 384,
+    "useVertexAI": true,
+    "gcpProjectId": "linear-ellipse-459408-j6",
+    "gcpLocation": "us-central1",
+    "vertexApiUrl": "https://us-central1-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations/LOCATION/publishers/google/models/EMBEDDING_MODEL:predict"
+  },
+  "google": {
+    "projectId": "linear-ellipse-459408-j6",
+    "location": "us-central1",
+    "auth": {
+      "keyFilePath": ""
+    }
   }
 } 

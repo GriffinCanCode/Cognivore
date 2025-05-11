@@ -18,7 +18,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
 // Default fallback models
 const DEFAULT_LLM_MODEL = 'gemini-2.0-flash';
-const DEFAULT_EMBEDDING_MODEL = 'embedding-001';
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-005';
 
 // Cache for model instances to avoid recreating them
 const modelCache = new Map();
@@ -130,13 +130,23 @@ async function chat(params) {
     logger.debug(`Memory before LLM API call: ${memBefore.heapUsedMB}MB`);
     
     // Format chat history for the API
-    const formattedHistory = chatHistory.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }],
-      ...(msg.toolCalls && msg.toolCalls.length > 0 && {
-        toolCalls: msg.toolCalls
-      })
-    }));
+    const formattedHistory = chatHistory.map(msg => {
+      // Gemini only supports 'user' and 'model' roles
+      // If 'system' role is encountered, log a warning and treat it as 'user'
+      let role = msg.role;
+      if (role === 'system') {
+        logger.warn('System role detected in chat history - Gemini does not support system roles. Converting to user role.');
+        role = 'user';
+      }
+      
+      return {
+        role: role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }],
+        ...(msg.toolCalls && msg.toolCalls.length > 0 && {
+          toolCalls: msg.toolCalls
+        })
+      };
+    });
     
     // Prepare generation config
     const generationConfig = {
@@ -193,6 +203,8 @@ async function chat(params) {
       throw new Error('Google API key is invalid. Please check your GOOGLE_API_KEY value.');
     } else if (error.message.includes('not found for API version') || error.message.includes('not supported')) {
       throw new Error(`The model "${params.model}" is not available. Please use a supported model like "gemini-2.0-flash".`);
+    } else if (error.message.includes('system role is not supported')) {
+      throw new Error('The Gemini model does not support system roles. Please modify the frontend code to use only user and model roles.');
     }
     
     throw error;

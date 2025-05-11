@@ -65,7 +65,7 @@ if (!GOOGLE_API_KEY) {
 // Environment variables
 // Use gemini-2.0-flash
 const LLM_MODEL = process.env.LLM_MODEL || 'gemini-2.0-flash';
-const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'embedding-001';
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-005';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Log the model being used and API key status

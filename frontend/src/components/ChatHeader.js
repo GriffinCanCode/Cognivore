@@ -6,7 +6,7 @@ class ChatHeader {
    * Constructor for ChatHeader component
    * @param {string} title - The title to display in the header
    */
-  constructor(title = 'Store Manager') {
+  constructor(title = 'Cognivore') {
     this.title = title;
     this.container = null;
     this.onMenuToggle = null;

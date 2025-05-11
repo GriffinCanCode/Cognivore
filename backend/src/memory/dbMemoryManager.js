@@ -33,6 +33,9 @@ class DbMemoryManager {
    * @param {boolean} [options.enableResultCache=true] Whether to cache query results
    * @param {boolean} [options.monitorQueries=true] Whether to monitor query execution for memory impact
    * @param {boolean} [options.debug=false] Enable debug logging
+   * @param {number} [options.gcThresholdPct=85] Percentage of heap usage that triggers GC
+   * @param {number} [options.criticalThresholdPct=90] Percentage of heap usage considered critical
+   * @param {number} [options.gcCooldownMs=2000] Cooldown time between GC attempts in ms
    */
   constructor(options = {}) {
     this.options = {
@@ -42,7 +45,10 @@ class DbMemoryManager {
       maxQueryCacheSizeMB: options.maxQueryCacheSizeMB || 50,
       enableResultCache: options.enableResultCache !== undefined ? options.enableResultCache : true,
       monitorQueries: options.monitorQueries !== undefined ? options.monitorQueries : true,
-      debug: options.debug || false
+      debug: options.debug || false,
+      gcThresholdPct: options.gcThresholdPct || 85,
+      criticalThresholdPct: options.criticalThresholdPct || 90,
+      gcCooldownMs: options.gcCooldownMs || 2000
     };
 
     this.logger = createContextLogger('DbMemoryManager');
@@ -57,6 +63,8 @@ class DbMemoryManager {
       totalQueryTime: 0,
       largeResults: 0
     };
+    this._lastGCAttempt = 0;
+    this._memoryPressure = false;
 
     if (this.options.debug) {
       this.logger.info('Database memory manager initialized with options:', this.options);
@@ -512,17 +520,82 @@ class DbMemoryManager {
     // Check current memory usage
     const memUsage = memoryManager.getCurrentMemoryUsage();
     const heapUtilizationPct = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+    const now = Date.now();
     
-    // If memory utilization is high, clear the cache
-    if (heapUtilizationPct > 85) {
+    // Update memory pressure state for external components to check
+    this._memoryPressure = heapUtilizationPct > this.options.gcThresholdPct;
+    
+    // Critical memory situation - take emergency actions
+    if (heapUtilizationPct > this.options.criticalThresholdPct) {
+      this.logger.error('Critical memory pressure detected', {
+        utilization: heapUtilizationPct.toFixed(1) + '%',
+        heapUsedMB: memUsage.heapUsedMB,
+        heapTotalMB: memUsage.heapTotalMB
+      });
+      
+      // Always clear cache in critical situations
+      this.clearQueryCache();
+      
+      // Force GC with delay to allow Node.js time to reclaim memory
+      this._forceGCWithDelay();
+      return;
+    }
+    
+    // High memory utilization but not critical
+    if (heapUtilizationPct > this.options.gcThresholdPct) {
       this.logger.warn('High memory utilization detected, clearing query cache', {
         utilization: heapUtilizationPct.toFixed(1) + '%',
         cacheSize: this._queryCache.size
       });
       
       this.clearQueryCache();
-      memoryManager.tryForceGC();
+      
+      // Only attempt GC if we haven't recently tried
+      if (now - this._lastGCAttempt > this.options.gcCooldownMs) {
+        this._lastGCAttempt = now;
+        memoryManager.tryForceGC();
+        
+        // Schedule another GC attempt after a delay
+        setTimeout(() => {
+          memoryManager.tryForceGC();
+        }, 1000);
+      }
     }
+  }
+  
+  /**
+   * Attempt garbage collection with a delay to improve memory reclamation
+   * 
+   * @private
+   */
+  _forceGCWithDelay() {
+    const now = Date.now();
+    if (now - this._lastGCAttempt < this.options.gcCooldownMs) {
+      return; // Avoid too frequent GC attempts
+    }
+    
+    this._lastGCAttempt = now;
+    
+    // First GC attempt
+    memoryManager.tryForceGC();
+    
+    // Schedule additional GC attempts with increasing delays
+    setTimeout(() => {
+      memoryManager.tryForceGC();
+    }, 500);
+    
+    setTimeout(() => {
+      memoryManager.tryForceGC();
+    }, 2000);
+  }
+  
+  /**
+   * Check if the system is currently under memory pressure
+   * 
+   * @returns {boolean} True if system is under memory pressure
+   */
+  isUnderMemoryPressure() {
+    return this._memoryPressure;
   }
 
   /**
@@ -762,5 +835,6 @@ module.exports = {
   optimizeQuery: (fn, opts) => dbMemoryManager.optimizeQuery(fn, opts),
   getStatistics: () => dbMemoryManager.getStatistics(),
   analyzeQueryPerformance: () => dbMemoryManager.analyzeQueryPerformance(),
-  clearQueryCache: () => dbMemoryManager.clearQueryCache()
+  clearQueryCache: () => dbMemoryManager.clearQueryCache(),
+  isUnderMemoryPressure: () => dbMemoryManager.isUnderMemoryPressure()
 }; 

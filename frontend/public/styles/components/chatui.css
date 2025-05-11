@@ -312,7 +312,7 @@
   gap: 24px;
   scroll-behavior: smooth;
   background-color: transparent;
-  padding-bottom: 150px !important;
+  padding-bottom: 100px !important;
   position: relative;
   margin: 0 auto;
   width: 100%;
@@ -697,7 +697,7 @@ body.chat-layout .chat-messages {
 .scroll-to-bottom {
   position: fixed;
   right: 30px;
-  bottom: 100px; 
+  bottom: 80px; 
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -731,10 +731,10 @@ body.chat-layout .chat-messages {
   transform: translateY(0);
 }
 
-/* Chat input above footer */
+/* Chat input */
 .chat-input-container {
   position: fixed !important;
-  bottom: 38px !important;
+  bottom: 0 !important;
   left: var(--sidebar-width) !important;
   right: 0 !important;
   padding: 20px;
@@ -746,6 +746,7 @@ body.chat-layout .chat-messages {
   box-shadow: 0 -5px 25px var(--shadow-color);
   width: calc(100% - var(--sidebar-width)) !important;
   transition: left 0.3s ease, width 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+  height: 84px;
 }
 
 .sidebar-collapsed .chat-input-container {
@@ -1009,6 +1010,7 @@ body.chat-layout {
   .chat-messages {
     padding: 15px 12px;
     gap: 15px;
+    padding-bottom: 80px !important;
   }
   
   .message {

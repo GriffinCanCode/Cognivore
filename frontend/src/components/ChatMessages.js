@@ -325,17 +325,8 @@ class ChatMessages {
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
       </svg>
-      <h2>Welcome to Knowledge Store</h2>
+      <h2>Welcome to Cognivore</h2>
       <p>Your intelligent assistant for accessing and managing knowledge. Ask any question to begin.</p>
-      
-      <div class="welcome-suggestions">
-        <h3>Try asking:</h3>
-        <div class="suggestion-items">
-          <button class="suggestion-item">How do I add a document to my knowledge base?</button>
-          <button class="suggestion-item">Search for information about machine learning</button>
-          <button class="suggestion-item">What types of documents can I store?</button>
-        </div>
-      </div>
     `;
     
     // Add event listeners to suggestion buttons

@@ -41,7 +41,7 @@ module.exports = {
       meta: {
         'Content-Security-Policy': {
           'http-equiv': 'Content-Security-Policy',
-          'content': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com"
+          'content': "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com"
         }
       }
     }),
@@ -57,6 +57,13 @@ module.exports = {
         {
           from: 'public/mnemosyne.css',
           to: 'mnemosyne.css'
+        },
+        {
+          from: 'public/assets',
+          to: 'assets',
+          globOptions: {
+            ignore: ['**/*.spec.js']
+          }
         }
       ]
     })
