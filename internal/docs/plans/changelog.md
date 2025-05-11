@@ -1,3 +1,50 @@
+## [0.3.0] - ChatUI DOM Connection Fix
+
+### Fixed
+- Fixed DOM connection issue in ChatUI component
+  - Fixed error "Main container is not connected to DOM!" when initializing ChatUI
+  - Added DOM connection checks in initialize() method to handle cases where container isn't ready
+  - Improved showBackendUnavailableMessage() to handle cases where container isn't connected
+  - Added short delay in initialization sequence to ensure DOM is fully updated
+  - Enhanced updateUI() method to robustly handle DOM connection issues
+
+## [0.3.1] - Mnemosyne Document Processing UI
+
+### Added
+- Created new Mnemosyne component for centralized document processing
+  - Implemented `frontend/src/components/Mnemosyne.js`: Visual component for document processing workflow
+  - Added `frontend/public/mnemosyne.css`: Dedicated styling for the Mnemosyne component
+  - Created card-based interface with three content types (PDF, Web URL, YouTube)
+  - Implemented modern, visually appealing document processing UI
+  - Added responsive design with mobile support
+  - Integrated with existing DocProcessor service for backend communication
+  - Added content list with type badges and actions (view, delete)
+- Enhanced document processing experience
+  - Implemented file name display for selected PDF files
+  - Added content preview with truncated text display
+  - Created consistent color-coding for different content types
+  - Added hover states and subtle animations for interactive elements
+  - Implemented content type icons using SVG data URIs
+
+### Changed
+- Refactored document processing logic
+  - Replaced separate ContentInput and ContentList components with unified Mnemosyne component
+  - Updated App.js to use the new Mnemosyne component
+  - Modified document display with improved styling
+  - Enhanced application theme integration with CSS variables
+  - Improved document management workflow with unified interface
+
+## [0.2.9] - Frontend Logger Fix
+
+### Fixed
+- Fixed critical "process is not defined" error in frontend logger
+  - Updated `frontend/src/utils/logger.js` to properly detect browser environment
+  - Completely rewrote logger implementation to use pure browser-compatible code
+  - Removed all Node.js dependencies (electron-log, require, process) from browser code
+  - Used CommonJS module exports pattern for compatibility with Electron
+  - Enhanced environment detection to avoid process reference in browser context
+  - Fixed error that was preventing ThinkingVisualization component from loading
+
 ## [0.1.1]
 
 ### Added
@@ -337,204 +384,100 @@
   - Fixed input state management after message submission
   - Added proper validation of message content before submission
 
-## [Unreleased]
-
-### Fixed
-- Fixed critical Google Generative AI integration issues
-  - Added robust API key discovery from multiple sources (.env, config.json)
-  - Fixed model name from "gemini-2.5-flash" to "gemini-2.0-flash" (supported model)
-  - Added better error handling for API key and model selection issues
-  - Enhanced user feedback for API key configuration
-  - Added comprehensive instructions in backend/README.md for setting up the environment
-  - Prevented attempts to use non-existent "gemini-2.5-flash" model in frontend
-
-### Removed
-- Removed legacy UI implementation entirely
-  - Deleted `legacy-ui.css` file
-  - Removed RendererUI service and component
-  - Removed legacy route from Router configuration
-  - Updated App.js to remove legacy UI initialization and references
-
-### Added
-- Added ChatUI component to replace Dashboard, providing an interactive chat interface for knowledge queries
-- Implemented LlmService for frontend to communicate with Gemini 2.5 Flash LLM
-- Created RESTful API backend service for Gemini 2.5 Flash integration
-- Added tool calling support for knowledge base interactions
-- Implemented modern, responsive chat styling with message history and typing indicators
-
-### Changed
-- Completely replaced Dashboard.js with a modern React functional component
-- Updated styling from dashboard.css to chat-focused UI
-- Switched from static dashboard to interactive chat experience
-- Changed backend architecture to support LLM communication
-
-### Fixed
-- Fixed TypeError in getSourceColor methods by adding null checks for undefined sourceType values
-  - Updated Dashboard.js, SearchSection.js, ContentList.js, and renderer.js to handle undefined source types
-  - Prevented "Cannot read properties of undefined (reading 'toLowerCase')" error that was breaking dashboard initialization
-- Fixed Content Security Policy issues with webpack bundling
-  - Modified webpack.config.js to use 'inline-source-map' instead of eval-based sourcemaps
-  - Added Content-Security-Policy meta tag in HtmlWebpackPlugin configuration
-  - Disabled webSecurity in Electron for development environments
-- Fixed HTTP request error in preload.js
-  - Fixed "Cannot read properties of undefined (reading 'request')" error in serverProxy.request method 
-  - Improved handling of request body to ensure proper string conversion
-  - Added specific handling of protocol and session options
-  - Added Node.js http/https fallback implementation when Electron's net module is unavailable
-  - Updated Electron configuration to properly support Node.js modules in preload script
-- Fixed web security configuration to allow Gemini API access
-  - Updated Content-Security-Policy to include generativelanguage.googleapis.com in connect-src directive
-  - Improved Electron window security configuration while maintaining API access
-  - Enabled consistent webSecurity settings across development and production environments
-
-## 2023-05-10
-- Removed duplicate UI elements from the chat interface
-- Simplified the header component to avoid redundancy
-- Positioned the chat input at the bottom of the screen
-- Streamlined UI to focus on chat functionality
-- Emptied header CSS file as requested
-
-## UI Improvements
-
-- **Enhanced ChatUI**: Completely redesigned the chat interface with modern glass design, responsive messages, smoother animations, and improved visuals
-  - Added dynamic color scheme support with both light and dark mode
-  - Improved message bubbles with better visual hierarchy and readability
-  - Enhanced animations for a more polished user experience
-  - Added timestamps to messages
-  - Improved tool call display with better iconography
-  - Enhanced welcome screen with modern styling
-  - Better responsive design for mobile devices
-
-### v0.2.0 (Current)
-- **UI Overhaul**: Revamped chat interface with a sophisticated dark glassmorphism design.
-  - Improved message bubble styling with distinct user/assistant appearances and hover effects.
-  - Enhanced visual hierarchy, spacing, and typography across the chat UI.
-  - Refined styling for header, footer, input fields, buttons, code blocks, and loading indicators.
-  - Addressed footer rendering issues, ensuring correct placement and styling in chat view (`frontend/src/components/ChatUI.js`, `frontend/public/styles/components/chatui.css`, `frontend/public/styles/components/footer.css`).
-- **Component Integration**: `ChatUI.js` now correctly utilizes `Footer.js` for rendering the application footer.
-
 ## Changelog
 
-### 2023-10-21
-- Initial project setup
-- Added basic knowledge store functionality
-- Created frontend UI with content input, search and viewing capabilities
+### [2023-08-15] Added Logger Integration
+- Integrated logger.js utility with all frontend components
+- Created context-specific loggers for App, ChatUI, and ChatMessages components
+- Replaced console.log statements with appropriate logger methods
+- Added scope method to logger for creating context-specific loggers
+- Improved error handling across components
 
-### 2023-10-22
-- Added PDF processing capabilities
-- Implemented content extraction service
+## [0.2.9] - Modular Tools System
 
-### 2023-10-28
-- Improved search functionality
-- Added metadata extraction for documents
+### Added
+- Created extensible tools system for document processing
+  - Implemented `backend/src/services/tools.js`: Main service for managing and executing tools
+  - Created `frontend/src/services/tools/` directory structure for modular tools
+  - Added `frontend/src/services/tools/registry.js`: Tool registry for managing available tools
+  - Created `frontend/src/services/tools/summaryGenerator/`: Document summary generation tool
+  - Added `frontend/src/services/tools/toolRegistry.json`: JSON configuration for available tools
+  - Created `frontend/src/services/tools/GeminiFunctionCaller.js`: Utility for Gemini function calling
+- Implemented document summary generation tool
+  - Added backend summary generation with text analysis
+  - Created frontend fallback for summary generation
+  - Implemented key points extraction from document text
+  - Added client/server execution capabilities
+- Enhanced ApiService with tools functionality
+  - Added methods for tool discovery and execution
+  - Implemented tool-specific API methods
+  - Enhanced error handling for tools
 
-### 2023-11-05
-- Added URL content fetching
-- Enhanced fulltext search with better relevance scoring
+### Changed
+- Updated IPC handlers to support tools functionality
+  - Added get-available-tools, execute-tool and generate-summary handlers
+  - Improved error handling for tool execution
+  - Enhanced backend initialization to include tools service
 
-### 2023-12-10
-- Integrated AI assistant capabilities
-- Added RAG (Retrieval Augmented Generation) for knowledge base queries
+## [0.3.0] - Advanced Type Validation System
 
-### 2024-06-20
-- Redesigned UI with ChatUI as the main landing page
-- Added modern glass-style interface with dark/light mode support
-- Implemented sidebar navigation for all app functionality
-- Updated styling with a complementary color scheme across the application
-- Created new component structure with improved accessibility and responsiveness
-- Added mobile-friendly navigation with collapsible sidebar
+### Added
+- Implemented Pydantic-like validation system with strong type safety
+  - Created `frontend/src/services/tools/validation/SchemaValidator.js`: Robust schema validation utility
+  - Added `frontend/src/services/tools/validation/Model.js`: Type-safe data models with validation
+  - Implemented field definitions with strong typing and validation rules
+  - Added automatic type conversion and validation for all data types
+  - Created comprehensive validation error reporting
+- Enhanced summary generation with type-safe models
+  - Added `frontend/src/services/tools/summaryGenerator/models.js`: Type models for summary parameters and results
+  - Implemented SummaryParams, SummaryResult, and SummaryError models
+  - Added validation rules specific to summary generation
+  - Enhanced error handling with custom validation
+- Improved Gemini function calling with validation
+  - Updated GeminiFunctionCaller to handle validation errors
+  - Added FunctionCallResult for consistent error handling
+  - Enhanced tool execution with parameter validation
+  - Implemented more robust error reporting
 
-## Latest Changes
+### Changed
+- Enhanced tool parameters with JSON Schema validation
+  - Updated tool registry to use schema validation
+  - Improved parameter validation for all tools
+  - Enhanced error handling with detailed validation errors
+- Improved type safety across the codebase
+  - Implemented validation before processing
+  - Added automatic type conversion where appropriate
+  - Enhanced error handling with validation context
 
-### Router System Implementation
-- Created a `Router` service to manage navigation between different UI components
-- Implemented `RendererUI` service to encapsulate the original renderer.js functionality
-- Added CSS namespace isolation for legacy UI with `legacy-ui.css`
-- Modified `App.js` to use the router system instead of direct DOM manipulation
-- Added navigation buttons for testing and switching between views
-
-### 2023-05-11
-- Fixed sidebar positioning issue that was causing it to appear below the chat interface instead of alongside it
-- Updated sidebar z-index and component hierarchy for proper display
-- Added mobile menu toggle functionality for responsive design
-- Improved CSS with fallback values for better cross-browser compatibility
-- Fixed main.js import error by separating Node.js and browser code
-- Eliminated duplicate renderer code by consolidating initialization in index.js
-- Fixed issue with duplicate UI elements by refactoring component responsibilities
-
-## 2023-05-10
-- Removed duplicate UI elements from the chat interface
-- Simplified the header component to avoid redundancy
-- Positioned the chat input at the bottom of the screen
-- Streamlined UI to focus on chat functionality
-- Emptied header CSS file as requested
-
-## UI Improvements
-
-- **Enhanced ChatUI**: Completely redesigned the chat interface with modern glass design, responsive messages, smoother animations, and improved visuals
-  - Added dynamic color scheme support with both light and dark mode
-  - Improved message bubbles with better visual hierarchy and readability
-  - Enhanced animations for a more polished user experience
-  - Added timestamps to messages
-  - Improved tool call display with better iconography
-  - Enhanced welcome screen with modern styling
-  - Better responsive design for mobile devices
-
-### v0.2.0 (Current)
-- **UI Overhaul**: Revamped chat interface with a sophisticated dark glassmorphism design.
-  - Improved message bubble styling with distinct user/assistant appearances and hover effects.
-  - Enhanced visual hierarchy, spacing, and typography across the chat UI.
-  - Refined styling for header, footer, input fields, buttons, code blocks, and loading indicators.
-  - Addressed footer rendering issues, ensuring correct placement and styling in chat view (`frontend/src/components/ChatUI.js`, `frontend/public/styles/components/chatui.css`, `frontend/public/styles/components/footer.css`).
-- **Component Integration**: `ChatUI.js` now correctly utilizes `Footer.js` for rendering the application footer.
-
-## 2023-05-11
-- Fixed UI rendering issues across the chat interface
-- Resolved component duplication between App.js and ChatUI.js
-- Fixed incorrect CSS path references in index.html
-- Corrected chat input container placement for proper styling
-- Ensured all required component CSS files are properly loaded
-- Enhanced webpack configuration for better CSS handling
+## [0.3.2] - Message Handling and Backend Connection Fix
 
 ### Fixed
-- Fixed frontend-to-backend connection issues
-  - Corrected port mismatch (3000 vs 3001) in preload.js
-  - Added better error handling with clear instructions when backend isn't running
-  - Enhanced backend health checking with connection retry logic
-  - Improved user feedback when server is unavailable
-  - Added detailed logging for connection issues
-  - Fixed URL replacement to consistently use port 3001
-  - Added timeout handling for backend requests
+- Fixed critical issues with message handling in chat interface
+  - Enhanced ChatUI.handleSubmit() with more robust error handling and connection checks
+  - Added timeout handling for backend connections to prevent hangs
+  - Improved error reporting with specific, user-friendly error messages
+  - Added forceFullRerender() method to recover from DOM detachment issues
+  - Fixed UI update process to ensure messages are always displayed
+- Improved backend server port handling and connection stability
+  - Enhanced port conflict detection and resolution in server.js
+  - Added more comprehensive error handling for server startup
+  - Improved port availability checking with timeout protection
+  - Added automatic process termination for stuck ports
+  - Extended retry mechanism for finding available ports
+- Enhanced LlmService with better connectivity handling
+  - Added timeout protection for backend health checks
+  - Implemented progressive retry with increasing timeout windows
+  - Added detailed error reporting for different failure scenarios
+  - Improved connection retry logic with better error classification
 
-### Fixed Message Display Issues
-- Fixed critical bug with chat messages not displaying in the UI
-  - Resolved "container is null" error in ChatMessages component
-  - Improved container management to handle DOM attachment properly
-  - Enhanced error detection for detached containers
-  - Added DOM verification to ensure messages are displayed
-  - Fixed message count mismatch between memory and DOM
-  - Added fallback rendering mechanisms for edge cases
-  - Improved message rendering reliability with better container tracking
+## [0.3.3] - Chat Message Freezing Fix
 
-### Additional DOM Reliability Fixes
-- Implemented guaranteed DOM rendering approach for chat messages
-  - Added stable ID-based container tracking 
-  - Created forced recreation of message elements to ensure proper DOM attachment
-  - Added verification steps to confirm DOM updates
-  - Enhanced error handling for message rendering failures
-  - Fixed container reference tracking throughout component lifecycle
-  - Implemented recovery mechanisms for detached DOM nodes
-  - Added deferred DOM verification through setTimeout
-
-## 2023-11-10
-
-- Improved separation of concerns by moving ChatInput management from App.js to ChatUI.js
-- Added isOwnInstance flag to ChatInput to track component ownership
-- Added focusInput method to ChatUI for better component encapsulation
-- Simplified App.js by removing direct ChatInput handling
-
-## 2024-06-22
-- Improved mobile menu toggle button styling in ChatHeader
-- Enhanced button appearance with better hover and active states
-- Added proper menu icon rotation transition for menu toggle
-- Improved responsive design of header elements for mobile devices
+### Fixed
+- Fixed critical issue with chat messages freezing when sent
+  - Enhanced ChatInput with improved error handling and explicit console logging for debugging
+  - Added timeout protection to prevent infinite loading states
+  - Fixed event binding issues in ChatInput to ensure handleSubmit is properly called
+  - Added more robust server port detection to prevent conflicts
+  - Improved preload.js IPC bridge with timeout handling and better error recovery
+  - Enhanced error reporting to provide more helpful feedback to users
+  - Added explicit loading state management in ChatUI component

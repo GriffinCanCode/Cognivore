@@ -53,6 +53,10 @@ module.exports = {
           globOptions: {
             ignore: ['**/*.js', '**/*.jsx']
           }
+        },
+        {
+          from: 'public/mnemosyne.css',
+          to: 'mnemosyne.css'
         }
       ]
     })

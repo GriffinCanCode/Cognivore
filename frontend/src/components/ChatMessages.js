@@ -1,6 +1,12 @@
 /**
  * ChatMessages Component - Displays chat message history with an enhanced visual design
  */
+import ThinkingVisualization from './ThinkingVisualization.js';
+import logger from '../utils/logger.js';
+
+// Create context-specific logger
+const messagesLogger = logger.scope('ChatMessages');
+
 class ChatMessages {
   /**
    * Constructor for ChatMessages component
@@ -12,6 +18,7 @@ class ChatMessages {
     this.messages = messages;
     this.isLoading = isLoading;
     this.observer = null;
+    this.thinkingVisualization = null;
     this.setupIntersectionObserver();
   }
 
@@ -39,7 +46,7 @@ class ChatMessages {
    * @param {boolean} isLoading - New loading state
    */
   update(messages = [], isLoading = false) {
-    console.log('ChatMessages.update called with', messages.length, 'messages');
+    messagesLogger.debug('ChatMessages.update called with', messages.length, 'messages');
     this.messages = messages;
     this.isLoading = isLoading;
     
@@ -54,43 +61,43 @@ class ChatMessages {
         const currentMessageElements = this.container.querySelectorAll('.message');
         const currentCount = currentMessageElements.length;
         
-        // Clear loading indicator if exists
-        const loadingIndicator = this.container.querySelector('.loading-indicator');
-        if (loadingIndicator) {
-          loadingIndicator.remove();
+        // Clear thinking visualization if exists
+        const thinkingElement = this.container.querySelector('.thinking-visualization-container');
+        if (thinkingElement) {
+          thinkingElement.remove();
         }
         
         // Add only new messages
         if (currentCount < this.messages.length) {
-          console.log(`Adding ${this.messages.length - currentCount} new messages`);
+          messagesLogger.debug(`Adding ${this.messages.length - currentCount} new messages`);
           for (let i = currentCount; i < this.messages.length; i++) {
             const messageElement = this.createMessageElement(this.messages[i]);
             this.container.appendChild(messageElement);
           }
         }
         
-        // Add loading indicator if needed
+        // Add thinking visualization if needed
         if (this.isLoading) {
-          this.container.appendChild(this.renderLoadingIndicator());
+          this.container.appendChild(this.renderThinkingVisualization());
         }
       }
       
       // Scroll to bottom
       this.scrollToBottom(true);
     } else {
-      console.warn('ChatMessages.update called but container is null or not attached to DOM');
+      messagesLogger.warn('ChatMessages.update called but container is null or not attached to DOM');
       // Create a new container and return it - caller must attach it to DOM
       const container = this.render();
       
       // Try to find and replace the existing messages container
       const existingContainer = document.getElementById('chat-messages-container');
       if (existingContainer && existingContainer.parentNode) {
-        console.log('Found existing chat-messages-container, replacing it');
+        messagesLogger.debug('Found existing chat-messages-container, replacing it');
         existingContainer.parentNode.replaceChild(container, existingContainer);
         // Scroll to bottom after replacing
         this.scrollToBottom(true);
       } else {
-        console.error('No existing chat-messages-container found in DOM, manual attachment required');
+        messagesLogger.error('No existing chat-messages-container found in DOM, manual attachment required');
         // Return the container for manual attachment
         return container;
       }
@@ -356,18 +363,13 @@ class ChatMessages {
   }
   
   /**
-   * Render the loading indicator with better animation
-   * @returns {HTMLElement} - The loading indicator element
+   * Render the thinking visualization with enhanced animation
+   * @returns {HTMLElement} - The thinking visualization element
    */
-  renderLoadingIndicator() {
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.innerHTML = `
-      <div class="typing-indicator">
-        <span></span><span></span><span></span>
-      </div>
-    `;
-    return loadingIndicator;
+  renderThinkingVisualization() {
+    // Create a fresh ThinkingVisualization component
+    this.thinkingVisualization = new ThinkingVisualization();
+    return this.thinkingVisualization.render();
   }
 
   /**
@@ -376,7 +378,7 @@ class ChatMessages {
    * @returns {HTMLElement} - The rendered component
    */
   render(container = null) {
-    console.log('ChatMessages.render called with', this.messages.length, 'messages');
+    messagesLogger.debug('ChatMessages.render called with', this.messages.length, 'messages');
     
     let messageContainer;
     
@@ -403,31 +405,31 @@ class ChatMessages {
 
     // Add welcome message if no messages
     if (!this.messages || this.messages.length === 0) {
-      console.log('Rendering welcome message');
+      messagesLogger.debug('Rendering welcome message');
       messageContainer.appendChild(this.renderWelcomeMessage());
     } else {
-      console.log('Rendering', this.messages.length, 'messages');
+      messagesLogger.debug('Rendering', this.messages.length, 'messages');
       
       // Add messages with verification
       this.messages.forEach((message, index) => {
         if (!message || !message.content) {
-          console.error('Invalid message at index', index, message);
+          messagesLogger.error('Invalid message at index', index, message);
           return; // Skip invalid messages
         }
         
-        console.log('Rendering message', index, message.role, message.content.substring(0, 30));
+        messagesLogger.debug('Rendering message', index, message.role, message.content.substring(0, 30) + (message.content.length > 30 ? '...' : ''));
         try {
           const messageElement = this.createMessageElement(message);
           messageContainer.appendChild(messageElement);
         } catch (error) {
-          console.error('Error rendering message:', error);
+          messagesLogger.error('Error rendering message:', error);
         }
       });
     }
 
-    // Add loading indicator if needed
+    // Add thinking visualization if needed
     if (this.isLoading) {
-      messageContainer.appendChild(this.renderLoadingIndicator());
+      messageContainer.appendChild(this.renderThinkingVisualization());
     }
 
     // Scroll to bottom
@@ -438,7 +440,7 @@ class ChatMessages {
     
     // Verify content
     setTimeout(() => {
-      console.log(`Container has ${messageContainer.childNodes.length} child nodes`);
+      messagesLogger.debug(`Container has ${messageContainer.childNodes.length} child nodes`);
     }, 0);
 
     return messageContainer;
@@ -481,8 +483,16 @@ class ChatMessages {
    * Clean up any resources used by the component
    */
   cleanup() {
+    messagesLogger.debug('ChatMessages cleanup called');
+    
     if (this.observer) {
       this.observer.disconnect();
+    }
+    
+    // Clean up thinking visualization if exists
+    if (this.thinkingVisualization) {
+      this.thinkingVisualization.cleanup();
+      this.thinkingVisualization = null;
     }
     
     // Remove scroll to bottom button if exists

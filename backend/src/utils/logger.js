@@ -163,6 +163,8 @@ module.exports = {
   logger,
   createContextLogger,
   getLogLevel,
+  // Add scope method as alias for createContextLogger for compatibility
+  scope: createContextLogger,
   // Export log levels for reference elsewhere in the application
   logLevels
 }; 

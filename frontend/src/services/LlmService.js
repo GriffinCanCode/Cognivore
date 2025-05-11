@@ -87,8 +87,34 @@ class LlmService {
         throw new Error('Google API key is missing. Please add your API key to the backend .env file and restart the server.');
       }
 
-      // Check if backend is available first
-      const isBackendAvailable = await this.checkBackendStatus();
+      // Check if backend is available with a timeout - use shorter timeout (3s) for better UX
+      let isBackendAvailable = false;
+      try {
+        isBackendAvailable = await Promise.race([
+          this.checkBackendStatus(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Backend connection timeout')), 3000))
+        ]);
+      } catch (connectionError) {
+        console.error('Backend connection error:', connectionError);
+        
+        // Try a second time with slightly longer timeout
+        try {
+          console.log('Retrying backend connection with longer timeout...');
+          isBackendAvailable = await Promise.race([
+            this.checkBackendStatus(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Backend connection timeout')), 5000))
+          ]);
+        } catch (retryError) {
+          console.error('Backend connection retry failed:', retryError);
+          
+          if (retryError.message.includes('timeout')) {
+            throw new Error('Backend server connection timed out. It may be starting up or under heavy load. Please try again in a moment.');
+          } else {
+            throw new Error('Backend server is not available. Please start the backend server by running "npm run server" in the backend directory.');
+          }
+        }
+      }
+      
       if (!isBackendAvailable) {
         throw new Error('Backend server is not available. Please start the backend server by running "npm run server" in the backend directory.');
       }
@@ -108,22 +134,44 @@ class LlmService {
       }
       
       console.log('Sending chat request to backend...');
-      const response = await window.server.chat({
-        message,
-        chatHistory: this.formatChatHistory(chatHistory),
-        model: modelToUse,
-        temperature: options.temperature || 0.7,
-        maxTokens: options.maxTokens || 1024,
-        tools: options.tools || this.getDefaultTools()
-      });
       
-      console.log('Received response from backend');
-      return response;
+      // Add timeout to the chat request - use 15s instead of 30s for better UX when failing
+      try {
+        const response = await Promise.race([
+          window.server.chat({
+            message,
+            chatHistory: this.formatChatHistory(chatHistory),
+            model: modelToUse,
+            temperature: options.temperature || 0.7,
+            maxTokens: options.maxTokens || 1024,
+            tools: options.tools || this.getDefaultTools()
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timed out. The backend may be processing a large request or experiencing high load.')), 
+            15000) // 15s timeout instead of 30s
+          )
+        ]);
+        
+        console.log('Received response from backend');
+        return response;
+      } catch (chatError) {
+        console.error('Error in chat request:', chatError);
+        
+        // Check if it's a timeout error
+        if (chatError.message.includes('timed out')) {
+          throw new Error('Chat request timed out. The model might be busy. Please try again with a shorter message.');
+        }
+        
+        // Otherwise rethrow the error
+        throw chatError;
+      }
     } catch (error) {
       console.error('Error in LlmService.sendMessage:', error);
       
       // Enhance error message with more helpful information
-      if (error.message.includes('ECONNREFUSED') || error.message.includes('Backend server is not available')) {
+      if (error.message.includes('timeout') || error.message.includes('Timed out')) {
+        throw new Error('Request timed out. The backend server may be under heavy load or processing a large request. Please try again with a simpler query.');
+      } else if (error.message.includes('ECONNREFUSED') || error.message.includes('Backend server is not available')) {
         throw new Error('Backend server is not available. Please start the backend server by running "npm run server" in the backend directory.');
       } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new Error('Network error. Please check your internet connection and ensure the backend server is running.');
@@ -154,16 +202,24 @@ class LlmService {
       console.log('Checking backend health status...');
       
       try {
-        await window.server.checkHealth();
+        // Add timeout to health check
+        const healthStatus = await Promise.race([
+          window.server.checkHealth(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Health check timeout')), 3000)
+          )
+        ]);
+        
         console.log('Backend health check successful');
         return true;
       } catch (error) {
         // Check if this is a connection refused error (server not running)
         if (error.message && (
             error.message.includes('ECONNREFUSED') || 
-            error.message.includes('Backend server is not available')
+            error.message.includes('Backend server is not available') ||
+            error.message.includes('timeout')
           )) {
-          console.error('Backend server is not running. Please start the backend server.');
+          console.error('Backend server connection issue:', error.message);
           // Wait a bit and try once more
           return await this.retryBackendConnection();
         }
@@ -184,19 +240,26 @@ class LlmService {
   async retryBackendConnection() {
     console.log('Retrying backend connection...');
     
-    // Wait 1 second before retrying
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait 1.5 seconds before retrying (increased from 1 second)
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     try {
       if (!window.server) {
         return false;
       }
       
-      await window.server.checkHealth();
+      // Add timeout to retry
+      const healthStatus = await Promise.race([
+        window.server.checkHealth(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Health check retry timeout')), 4000)
+        )
+      ]);
+      
       console.log('Backend connection retry successful');
       return true;
     } catch (error) {
-      console.error('Backend connection retry failed');
+      console.error('Backend connection retry failed:', error.message);
       return false;
     }
   }

@@ -2,8 +2,9 @@
 import ApiService from '../services/ApiService.js';
 
 class ContentInput {
-  constructor(notificationService) {
+  constructor(notificationService, documentManager = null) {
     this.notificationService = notificationService;
+    this.documentManager = documentManager;
     this.apiService = new ApiService();
     
     // Initialize input elements
@@ -97,20 +98,35 @@ class ContentInput {
   async processPDF() {
     const file = this.pdfInput.files[0];
     if (!file) {
-      this.notificationService.warning('Please select a PDF file');
+      if (this.notificationService) {
+        this.notificationService.warning('Please select a PDF file');
+      }
       return;
     }
     
     try {
-      this.notificationService.show('Processing PDF file...');
-      await this.apiService.processPDF(file.path);
-      this.notificationService.success(`Successfully processed: ${file.name}`);
-      this.pdfInput.value = '';
+      if (this.documentManager) {
+        // Use Mnemosyne to process the PDF
+        await this.documentManager.processPDF(file.path);
+      } else {
+        // Fallback to direct API call if Mnemosyne is not available
+        if (this.notificationService) {
+          this.notificationService.show('Processing PDF file...');
+        }
+        await this.apiService.processPDF(file.path);
+        if (this.notificationService) {
+          this.notificationService.success(`Successfully processed: ${file.name}`);
+        }
+        // Notify that content has been updated
+        document.dispatchEvent(new Event('content:updated'));
+      }
       
-      // Notify that content has been updated
-      document.dispatchEvent(new Event('content:updated'));
+      // Clear the input
+      this.pdfInput.value = '';
     } catch (error) {
-      this.notificationService.error(`Failed to process PDF: ${error.message}`);
+      if (this.notificationService) {
+        this.notificationService.error(`Failed to process PDF: ${error.message}`);
+      }
     }
   }
   
@@ -118,20 +134,35 @@ class ContentInput {
   async processURL() {
     const url = this.urlInput.value.trim();
     if (!url) {
-      this.notificationService.warning('Please enter a URL');
+      if (this.notificationService) {
+        this.notificationService.warning('Please enter a URL');
+      }
       return;
     }
     
     try {
-      this.notificationService.show('Processing URL...');
-      await this.apiService.processURL(url);
-      this.notificationService.success(`Successfully processed: ${url}`);
-      this.urlInput.value = '';
+      if (this.documentManager) {
+        // Use Mnemosyne to process the URL
+        await this.documentManager.processURL(url);
+      } else {
+        // Fallback to direct API call if Mnemosyne is not available
+        if (this.notificationService) {
+          this.notificationService.show('Processing URL...');
+        }
+        await this.apiService.processURL(url);
+        if (this.notificationService) {
+          this.notificationService.success(`Successfully processed: ${url}`);
+        }
+        // Notify that content has been updated
+        document.dispatchEvent(new Event('content:updated'));
+      }
       
-      // Notify that content has been updated
-      document.dispatchEvent(new Event('content:updated'));
+      // Clear the input
+      this.urlInput.value = '';
     } catch (error) {
-      this.notificationService.error(`Failed to process URL: ${error.message}`);
+      if (this.notificationService) {
+        this.notificationService.error(`Failed to process URL: ${error.message}`);
+      }
     }
   }
   
@@ -139,20 +170,35 @@ class ContentInput {
   async processYouTube() {
     const url = this.youtubeInput.value.trim();
     if (!url) {
-      this.notificationService.warning('Please enter a YouTube URL');
+      if (this.notificationService) {
+        this.notificationService.warning('Please enter a YouTube URL');
+      }
       return;
     }
     
     try {
-      this.notificationService.show('Processing YouTube URL...');
-      await this.apiService.processYouTube(url);
-      this.notificationService.success(`Successfully processed YouTube video`);
-      this.youtubeInput.value = '';
+      if (this.documentManager) {
+        // Use Mnemosyne to process the YouTube URL
+        await this.documentManager.processYouTube(url);
+      } else {
+        // Fallback to direct API call if Mnemosyne is not available
+        if (this.notificationService) {
+          this.notificationService.show('Processing YouTube URL...');
+        }
+        await this.apiService.processYouTube(url);
+        if (this.notificationService) {
+          this.notificationService.success(`Successfully processed YouTube video`);
+        }
+        // Notify that content has been updated
+        document.dispatchEvent(new Event('content:updated'));
+      }
       
-      // Notify that content has been updated
-      document.dispatchEvent(new Event('content:updated'));
+      // Clear the input
+      this.youtubeInput.value = '';
     } catch (error) {
-      this.notificationService.error(`Failed to process YouTube URL: ${error.message}`);
+      if (this.notificationService) {
+        this.notificationService.error(`Failed to process YouTube URL: ${error.message}`);
+      }
     }
   }
 }

@@ -4,6 +4,17 @@
 import Sidebar from './Sidebar.js';
 import ChatHeader from './ChatHeader.js';
 import ChatUI from './ChatUI.js';
+import ThemeSwitcher from './ThemeSwitcher.js';
+import Footer from './Footer.js';
+import ContentViewer from './ContentViewer.js';
+import SearchSection from './SearchSection.js';
+import Header from './Header.js';
+import Mnemosyne from './Mnemosyne.js';
+import DocProcessor from '../services/DocProcessorService.js';
+import logger from '../utils/logger.js';
+
+// Create context-specific logger
+const appLogger = logger.scope('App');
 
 class App {
   constructor() {
@@ -13,13 +24,26 @@ class App {
     this.chatUI = null;
     this.sidebarOverlay = null;
     this.isMobile = window.innerWidth < 768;
+    this.themeSwitcher = null;
+    this.footer = null;
+    this.contentViewer = null;
+    this.searchSection = null;
+    this.header = null;
+    this.currentSection = 'ai-assistant'; // Default section
+    this.documentManager = null; // Document processor
+    this.mnemosyne = null; // Mnemosyne component
+    
+    // Bind methods
+    this.handleNavigation = this.handleNavigation.bind(this);
+    this.handleContentSelected = this.handleContentSelected.bind(this);
+    this.handleContentUpdated = this.handleContentUpdated.bind(this);
   }
 
   /**
    * Initialize the app
    */
   init() {
-    console.log('App.init called');
+    appLogger.info('App.init called');
     
     // Create notification service (can be null for now)
     const notificationService = null;
@@ -31,6 +55,27 @@ class App {
     // Create ChatUI with notification service
     this.chatUI = new ChatUI(notificationService);
     
+    // Create document manager (DocProcessor)
+    this.documentManager = new DocProcessor(notificationService);
+    
+    // Create theme switcher
+    this.themeSwitcher = new ThemeSwitcher();
+    
+    // Create footer
+    this.footer = new Footer();
+    
+    // Create Mnemosyne component
+    this.mnemosyne = new Mnemosyne(notificationService);
+    
+    // Create content viewer
+    this.contentViewer = new ContentViewer();
+    
+    // Create search section
+    this.searchSection = new SearchSection(notificationService);
+    
+    // Create header
+    this.header = new Header();
+    
     // Pass app reference to ChatUI
     this.chatUI.app = this;
     
@@ -41,14 +86,91 @@ class App {
     this.chatHeader.setMenuToggleCallback(this.toggleMobileMenu.bind(this));
     
     // Initialize chat UI
-    console.log('Initializing ChatUI...');
+    appLogger.info('Initializing ChatUI...');
     this.chatUI.initialize();
+    
+    // Set up event listeners
+    this.setupEventListeners();
+    
+    // Register document event listeners
+    this.documentManager.addDocumentListener(this.handleDocumentEvent.bind(this));
     
     // Render the app
     this.render();
     
     // Add resize listener
     window.addEventListener('resize', this.handleResize.bind(this));
+    
+    appLogger.info('App initialization complete');
+  }
+
+  /**
+   * Set up event listeners for component communication
+   */
+  setupEventListeners() {
+    // Listen for content selection
+    document.addEventListener('content:selected', (e) => {
+      this.handleContentSelected(e.detail.itemId, e.detail.itemData);
+    });
+    
+    // Listen for content update
+    document.addEventListener('content:updated', this.handleContentUpdated);
+    
+    // Listen for navigation change from Header
+    document.addEventListener('navigation:change', (e) => {
+      this.handleNavigation(e.detail.section);
+    });
+    
+    // Listen for theme changes
+    document.addEventListener('theme:changed', (e) => {
+      appLogger.info(`Theme changed to ${e.detail.isDark ? 'dark' : 'light'}`);
+    });
+  }
+
+  /**
+   * Handle document manager events
+   * @param {string} eventType - Type of document event
+   * @param {Object} data - Event data
+   */
+  handleDocumentEvent(eventType, data) {
+    appLogger.info(`Document event: ${eventType}`, data);
+    
+    // Handle specific event types
+    switch (eventType) {
+      case 'document:deleted':
+      case 'pdf:processed':
+      case 'url:processed':
+      case 'youtube:processed':
+        // Refresh content list on any document changes
+        if (this.mnemosyne) {
+          this.mnemosyne.refreshItems();
+        }
+        break;
+        
+      default:
+        // No specific handling for other event types
+        break;
+    }
+  }
+
+  /**
+   * Handle content selection
+   * @param {string} itemId - ID of the selected item
+   * @param {Object} itemData - Data of the selected item
+   */
+  handleContentSelected(itemId, itemData) {
+    appLogger.info(`Content selected: ${itemId}`);
+    this.contentViewer.viewItem(itemId, itemData);
+  }
+
+  /**
+   * Handle content updated event
+   */
+  handleContentUpdated() {
+    appLogger.info('Content updated, refreshing content list');
+    if (this.mnemosyne) {
+      this.mnemosyne.refreshItems();
+    }
   }
 
   /**
@@ -56,8 +178,13 @@ class App {
    * @param {string} itemId - The ID of the clicked item
    */
   handleNavigation(itemId) {
+    appLogger.info(`Navigation: ${itemId}`);
+    
     // Set active navigation item
     this.sidebar.setActiveItem(itemId);
+    
+    // Save current section
+    this.currentSection = itemId;
     
     // Handle specific navigation actions
     if (itemId === 'ai-assistant' && this.chatUI) {
@@ -74,7 +201,8 @@ class App {
       this.closeMobileMenu();
     }
     
-    console.log(`Navigation: ${itemId}`);
+    // Re-render to show the correct section
+    this.render();
   }
 
   /**
@@ -124,7 +252,7 @@ class App {
    * Render the app
    */
   render() {
-    console.log('App.render called');
+    appLogger.info('App.render called');
     
     // Clear any existing app container
     const existingApp = document.getElementById('app');
@@ -152,31 +280,75 @@ class App {
     const mainContent = document.createElement('div');
     mainContent.className = 'main-content';
     
-    // Render chat header
-    const headerElement = this.chatHeader.render();
-    mainContent.appendChild(headerElement);
+    // Render content based on current section
+    switch (this.currentSection) {
+      case 'ai-assistant':
+      case 'new-chat':
+        // Render chat header
+        const headerElement = this.chatHeader.render();
+        mainContent.appendChild(headerElement);
+        
+        // Render chat UI
+        appLogger.info('Rendering ChatUI component');
+        const chatElement = this.chatUI.render();
+        mainContent.appendChild(chatElement);
+        
+        // Get the chat input element from ChatUI
+        const inputElement = this.chatUI.getInputElement();
+        mainContent.appendChild(inputElement);
+        break;
+        
+      case 'documents':
+        // Render Mnemosyne component
+        appLogger.info('Rendering Mnemosyne component');
+        const mnemosyneElement = this.mnemosyne.render();
+        mainContent.appendChild(mnemosyneElement);
+        
+        // Initialize Mnemosyne
+        setTimeout(() => {
+          this.mnemosyne.initialize();
+        }, 100);
+        
+        // Add content viewer (initially hidden)
+        mainContent.appendChild(this.contentViewer.render());
+        break;
+        
+      case 'search':
+        // Render search view
+        mainContent.appendChild(this.searchSection.render());
+        break;
+        
+      default:
+        // Default view - under construction message
+        const defaultHeader = document.createElement('h2');
+        defaultHeader.textContent = `${this.currentSection.charAt(0).toUpperCase() + this.currentSection.slice(1)} View`;
+        mainContent.appendChild(defaultHeader);
+        
+        const underConstruction = document.createElement('p');
+        underConstruction.textContent = 'This section is under construction.';
+        mainContent.appendChild(underConstruction);
+    }
     
-    // Render chat UI
-    console.log('Rendering ChatUI component');
-    const chatElement = this.chatUI.render();
-    mainContent.appendChild(chatElement);
+    // Add theme switcher to main content
+    mainContent.appendChild(this.themeSwitcher.render());
     
-    // Get the chat input element from ChatUI
-    const inputElement = this.chatUI.getInputElement();
-    mainContent.appendChild(inputElement);
+    // Add footer
+    mainContent.appendChild(this.footer.render());
     
     this.container.appendChild(mainContent);
     
     // Mount to DOM
     document.getElementById('app').appendChild(this.container);
     
-    // Focus the input field
-    setTimeout(() => {
-      // Delay focus to ensure DOM is fully rendered
-      this.chatUI.focusInput();
-    }, 100);
+    // Focus the input field for chat views
+    if (['ai-assistant', 'new-chat'].includes(this.currentSection)) {
+      setTimeout(() => {
+        // Delay focus to ensure DOM is fully rendered
+        this.chatUI.focusInput();
+      }, 100);
+    }
     
-    console.log('App rendering complete');
+    appLogger.info('App rendering complete');
   }
 
   /**
@@ -185,10 +357,25 @@ class App {
   cleanup() {
     window.removeEventListener('resize', this.handleResize.bind(this));
     
+    // Remove event listeners
+    document.removeEventListener('content:selected', this.handleContentSelected);
+    document.removeEventListener('content:updated', this.handleContentUpdated);
+    
     // Clean up components
     if (this.sidebar) this.sidebar.cleanup();
     if (this.chatHeader) this.chatHeader.cleanup();
     if (this.chatUI) this.chatUI.cleanup();
+    if (this.themeSwitcher) { /* no cleanup needed */ }
+    if (this.footer) { /* no cleanup needed */ }
+    if (this.mnemosyne) { /* no cleanup needed */ }
+    if (this.contentViewer) { /* no cleanup needed */ }
+    if (this.searchSection) { /* no cleanup needed */ }
+    if (this.header) { /* no cleanup needed */ }
+    
+    // Remove document listeners from DocProcessor
+    if (this.documentManager) {
+      this.documentManager.removeDocumentListener(this.handleDocumentEvent.bind(this));
+    }
     
     // Remove overlay if exists
     if (this.sidebarOverlay && this.sidebarOverlay.parentNode) {
@@ -216,6 +403,15 @@ class App {
     this.chatHeader = null;
     this.chatUI = null;
     this.sidebarOverlay = null;
+    this.themeSwitcher = null;
+    this.footer = null;
+    this.mnemosyne = null;
+    this.contentViewer = null;
+    this.searchSection = null;
+    this.header = null;
+    this.documentManager = null;
+    
+    appLogger.info('App cleanup complete');
   }
 }
 

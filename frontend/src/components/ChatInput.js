@@ -17,8 +17,13 @@ class ChatInput {
     // Flag to track if this instance was created by ChatUI (not by App)
     this.isOwnInstance = true;
     
-    // Bind methods
+    // Bind all methods to prevent context loss
     this.handleSubmit = this.handleSubmit.bind(this);
+    this.submitMessage = this.submitMessage.bind(this);
+    this.setDisabled = this.setDisabled.bind(this);
+    this.focus = this.focus.bind(this);
+    this.render = this.render.bind(this);
+    this.cleanup = this.cleanup.bind(this);
   }
 
   /**
@@ -70,27 +75,58 @@ class ChatInput {
    * Separate from handleSubmit to allow direct calling
    */
   submitMessage() {
-    if (!this.container) return;
+    if (!this.container) {
+      console.error('Cannot submit message: container is null');
+      return;
+    }
     
+    // Get a fresh reference to the input element
     const inputField = this.container.querySelector('.chat-input');
-    if (!inputField || !inputField.value.trim() || this.isDisabled) return;
+    if (!inputField) {
+      console.error('Cannot submit message: input field not found');
+      return;
+    }
     
     const message = inputField.value.trim();
+    if (!message) {
+      console.log('Empty message, not submitting');
+      return;
+    }
+    
+    if (this.isDisabled) {
+      console.log('Input is disabled, not submitting');
+      return;
+    }
+    
     console.log('ChatInput submitting message:', message);
+    
+    // Disable the input immediately to prevent double submissions
+    this.setDisabled(true, 'Sending message...');
     
     // Clear input field before calling onSubmit to prevent double submissions
     inputField.value = '';
     
-    // Call the onSubmit callback with the message
-    if (typeof this.onSubmit === 'function') {
-      console.log('Calling onSubmit callback with message');
-      this.onSubmit(message);
-    } else {
-      console.error('onSubmit is not a function', typeof this.onSubmit);
+    // Safely call the onSubmit callback
+    try {
+      if (typeof this.onSubmit === 'function') {
+        console.log('Calling onSubmit callback with message:', message);
+        // Add a try-catch around the actual callback invocation
+        try {
+          this.onSubmit(message);
+          console.log('onSubmit completed successfully');
+        } catch (callbackError) {
+          console.error('Error occurred while executing onSubmit callback:', callbackError);
+          this.setDisabled(false);
+        }
+      } else {
+        console.error('onSubmit is not a function:', typeof this.onSubmit);
+        this.setDisabled(false);
+      }
+    } catch (error) {
+      console.error('Error in submitMessage method:', error);
+      // Re-enable input if an error occurs
+      this.setDisabled(false);
     }
-    
-    // Focus the input field again
-    this.focus();
   }
 
   /**
@@ -98,8 +134,19 @@ class ChatInput {
    * @param {Event} e - The form submission event
    */
   handleSubmit(e) {
-    if (e) e.preventDefault();
-    this.submitMessage();
+    if (e) {
+      e.preventDefault();
+      console.log('Form submission event received');
+    }
+    
+    // Use try-catch to prevent freezing on error
+    try {
+      this.submitMessage();
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      // Re-enable input if an error occurs
+      this.setDisabled(false);
+    }
   }
 
   /**
@@ -134,41 +181,57 @@ class ChatInput {
       </svg>
     `;
     
+    // Log the onSubmit callback to verify it's valid
+    console.log('onSubmit callback type:', typeof this.onSubmit);
+    
     // Use the bound handleSubmit to ensure proper 'this' context
-    inputForm.addEventListener('submit', this.handleSubmit);
+    const boundHandleSubmit = this.handleSubmit.bind(this);
+    inputForm.addEventListener('submit', (e) => {
+      console.log('Form submit event triggered');
+      boundHandleSubmit(e);
+    });
     
     // Add keydown handler for better control
-    input.addEventListener('keydown', (e) => {
+    const keydownHandler = (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
+        console.log('Enter key pressed in input field');
         e.preventDefault(); // Prevent default form submission
         
         // Prevent handling if disabled
-        if (this.isDisabled) return;
+        if (this.isDisabled) {
+          console.log('Input is disabled, not handling Enter key');
+          return;
+        }
         
         // Only submit if we have a non-empty message
         if (input.value.trim()) {
-          // Temporarily disable to prevent double submissions
-          this.setDisabled(true);
-          
-          // Call handleSubmit directly with proper context
-          this.handleSubmit();
-          
-          // Re-enable after a short delay if not programmatically kept disabled
-          setTimeout(() => {
-            if (!this.isDisabled) {
-              this.setDisabled(false);
-            }
-          }, 50);
+          console.log('Have input value, calling handleSubmit from Enter key handler');
+          boundHandleSubmit();
+        } else {
+          console.log('Empty input, not submitting');
         }
       }
-    });
+    };
+    
+    input.addEventListener('keydown', keydownHandler);
     
     // Direct click handler on the button for better mobile support
     sendButton.addEventListener('click', (e) => {
-      if (!this.isDisabled && input.value.trim()) {
-        e.preventDefault();
-        this.handleSubmit();
+      console.log('Send button clicked');
+      e.preventDefault();
+      
+      if (this.isDisabled) {
+        console.log('Input is disabled, not handling button click');
+        return;
       }
+      
+      if (!input.value.trim()) {
+        console.log('Empty input, not submitting from button click');
+        return;
+      }
+      
+      console.log('Have input value, calling handleSubmit from button click handler');
+      boundHandleSubmit();
     });
     
     inputForm.appendChild(input);
@@ -176,6 +239,9 @@ class ChatInput {
     inputContainer.appendChild(inputForm);
     
     this.container = inputContainer;
+    this.inputField = input;
+    this.submitButton = sendButton;
+    
     return inputContainer;
   }
 
@@ -184,9 +250,16 @@ class ChatInput {
    */
   cleanup() {
     if (this.container && this.container.parentNode) {
-      this.container.parentNode.removeChild(this.container);
+      // Remove all event listeners by cloning and replacing
+      const oldContainer = this.container;
+      const newContainer = oldContainer.cloneNode(true);
+      if (oldContainer.parentNode) {
+        oldContainer.parentNode.replaceChild(newContainer, oldContainer);
+      }
+      this.container = null;
     }
-    this.container = null;
+    this.inputField = null;
+    this.submitButton = null;
   }
 }
 

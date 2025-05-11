@@ -13,9 +13,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const appContainer = document.getElementById('app');
   if (appContainer) {
     appContainer.appendChild(chatUI.render());
-    chatUI.initialize();
+    
+    // Short delay to ensure DOM is fully updated before initialization
+    setTimeout(() => {
+      chatUI.initialize();
+    }, 0);
   }
 });
+
+console.log('Knowledge Store application initialized');
 
 // Export the chat component for access from other modules if needed
 window.chatUI = chatUI; 

@@ -112,6 +112,89 @@
   }
 }
 
+/* Card entrance animation with staggered timing */
+@keyframes cardEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.9) rotateX(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0);
+  }
+}
+
+/* Card selection animation */
+@keyframes cardExpand {
+  0% {
+    transform: translateZ(0) scale(1);
+  }
+  100% {
+    transform: translateZ(40px) scale(1.05);
+  }
+}
+
+/* Card deselection animation */
+@keyframes cardShrink {
+  0% {
+    transform: translateZ(40px) scale(1.05);
+  }
+  100% {
+    transform: translateZ(0) scale(1);
+  }
+}
+
+/* Card fade out animation */
+@keyframes cardFadeOut {
+  0% {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateZ(-20px) scale(0.9);
+  }
+}
+
+/* Floating animation for cards and elements */
+@keyframes float {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Glowing border animation */
+@keyframes glowingBorder {
+  0% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.5),
+                0 0 10px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.8),
+                0 0 20px rgba(59, 130, 246, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.5),
+                0 0 10px rgba(59, 130, 246, 0.3);
+  }
+}
+
+/* Card tilt animation on hover */
+@keyframes tiltCard {
+  0% {
+    transform: perspective(1000px) rotateX(0) rotateY(0);
+  }
+  100% {
+    transform: perspective(1000px) rotateX(5deg) rotateY(-5deg);
+  }
+}
+
 /* Animation utility classes */
 .fade-in {
   animation: fadeIn 0.3s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
@@ -145,4 +228,60 @@
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.card-entrance {
+  animation: cardEntrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.card-expand {
+  animation: cardExpand 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.card-shrink {
+  animation: cardShrink 0.3s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+.card-fade-out {
+  animation: cardFadeOut 0.4s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+.glowing-border {
+  animation: glowingBorder 2s ease-in-out infinite;
+}
+
+/* Apply staggered animation delays to children */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeInUp 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+.stagger-children > *:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.stagger-children > *:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.stagger-children > *:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.stagger-children > *:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+.stagger-children > *:nth-child(5) {
+  animation-delay: 0.5s;
+}
+
+/* Parallax element class - use with JS for subtle parallax effects */
+.parallax-element {
+  transform-style: preserve-3d;
+  will-change: transform;
 } 

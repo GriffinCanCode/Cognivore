@@ -13,6 +13,7 @@ const { processURL } = require('./services/urlProcessor');
 const { processYouTube } = require('./services/youtubeProcessor');
 const { deleteItem, listItems } = require('./services/database');
 const { semanticSearch } = require('./services/search');
+const toolsService = require('./services/tools');
 
 /**
  * Initialize all IPC handlers
@@ -20,6 +21,9 @@ const { semanticSearch } = require('./services/search');
  */
 function initializeIpcHandlers() {
   logger.info('Initializing IPC handlers');
+
+  // Initialize tools service
+  toolsService.initialize();
 
   // Process PDF
   ipcMain.handle('process-pdf', async (event, filePath) => {
@@ -95,6 +99,45 @@ function initializeIpcHandlers() {
       return { success: true, results };
     } catch (error) {
       logger.error('Error performing search:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get available tools
+  ipcMain.handle('get-available-tools', async (event) => {
+    try {
+      logger.info('Retrieving available tools');
+      const tools = toolsService.getAvailableTools();
+      logger.debug(`Retrieved ${tools.length} available tools`);
+      return { success: true, tools };
+    } catch (error) {
+      logger.error('Error retrieving available tools:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Execute tool
+  ipcMain.handle('execute-tool', async (event, toolName, params) => {
+    try {
+      logger.info(`Executing tool: ${toolName}`);
+      const result = await toolsService.executeTool(toolName, params);
+      logger.debug(`Tool execution completed: ${toolName}`);
+      return result; // Result already has success property
+    } catch (error) {
+      logger.error(`Error executing tool ${toolName}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Generate document summary
+  ipcMain.handle('generate-summary', async (event, documentId, content, title) => {
+    try {
+      logger.info(`Generating summary for document: ${documentId}`);
+      const result = await toolsService.executeTool('summary', { documentId, content, title });
+      logger.debug(`Summary generation completed for document: ${documentId}`);
+      return result; // Result already has success property
+    } catch (error) {
+      logger.error(`Error generating summary for document ${documentId}:`, error);
       return { success: false, error: error.message };
     }
   });

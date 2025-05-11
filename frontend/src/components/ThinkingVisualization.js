@@ -1,6 +1,7 @@
 /**
  * ThinkingVisualization Component - Animated visualization for AI thinking state
  */
+
 class ThinkingVisualization {
   /**
    * Constructor for ThinkingVisualization component

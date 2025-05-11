@@ -2,8 +2,9 @@
 import ApiService from '../services/ApiService.js';
 
 class ContentList {
-  constructor(notificationService) {
+  constructor(notificationService, documentManager = null) {
     this.notificationService = notificationService;
+    this.documentManager = documentManager;
     this.apiService = new ApiService();
     this.itemList = null;
     this.refreshButton = null;
@@ -37,17 +38,28 @@ class ContentList {
   
   async refreshItems() {
     try {
-      const items = await this.apiService.listItems();
+      let items;
+      
+      if (this.documentManager) {
+        // Use Mnemosyne to get document list
+        items = await this.documentManager.getDocumentList();
+      } else {
+        // Fallback to direct API call if Mnemosyne is not available
+        items = await this.apiService.listItems();
+      }
+      
       this.displayItems(items);
     } catch (error) {
-      this.notificationService.error(`Failed to load items: ${error.message}`);
+      if (this.notificationService) {
+        this.notificationService.error(`Failed to load items: ${error.message}`);
+      }
     }
   }
   
   displayItems(items) {
     this.itemList.innerHTML = '';
     
-    if (items.length === 0) {
+    if (!items || items.length === 0) {
       const emptyMessage = document.createElement('p');
       emptyMessage.textContent = 'No items stored yet.';
       emptyMessage.style.fontStyle = 'italic';
@@ -98,7 +110,7 @@ class ContentList {
               id: item.id,
               title: item.title,
               sourceType: item.source_type,
-              sourceIdentifier: item.source || 'Unknown',
+              sourceIdentifier: item.source_identifier || 'Unknown',
               textChunk: item.preview || 'No preview available'
             }
           }
@@ -113,11 +125,21 @@ class ContentList {
       deleteButton.addEventListener('click', async (e) => {
         e.stopPropagation(); // Prevent triggering the item selection
         try {
-          await this.apiService.deleteItem(item.id);
-          this.notificationService.success(`Deleted item: ${item.title}`);
-          this.refreshItems(); // Refresh the list
+          if (this.documentManager) {
+            // Use Mnemosyne to delete document
+            await this.documentManager.deleteDocument(item.id);
+          } else {
+            // Fallback to direct API call if Mnemosyne is not available
+            await this.apiService.deleteItem(item.id);
+            if (this.notificationService) {
+              this.notificationService.success(`Deleted item: ${item.title}`);
+            }
+            this.refreshItems(); // Refresh the list
+          }
         } catch (error) {
-          this.notificationService.error(`Error deleting item: ${error.message}`);
+          if (this.notificationService) {
+            this.notificationService.error(`Error deleting item: ${error.message}`);
+          }
         }
       });
       

@@ -2,6 +2,10 @@
 import LlmService from '../services/LlmService.js';
 import ChatMessages from './ChatMessages.js';
 import ChatInput from './ChatInput.js';
+import logger from '../utils/logger.js';
+
+// Create context-specific logger
+const chatLogger = logger.scope('ChatUI');
 
 class ChatUI {
   /**
@@ -32,6 +36,7 @@ class ChatUI {
     this.handleSubmit = this.handleSubmit.bind(this);
     this.handleNewChat = this.handleNewChat.bind(this);
     this.updateUI = this.updateUI.bind(this);
+    this.handleErrorResponse = this.handleErrorResponse.bind(this);
   }
 
   /**
@@ -40,16 +45,16 @@ class ChatUI {
   async initialize() {
     try {
       // Check if backend is available first
-      console.log('Initializing ChatUI...');
+      chatLogger.info('Initializing ChatUI...');
       try {
         const isBackendAvailable = await this.llmService.checkBackendStatus();
         if (!isBackendAvailable) {
-          console.error('Backend server is not available during initialization');
+          chatLogger.error('Backend server is not available during initialization');
           this.showBackendUnavailableMessage();
           return; // Stop initialization if backend is not available
         }
       } catch (err) {
-        console.error('Error checking backend status during initialization:', err);
+        chatLogger.error('Error checking backend status during initialization:', err);
         this.showBackendUnavailableMessage();
         return; // Stop initialization if error occurs
       }
@@ -65,14 +70,27 @@ class ChatUI {
         this.chatInput = new ChatInput(this.handleSubmit);
       }
       
-      // Update UI if container exists
+      // Ensure container is properly connected to DOM before updating UI
       if (this.container) {
+        if (!this.container.isConnected) {
+          // Try to find our container in the DOM
+          const domContainer = document.getElementById('main-chat-container');
+          if (domContainer) {
+            chatLogger.debug('Found container in DOM, updating reference');
+            this.container = domContainer;
+          } else {
+            chatLogger.error('Container not found in DOM during initialization, skipping UI update');
+            // Don't try to update UI yet
+            chatLogger.info('ChatUI initialization complete');
+            return;
+          }
+        }
         this.updateUI();
       }
       
-      console.log('ChatUI initialization complete');
+      chatLogger.info('ChatUI initialization complete');
     } catch (error) {
-      console.error('Error initializing ChatUI:', error);
+      chatLogger.error('Error initializing ChatUI:', error);
       this.notificationService?.error('Failed to initialize chat');
       this.showBackendUnavailableMessage();
     }
@@ -86,7 +104,7 @@ class ChatUI {
       const model = await this.llmService.getModel();
       this.modelInfo = model;
     } catch (error) {
-      console.error('Error loading model info:', error);
+      chatLogger.error('Error loading model info:', error);
       this.modelInfo = 'Unknown model';
     }
   }
@@ -105,58 +123,73 @@ class ChatUI {
    */
   async handleSubmit(message) {
     // Check for valid message and not already in loading state
-    if (!message || !message.trim() || this.isLoading) {
-      console.log('Invalid message or already loading, ignoring submission');
+    if (!message || !message.trim()) {
+      chatLogger.debug('Invalid or empty message, ignoring submission');
       return;
     }
     
-    console.log('ChatUI.handleSubmit called with message:', message);
-    
-    // Create user message object
-    const userMessage = {
-      role: 'user',
-      content: message.trim(),
-      timestamp: new Date().toISOString()
-    };
-    
-    // Add to messages array
-    this.messages.push(userMessage);
-    this.isLoading = true;
-    this.error = null;
-    
-    // Update UI to show user message immediately
-    console.log('Added user message, updating UI');
-    this.updateUI();
-    
-    // Ensure messagesElement is properly connected to DOM
-    const messagesContainer = document.getElementById('chat-messages-container');
-    if (!messagesContainer || !messagesContainer.isConnected) {
-      console.error('Messages container is not in DOM');
-      // Try to fix by recreating the chat container
-      if (this.container) {
-        const newMessagesElement = this.chatMessages.render();
-        this.container.innerHTML = '';
-        this.container.appendChild(newMessagesElement);
-      }
+    if (this.isLoading) {
+      chatLogger.debug('Already loading, ignoring submission');
+      return;
     }
     
-    console.log('Added user message, messages length:', this.messages.length);
+    chatLogger.info('ChatUI.handleSubmit called with message:', message.substring(0, 30) + (message.length > 30 ? '...' : ''));
+    
+    // Set loading state immediately
+    this.isLoading = true;
+    if (this.chatInput) {
+      this.chatInput.setDisabled(true, 'Sending message...');
+    }
     
     try {
+      // Create user message object
+      const userMessage = {
+        role: 'user',
+        content: message.trim(),
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add to messages array
+      this.messages.push(userMessage);
+      this.error = null;
+      
+      // Update UI to show user message and thinking visualization immediately
+      chatLogger.debug('Added user message, updating UI with thinking visualization');
+      this.updateUI();
+      
       // Ensure backend is available before sending
-      const isBackendAvailable = await this.llmService.checkBackendStatus();
-      if (!isBackendAvailable) {
+      let isBackendAvailable = false;
+      try {
+        isBackendAvailable = await this.llmService.checkBackendStatus();
+        if (!isBackendAvailable) {
+          throw new Error('Backend server is not available. Please start the backend server.');
+        }
+      } catch (error) {
+        chatLogger.error('Backend availability check failed:', error);
         throw new Error('Backend server is not available. Please start the backend server.');
       }
       
       // Send the message to the backend
-      console.log('Sending message to backend...');
-      const response = await this.llmService.sendMessage(message, this.messages);
-      console.log('Received response from backend:', response);
+      chatLogger.debug('Sending message to backend...');
+      
+      let response;
+      try {
+        response = await this.llmService.sendMessage(message, this.messages);
+        chatLogger.debug('Received response from backend:', response);
+      } catch (error) {
+        chatLogger.error('Error sending message to backend:', error);
+        throw error;
+      }
       
       // Update model info if response contains model information
       if (response.model && this.modelInfo !== response.model) {
         this.modelInfo = response.model;
+      }
+      
+      // Check for validation errors in response
+      if (response.validationErrors) {
+        chatLogger.error('Validation errors in response:', response.validationErrors);
+        throw new Error(`Validation error: ${response.validationErrors.join(', ')}`);
       }
       
       // Create assistant message with response data
@@ -167,21 +200,21 @@ class ChatUI {
         toolCalls: response.toolCalls || []
       };
       
-      console.log('Adding assistant message to UI:', assistantMessage);
+      chatLogger.debug('Adding assistant message to UI');
       this.messages.push(assistantMessage);
       this.notificationService?.success('Received response');
     } catch (err) {
-      console.error('Error sending message:', err);
+      chatLogger.error('Error sending message:', err);
       this.handleErrorResponse(err);
     } finally {
+      // Always ensure loading state is reset
       this.isLoading = false;
-      console.log('Updating UI after receiving response, messages length:', this.messages.length);
+      chatLogger.debug('Updating UI after receiving response, messages length:', this.messages.length);
       
-      // Force a proper update with connected DOM elements
       // Get a fresh reference to the UI container
-      const freshContainer = document.querySelector('.chat-container');
+      const freshContainer = document.getElementById('main-chat-container');
       if (freshContainer && freshContainer !== this.container) {
-        console.log('Updating container reference to currently mounted element');
+        chatLogger.debug('Updating container reference to currently mounted element');
         this.container = freshContainer;
       }
       
@@ -190,32 +223,45 @@ class ChatUI {
       
       // Double-check that messages are displayed
       const messageElements = document.querySelectorAll('.message');
-      console.log(`After updateUI: ${messageElements.length} message elements in DOM`);
-      
       if (messageElements.length !== this.messages.length) {
-        console.warn(`Message count mismatch: ${messageElements.length} in DOM vs ${this.messages.length} in memory`);
-        // Force a full re-render as last resort
-        if (this.container) {
-          console.log('Forcing full re-render of messages');
-          this.chatMessages = new ChatMessages(this.messages, false);
-          const newMessagesElement = this.chatMessages.render();
-          
-          // Find existing messages container and replace it
-          const oldMessagesContainer = document.getElementById('chat-messages-container');
-          if (oldMessagesContainer && oldMessagesContainer.parentNode) {
-            oldMessagesContainer.parentNode.replaceChild(newMessagesElement, oldMessagesContainer);
-          } else if (this.container) {
-            // Just append to our container
-            this.container.innerHTML = '';
-            this.container.appendChild(newMessagesElement);
-          }
-        }
+        chatLogger.warn(`Message count mismatch: ${messageElements.length} in DOM vs ${this.messages.length} in memory`);
+        // Force a full re-render
+        this.forceFullRerender();
       }
       
-      // Re-enable input field
+      // Re-enable input field - must happen AFTER UI updates
       if (this.chatInput) {
+        chatLogger.debug('Re-enabling chat input');
         this.chatInput.setDisabled(false);
       }
+    }
+  }
+  
+  /**
+   * Force a full re-render of the messages component
+   * This helps recover from DOM detachment issues
+   */
+  forceFullRerender() {
+    chatLogger.info('Forcing full re-render of messages');
+    if (!this.container || !this.container.isConnected) {
+      this.container = document.getElementById('main-chat-container');
+      if (!this.container) {
+        chatLogger.error('Cannot find main chat container for rerender');
+        return;
+      }
+    }
+    
+    this.chatMessages = new ChatMessages(this.messages, false);
+    const newMessagesElement = this.chatMessages.render(null);
+    
+    // Find existing messages container and replace it
+    const oldMessagesContainer = document.getElementById('chat-messages-container');
+    if (oldMessagesContainer && oldMessagesContainer.parentNode) {
+      oldMessagesContainer.parentNode.replaceChild(newMessagesElement, oldMessagesContainer);
+    } else if (this.container) {
+      // Just append to our container
+      this.container.innerHTML = '';
+      this.container.appendChild(newMessagesElement);
     }
   }
   
@@ -224,8 +270,20 @@ class ChatUI {
    * @param {Error} err - The error object
    */
   handleErrorResponse(err) {
+    // Check if error is related to validation
+    if (err.message && err.message.includes('Validation error')) {
+      this.error = 'Validation error occurred';
+      const errorMessage = {
+        role: 'system',
+        content: `There was an issue with input validation: ${err.message}`,
+        isError: true,
+        timestamp: new Date().toISOString()
+      };
+      this.messages.push(errorMessage);
+      this.notificationService?.error('Validation error: ' + err.message);
+    }
     // Check if error is related to backend unavailability
-    if (err.message && err.message.includes('Backend server is not available')) {
+    else if (err.message && err.message.includes('Backend server is not available')) {
       this.error = 'Backend server unavailable';
       const errorMessage = {
         role: 'system',
@@ -239,7 +297,7 @@ class ChatUI {
       this.error = 'Failed to get a response. Please try again.';
       const errorMessage = {
         role: 'system',
-        content: 'Failed to get a response. Please try again.',
+        content: `Failed to get a response: ${err.message || 'Unknown error'}`,
         isError: true,
         timestamp: new Date().toISOString()
       };
@@ -266,30 +324,40 @@ class ChatUI {
     // Set a flag to indicate backend is unavailable
     this.backendUnavailable = true;
     
-    // Update UI if container exists
-    if (this.container) {
+    // Update UI if container exists and is connected to DOM
+    if (this.container && this.container.isConnected) {
       this.updateUI();
+    } else {
+      // Try to find our container in the DOM
+      const domContainer = document.getElementById('main-chat-container');
+      if (domContainer) {
+        chatLogger.debug('Found container in DOM, updating reference');
+        this.container = domContainer;
+        this.updateUI();
+      } else {
+        chatLogger.error('Container not found in DOM, cannot show backend unavailable message');
+      }
     }
     
-    console.error('Backend unavailable message displayed to user');
+    chatLogger.error('Backend unavailable message displayed to user');
   }
   
   /**
    * Update the UI with current state - guaranteed to update the DOM
    */
   updateUI() {
-    console.log('ChatUI.updateUI called, messages length:', this.messages.length);
+    chatLogger.debug('ChatUI.updateUI called, messages length:', this.messages.length);
     
     if (!this.container || !this.container.isConnected) {
-      console.error('Main container is not connected to DOM!');
+      chatLogger.error('Main container is not connected to DOM!');
       
       // Try to find our container in the DOM
       const domContainer = document.getElementById('main-chat-container');
       if (domContainer) {
-        console.log('Found container in DOM, updating reference');
+        chatLogger.debug('Found container in DOM, updating reference');
         this.container = domContainer;
       } else {
-        console.error('Container not found in DOM, cannot update UI');
+        chatLogger.error('Container not found in DOM, cannot update UI');
         return;
       }
     }
@@ -297,23 +365,23 @@ class ChatUI {
     // GUARANTEED APPROACH: Always recreate messages and force update
     if (this.chatMessages) {
       // Create a fresh messages element
-      console.log('Recreating messages element to force update');
+      chatLogger.debug('Recreating messages element to force update');
       const freshMessagesElement = this.chatMessages.render(null);
       
       // Get the existing element to replace
       const existingMessagesContainer = document.getElementById('chat-messages-container');
       
       if (existingMessagesContainer) {
-        console.log('Replacing existing messages container');
+        chatLogger.debug('Replacing existing messages container');
         if (existingMessagesContainer.parentNode) {
           existingMessagesContainer.parentNode.replaceChild(freshMessagesElement, existingMessagesContainer);
         } else {
-          console.error('Existing container has no parent!');
+          chatLogger.error('Existing container has no parent!');
           this.container.innerHTML = '';
           this.container.appendChild(freshMessagesElement);
         }
       } else {
-        console.log('No existing messages container, appending to main container');
+        chatLogger.debug('No existing messages container, appending to main container');
         // Clear container first
         this.container.innerHTML = '';
         this.container.appendChild(freshMessagesElement);
@@ -322,10 +390,10 @@ class ChatUI {
       // Verify the update
       setTimeout(() => {
         const messageElements = document.querySelectorAll('.message');
-        console.log(`After DOM update: ${messageElements.length} message elements in DOM vs ${this.messages.length} in memory`);
+        chatLogger.debug(`After DOM update: ${messageElements.length} message elements in DOM vs ${this.messages.length} in memory`);
       }, 0);
     } else {
-      console.error('ChatMessages component is null in updateUI');
+      chatLogger.error('ChatMessages component is null in updateUI');
       this.chatMessages = new ChatMessages(this.messages, this.isLoading);
       const messagesElement = this.chatMessages.render();
       
@@ -343,7 +411,7 @@ class ChatUI {
    * @returns {HTMLElement} - The rendered component
    */
   render() {
-    console.log('ChatUI.render called');
+    chatLogger.info('ChatUI.render called');
     
     // Create container elements
     const container = document.createElement('div');
@@ -352,20 +420,20 @@ class ChatUI {
     
     // Initialize child components if not already done
     if (!this.chatMessages) {
-      console.log('Creating new ChatMessages component');
+      chatLogger.debug('Creating new ChatMessages component');
       this.chatMessages = new ChatMessages(this.messages, this.isLoading);
     }
     
     // CRITICAL FIX: Always create a fresh messages element to avoid detached DOM issues
-    console.log('Forcing fresh render of ChatMessages component');
+    chatLogger.debug('Forcing fresh render of ChatMessages component');
     const messagesElement = this.chatMessages.render(null);
     
     // Verify the element was created successfully
     if (messagesElement) {
-      console.log('Successfully created messages element with ID:', messagesElement.id);
+      chatLogger.debug('Successfully created messages element with ID:', messagesElement.id);
       container.appendChild(messagesElement);
     } else {
-      console.error('Failed to create messages element!');
+      chatLogger.error('Failed to create messages element!');
       
       // Recovery attempt - create a new ChatMessages instance
       this.chatMessages = new ChatMessages(this.messages, this.isLoading);
@@ -380,6 +448,7 @@ class ChatUI {
     
     // Get the input element to append
     const inputElement = this.chatInput.render();
+    container.appendChild(inputElement);
     
     // Save reference to the container
     this.container = container;
@@ -387,7 +456,7 @@ class ChatUI {
     // Set proper initial state for chat input
     this.updateInputFieldState();
     
-    console.log('ChatUI render complete');
+    chatLogger.info('ChatUI render complete');
     return container;
   }
   
@@ -444,14 +513,23 @@ class ChatUI {
    * Clean up component resources
    */
   cleanup() {
+    chatLogger.debug('ChatUI cleanup called');
+    
     // Clean up the container if it exists
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
     
     // Clean up the chatInput if we created it
-    if (this.chatInput) {
+    if (this.chatInput && this.chatInput.isOwnInstance) {
       this.chatInput.cleanup();
+      this.chatInput = null;
+    }
+    
+    // Clean up the messages component
+    if (this.chatMessages) {
+      this.chatMessages.cleanup();
+      this.chatMessages = null;
     }
     
     // Reset container reference

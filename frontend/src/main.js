@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const logger = require('./utils/logger');
+const net = require('net');
 
 // Check if we're in development mode
 const isDev = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
@@ -14,6 +15,43 @@ if (require('electron-squirrel-startup')) {
 // Keep a global reference of the mainWindow object to prevent garbage collection
 let mainWindow = null;
 let backendServer = null;
+
+// Check if a port is in use (quickly determine if backend is already running)
+const isPortInUse = (port) => {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(true); // Port is in use
+      } else {
+        resolve(false);
+      }
+      server.close();
+    });
+    
+    server.once('listening', () => {
+      server.close();
+      resolve(false); // Port is free
+    });
+    
+    // Set a timeout to avoid hanging
+    setTimeout(() => {
+      try {
+        server.close();
+        resolve(false);
+      } catch (err) {
+        resolve(false);
+      }
+    }, 1000);
+    
+    try {
+      server.listen(port);
+    } catch (err) {
+      resolve(false);
+    }
+  });
+};
 
 // Initialize backend IPC handlers from ipcHandlers.js
 function initializeIPC() {
@@ -56,33 +94,38 @@ function initializeIPC() {
   }
 }
 
-// Initialize the backend server
-function initializeBackendServer() {
+// Initialize backend server
+async function initializeBackendServer() {
   try {
-    // Try different paths for server.js
-    let serverPath = path.join(__dirname, '../../backend/server.js');
+    // Check if backend is already running on port 3001
+    const backendPort = process.env.PORT || 3001;
+    const isBackendRunning = await isPortInUse(backendPort);
     
-    // If the direct path doesn't exist, try relative to app root
-    if (!fs.existsSync(serverPath)) {
-      const appRoot = path.resolve(app.getAppPath(), '..');
-      serverPath = path.join(appRoot, 'backend/server.js');
-      
-      // If still not found, log error and return
-      if (!fs.existsSync(serverPath)) {
-        logger.error(`Backend server not found at: ${serverPath}`);
-        return null;
-      }
+    if (isBackendRunning) {
+      logger.info(`Backend server appears to be already running on port ${backendPort}, skipping server initialization`);
+      return true;
     }
     
-    // Dynamically require the server
-    logger.info(`Loading backend server from: ${serverPath}`);
-    backendServer = require(serverPath);
-    logger.info('Backend server initialized (with safe fallback IPC handlers)');
+    // Load backend server
+    const serverPath = path.join(__dirname, '../../backend/server.js');
     
-    return backendServer;
+    if (fs.existsSync(serverPath)) {
+      logger.info(`Loading backend server from: ${serverPath}`);
+      try {
+        const serverModule = require(serverPath);
+        logger.info('Backend server initialized (with safe fallback IPC handlers)');
+        return true;
+      } catch (err) {
+        logger.error('Failed to initialize backend server:', err);
+        return false;
+      }
+    } else {
+      logger.error(`Backend server not found at ${serverPath}`);
+      return false;
+    }
   } catch (error) {
     logger.error('Error initializing backend server:', error);
-    return null;
+    return false;
   }
 }
 
@@ -184,7 +227,7 @@ app.whenReady().then(async () => {
     
     // Step 3: Initialize the backend server with HTTP endpoints
     // The server.js will add fallback IPC handlers only if the channels aren't already registered
-    backendServer = initializeBackendServer();
+    backendServer = await initializeBackendServer();
     
     // Step 4: Initialize domain-specific IPC handlers from ipcHandlers.js
     // These handle operations like PDF processing, listing items, etc.

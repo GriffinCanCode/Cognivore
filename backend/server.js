@@ -515,24 +515,206 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`API available at http://localhost:${PORT}/api`);
-  console.log(`Using LLM model: ${LLM_MODEL}`);
-  
-  // Set up IPC handlers if running in Electron environment
-  setupIpcHandlers();
-});
-
-// Handle server shutdown gracefully
-process.on('SIGINT', () => {
-  console.log('Shutting down server...');
-  server.close(() => {
-    console.log('Server shut down successfully');
-    process.exit(0);
+// Function to check if a port is in use
+const isPortInUse = async (port) => {
+  return new Promise((resolve) => {
+    const server = require('net').createServer();
+    
+    // Add timeout to avoid hanging
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(true);
+      } else {
+        console.error(`Error checking port ${port}:`, err.message);
+        resolve(false);
+      }
+    });
+    
+    server.once('listening', () => {
+      server.close();
+      resolve(false);
+    });
+    
+    // Add timeout to the port check
+    server.on('error', (err) => {
+      console.error(`Unexpected error checking port ${port}:`, err.message);
+    });
+    
+    try {
+      server.listen(port);
+      // Add timeout to avoid hanging indefinitely
+      setTimeout(() => {
+        try {
+          server.close();
+          resolve(false);
+        } catch (err) {
+          console.error(`Error closing test server on port ${port}:`, err.message);
+          resolve(false);
+        }
+      }, 1000);
+    } catch (err) {
+      console.error(`Exception when checking port ${port}:`, err.message);
+      resolve(false);
+    }
   });
-});
+};
+
+// Function to attempt to kill a process using a specific port
+const killProcessOnPort = async (port) => {
+  try {
+    const { exec } = require('child_process');
+    return new Promise((resolve, reject) => {
+      // Find the process ID using the port
+      const findCmd = process.platform === 'win32' 
+        ? `netstat -ano | findstr :${port} | findstr LISTENING` 
+        : `lsof -i :${port} | grep LISTEN | awk '{print $2}'`;
+      
+      exec(findCmd, (err, stdout) => {
+        if (err || !stdout) {
+          console.log(`No process found on port ${port}`);
+          resolve(false);
+          return;
+        }
+        
+        // Extract PID and kill process
+        let pid;
+        if (process.platform === 'win32') {
+          // Windows netstat output parsing
+          const match = stdout.match(/\s+(\d+)$/m);
+          pid = match ? match[1].trim() : null;
+        } else {
+          // Unix lsof output parsing
+          pid = stdout.trim().split('\n')[0];
+        }
+        
+        if (!pid) {
+          console.log('Failed to extract PID');
+          resolve(false);
+          return;
+        }
+        
+        console.log(`Found process ${pid} using port ${port}, attempting to terminate...`);
+        
+        // Kill the process
+        const killCmd = process.platform === 'win32' 
+          ? `taskkill /F /PID ${pid}` 
+          : `kill -9 ${pid}`;
+          
+        exec(killCmd, (killErr) => {
+          if (killErr) {
+            console.log(`Failed to kill process on port ${port}: ${killErr.message}`);
+            resolve(false);
+          } else {
+            console.log(`Successfully terminated process ${pid} on port ${port}`);
+            resolve(true);
+          }
+        });
+      });
+    });
+  } catch (error) {
+    console.error(`Error killing process on port ${port}:`, error);
+    return false;
+  }
+};
+
+// Start server with automatic port handling
+const startServer = async () => {
+  let currentPort = PORT;
+  const maxRetries = 5; // Increased from 3 to 5
+  let retryCount = 0;
+  let server = null;
+  
+  while (retryCount < maxRetries) {
+    console.log(`Attempting to start server on port ${currentPort} (attempt ${retryCount + 1}/${maxRetries})...`);
+    
+    try {
+      // Check if port is in use
+      const portInUse = await isPortInUse(currentPort);
+      
+      if (portInUse) {
+        console.log(`Port ${currentPort} is already in use`);
+        
+        // Try to kill the process using the port
+        const killed = await killProcessOnPort(currentPort);
+        
+        if (killed) {
+          console.log(`Successfully freed port ${currentPort}, attempting to start server`);
+          // Give OS a moment to release the port
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Increased from 1000ms to 2000ms
+          
+          // Double-check the port is now free
+          const stillInUse = await isPortInUse(currentPort);
+          if (stillInUse) {
+            console.log(`Port ${currentPort} is still in use despite kill attempt, trying alternative port`);
+            retryCount++;
+            currentPort = PORT + retryCount;
+            continue;
+          }
+        } else {
+          // If we couldn't kill it, try another port
+          retryCount++;
+          currentPort = PORT + retryCount;
+          console.log(`Trying alternative port: ${currentPort}`);
+          continue;
+        }
+      }
+      
+      // Attempt to start the server
+      server = app.listen(currentPort);
+      
+      // Add event handlers for server errors
+      server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          console.error(`Port ${currentPort} is in use, trying another port`);
+          retryCount++;
+          currentPort = PORT + retryCount;
+          // Continue with the next iteration
+        } else {
+          console.error(`Server error on port ${currentPort}:`, err);
+        }
+      });
+      
+      // If we reach here, server started successfully
+      console.log(`Server successfully started on port ${currentPort}`);
+      console.log(`API available at http://localhost:${currentPort}/api`);
+      console.log(`Using LLM model: ${LLM_MODEL}`);
+      
+      // Set up IPC handlers if running in Electron environment
+      setupIpcHandlers();
+      
+      break; // Exit the loop if server started successfully
+    } catch (error) {
+      console.error(`Failed to start server on port ${currentPort}:`, error);
+      retryCount++;
+      currentPort = PORT + retryCount;
+    }
+  }
+  
+  if (!server) {
+    console.error(`Failed to start server after ${maxRetries} attempts`);
+    return null;
+  }
+  
+  // Handle server shutdown gracefully
+  process.on('SIGINT', () => {
+    console.log('Shutting down server...');
+    server.close(() => {
+      console.log('Server shut down successfully');
+      process.exit(0);
+    });
+    
+    // Force exit if server doesn't close gracefully
+    setTimeout(() => {
+      console.error('Server did not shut down gracefully, forcing exit');
+      process.exit(1);
+    }, 5000);
+  });
+  
+  return server;
+};
+
+// Start the server with port conflict handling
+const server = startServer();
 
 // Initialize IPC handlers when running in Electron
 if (module.parent) {

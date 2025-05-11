@@ -119,16 +119,44 @@ const serverProxy = {
     log.info('Sending chat request via IPC');
     try {
       try {
-        return await ipcRenderer.invoke('chat', data);
+        // Add request info for debugging
+        log.info(`Chat request details: message length: ${data.message?.length || 0}, history items: ${data.chatHistory?.length || 0}`);
+        
+        // Add timeout for IPC call
+        const result = await Promise.race([
+          ipcRenderer.invoke('chat', data),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('IPC chat request timed out after 20 seconds')), 20000)
+          )
+        ]);
+        
+        // Log successful response
+        log.info('Received chat response via IPC');
+        return result;
       } catch (ipcError) {
-        log.error('IPC chat failed, falling back to HTTP:', ipcError);
-        return this.request('/api/llm/chat', {
-          method: 'POST',
-          body: JSON.stringify(data)
-        });
+        log.error('IPC chat failed, error details:', ipcError.message);
+        
+        // Check if this is a timeout error
+        if (ipcError.message.includes('timed out')) {
+          log.error('IPC request timed out, falling back to HTTP');
+        }
+        
+        // Fall back to HTTP request with detailed error handling
+        log.info('Falling back to HTTP chat request');
+        try {
+          const httpResult = await this.request('/api/llm/chat', {
+            method: 'POST',
+            body: JSON.stringify(data)
+          });
+          log.info('HTTP fallback chat request succeeded');
+          return httpResult;
+        } catch (httpError) {
+          log.error('HTTP fallback also failed:', httpError.message);
+          throw new Error(`Chat request failed on both IPC and HTTP: ${httpError.message}`);
+        }
       }
     } catch (error) {
-      log.error('Chat request failed:', error);
+      log.error('Chat request failed completely:', error.message);
       throw error;
     }
   },
@@ -348,4 +376,4 @@ try {
   log.info('API exposed to renderer process');
 } catch (error) {
   log.error('Failed to expose API:', error);
-} 
+}

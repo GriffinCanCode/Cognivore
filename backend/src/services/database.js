@@ -245,6 +245,253 @@ const vectorSearch = optimizeQuery(
 );
 
 /**
+ * Perform a semantic search with context preservation
+ * @param {string} query The text query
+ * @param {Array} queryVector The query vector (optional - will use query if not provided)
+ * @param {Object} options Search options
+ * @returns {Promise<Array>} Array of matching items with context information
+ */
+const semanticSearch = optimizeQuery(
+  async (query, queryVector = null, options = {}) => {
+    if (!collection) {
+      throw new Error('Database not initialized');
+    }
+    
+    try {
+      // Default options
+      const {
+        limit = 5,
+        includeContent = true,
+        includeSummary = true,
+        contextWindowSize = 3,
+        minRelevanceScore = 0.6,
+        deduplicate = true,
+        maxTotalTokens = 4000
+      } = options;
+      
+      // Use provided vector or fallback to query
+      const searchVector = queryVector;
+      if (!searchVector) {
+        logger.warn('No query vector provided for semantic search, using fallback');
+        return [];
+      }
+      
+      // Monitor memory before search operation
+      const memBefore = memoryManager.monitorMemory();
+      logger.debug(`Memory before semantic search: ${memBefore.heapUsedMB}MB`);
+      
+      // Perform vector search with higher initial limit to allow for filtering
+      const searchLimit = Math.min(limit * 2, 20); // Get more results initially for better filtering
+      
+      // Execute search with memory optimization
+      const results = await dbMemoryManager.executeWithMemoryCheck(
+        async () => collection.search(searchVector).limit(searchLimit).execute(),
+        'semanticSearch'
+      );
+      
+      // Filter and process results
+      const processedResults = results
+        // Filter out results with low relevance score
+        .filter(item => item.score >= minRelevanceScore)
+        // Map to standardized format with content processing
+        .map(item => {
+          try {
+            // Parse metadata if it's a string
+            let metadata = item.metadata;
+            if (typeof metadata === 'string') {
+              try {
+                metadata = JSON.parse(metadata);
+              } catch (e) {
+                logger.warn(`Failed to parse metadata for item ${item.id}, using as string`);
+              }
+            }
+            
+            // Get text chunks if available
+            let textChunks = item.text_chunks || [];
+            if (typeof textChunks === 'string') {
+              try {
+                textChunks = JSON.parse(textChunks);
+              } catch (e) {
+                textChunks = [textChunks];
+              }
+            }
+            
+            // Prepare content based on options
+            let content = null;
+            if (includeContent) {
+              if (textChunks && textChunks.length > 0) {
+                content = textChunks.join(' ');
+              } else if (item.extracted_text) {
+                content = item.extracted_text;
+              }
+            }
+            
+            // Estimate token count (rough approximation: 4 chars = 1 token)
+            const estimatedTokens = content ? Math.ceil(content.length / 4) : 0;
+            
+            return {
+              id: item.id,
+              title: item.title || 'Untitled',
+              sourceType: item.source_type,
+              sourceId: item.source_identifier,
+              score: item.score,
+              content: content,
+              estimatedTokens,
+              metadata,
+              summary: includeSummary ? item.summary || null : null,
+              originalPath: item.original_content_path
+            };
+          } catch (err) {
+            logger.warn(`Error processing search result for item ${item.id}`, err);
+            return null;
+          }
+        })
+        .filter(Boolean); // Remove null entries
+      
+      // Deduplicate if requested
+      let finalResults = processedResults;
+      if (deduplicate) {
+        const seen = new Set();
+        finalResults = processedResults.filter(item => {
+          // Use content signature or ID for deduplication
+          const signature = item.content 
+            ? `${item.sourceType}-${item.content.substring(0, 100)}`
+            : item.id;
+          
+          if (seen.has(signature)) return false;
+          seen.add(signature);
+          return true;
+        });
+      }
+      
+      // Limit to requested number of results
+      finalResults = finalResults.slice(0, limit);
+      
+      // Limit total tokens if specified
+      if (maxTotalTokens > 0) {
+        let totalTokens = 0;
+        finalResults = finalResults.filter(item => {
+          totalTokens += item.estimatedTokens;
+          return totalTokens <= maxTotalTokens;
+        });
+      }
+      
+      // Monitor memory after search
+      const memAfter = memoryManager.monitorMemory();
+      logger.debug(`Memory after semantic search: ${memAfter.heapUsedMB}MB, ${memAfter.heapUsedRatio.toFixed(2)}% used`);
+      
+      // Request garbage collection if memory usage is high
+      if (memAfter.heapUsedRatio > 0.7 && global.gc) {
+        logger.debug('High memory usage detected, requesting garbage collection');
+        global.gc();
+      }
+      
+      return finalResults;
+    } catch (error) {
+      logger.error('Error performing semantic search:', error);
+      throw error;
+    }
+  },
+  {
+    queryName: 'semanticSearch',
+    enableCache: true,
+    cacheTTLMs: 300000, // 5 minutes cache
+    // Custom key function based on query
+    cacheKeyFn: (query, queryVector, options) => {
+      if (!query && !queryVector) return 'search:invalid';
+      const queryKey = query ? query.substring(0, 50) : '';
+      const optionsKey = options ? JSON.stringify(Object.keys(options).sort()) : '';
+      return `semantic:${queryKey}:${optionsKey}`;
+    }
+  }
+);
+
+/**
+ * Get a specific item by ID with optimized content retrieval
+ * @param {string} id The item ID
+ * @param {Object} options Retrieval options
+ * @returns {Promise<Object>} The item data
+ */
+const getItemById = optimizeQuery(
+  async (id, options = {}) => {
+    if (!collection) {
+      throw new Error('Database not initialized');
+    }
+    
+    try {
+      // Default options
+      const {
+        includeVector = false,
+        includeContent = true
+      } = options;
+      
+      // Since we can't directly query by ID with the current vectordb API,
+      // we need to use search as a workaround
+      const sampleVector = new Array(config.embeddings.dimensions).fill(0);
+      const results = await collection.search(sampleVector).limit(1000).execute();
+      
+      // Find the item with matching ID
+      const item = results.find(result => result.id === id);
+      
+      if (!item) {
+        throw new Error(`Item with ID ${id} not found`);
+      }
+      
+      // Process metadata
+      let metadata = item.metadata;
+      if (typeof metadata === 'string') {
+        try {
+          metadata = JSON.parse(metadata);
+        } catch (e) {
+          logger.warn(`Failed to parse metadata for item ${id}`);
+        }
+      }
+      
+      // Prepare response
+      const response = {
+        id: item.id,
+        title: item.title || 'Untitled',
+        sourceType: item.source_type,
+        sourceId: item.source_identifier,
+        metadata,
+        originalPath: item.original_content_path
+      };
+      
+      // Include content if requested
+      if (includeContent) {
+        if (item.text_chunks && Array.isArray(item.text_chunks)) {
+          response.content = item.text_chunks.join(' ');
+        } else if (typeof item.text_chunks === 'string') {
+          try {
+            const chunks = JSON.parse(item.text_chunks);
+            response.content = Array.isArray(chunks) ? chunks.join(' ') : item.text_chunks;
+          } catch (e) {
+            response.content = item.text_chunks;
+          }
+        } else if (item.extracted_text) {
+          response.content = item.extracted_text;
+        }
+      }
+      
+      // Include vector if requested
+      if (includeVector && item.vector) {
+        response.vector = item.vector;
+      }
+      
+      return response;
+    } catch (error) {
+      logger.error(`Error retrieving item with ID ${id}:`, error);
+      throw error;
+    }
+  },
+  {
+    queryName: 'getItemById',
+    enableCache: true,
+    cacheTTLMs: 300000, // 5 minutes cache
+  }
+);
+
+/**
  * Get database memory statistics
  * @returns {Object} Memory statistics for the database
  */
@@ -274,6 +521,8 @@ module.exports = {
   deleteItem,
   listItems,
   vectorSearch,
+  semanticSearch,
+  getItemById,
   getDatabaseStats,
   analyzeDatabasePerformance
 }; 

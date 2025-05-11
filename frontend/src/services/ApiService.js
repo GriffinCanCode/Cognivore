@@ -93,6 +93,76 @@ class ApiService {
       throw new Error(`Search error: ${error.message}`);
     }
   }
+
+  // Get a specific item by ID
+  async getItem(itemId) {
+    try {
+      const response = await this.api.getItem(itemId);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to retrieve item');
+      }
+      return response.item;
+    } catch (error) {
+      console.error('Error retrieving item:', error);
+      throw new Error(`Error retrieving item: ${error.message}`);
+    }
+  }
+
+  // Save an item
+  async saveItem(itemData) {
+    try {
+      const response = await this.api.saveItem(itemData);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to save item');
+      }
+      return response.item;
+    } catch (error) {
+      console.error('Error saving item:', error);
+      throw new Error(`Error saving item: ${error.message}`);
+    }
+  }
+
+  // Get available tools
+  async getAvailableTools() {
+    try {
+      const response = await this.api.getAvailableTools();
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get available tools');
+      }
+      return response.tools || [];
+    } catch (error) {
+      console.error('Error retrieving available tools:', error);
+      throw new Error(`Error retrieving available tools: ${error.message}`);
+    }
+  }
+
+  // Execute a tool
+  async executeTool(toolName, params = {}) {
+    try {
+      const response = await this.api.executeTool(toolName, params);
+      if (!response.success) {
+        throw new Error(response.error || `Failed to execute tool: ${toolName}`);
+      }
+      return response;
+    } catch (error) {
+      console.error(`Error executing tool ${toolName}:`, error);
+      throw new Error(`Error executing tool ${toolName}: ${error.message}`);
+    }
+  }
+
+  // Generate summary for a document
+  async generateSummary(documentId, content, title) {
+    try {
+      const response = await this.api.generateSummary(documentId, content, title);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to generate summary');
+      }
+      return response;
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      throw new Error(`Error generating summary: ${error.message}`);
+    }
+  }
 }
 
 export default ApiService; 

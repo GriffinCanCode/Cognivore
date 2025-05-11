@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "tools": [
+    {
+      "name": "summary",
+      "description": "Generate a concise summary of document content",
+      "version": "1.0.0",
+      "location": "both",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "ID of the document to summarize (optional if content provided)"
+          },
+          "content": {
+            "type": "string",
+            "description": "Text content to summarize (optional if documentId provided)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Document title (optional)"
+          }
+        },
+        "required": []
+      }
+    }
+  ]
+} 
