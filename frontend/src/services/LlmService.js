@@ -1,4 +1,6 @@
 // LlmService for Gemini 2.5 Flash integration
+import systemPrompt from './systemPrompt';
+
 class LlmService {
   constructor() {
     this.defaultModel = 'gemini-2.0-flash'; // Update to supported model
@@ -135,12 +137,15 @@ class LlmService {
       
       console.log('Sending chat request to backend...');
       
+      // Prepare formatted chat history with system prompt if not already present
+      const formattedChatHistory = this.formatChatHistoryWithSystemPrompt(chatHistory, options);
+      
       // Add timeout to the chat request - use 15s instead of 30s for better UX when failing
       try {
         const response = await Promise.race([
           window.server.chat({
             message,
-            chatHistory: this.formatChatHistory(chatHistory),
+            chatHistory: formattedChatHistory,
             model: modelToUse,
             temperature: options.temperature || 0.7,
             maxTokens: options.maxTokens || 1024,
@@ -185,6 +190,40 @@ class LlmService {
       
       throw error;
     }
+  }
+
+  /**
+   * Format chat history with system prompt if needed
+   * @param {Array} chatHistory - Raw chat history from the UI
+   * @param {Object} options - Additional options 
+   * @returns {Array} - Formatted chat history with system prompt
+   */
+  formatChatHistoryWithSystemPrompt(chatHistory, options = {}) {
+    // Check if there's already a system message at the beginning
+    const hasSystemMessage = chatHistory.length > 0 && 
+                            chatHistory[0].role === 'system';
+    
+    // Clone the history to avoid modifying the original
+    const formattedHistory = this.formatChatHistory([...chatHistory]);
+    
+    // If no system message exists, add one
+    if (!hasSystemMessage) {
+      // Get system prompt based on options
+      const systemPromptText = options.minimalPrompt ? 
+        this.getMinimalSystemPrompt() : 
+        this.getSystemPrompt({
+          userName: options.userName || 'User',
+          toolsMetadata: options.tools || this.getDefaultTools()
+        });
+      
+      // Insert system message at the beginning
+      formattedHistory.unshift({
+        role: 'system',
+        content: systemPromptText
+      });
+    }
+    
+    return formattedHistory;
   }
 
   /**
@@ -316,69 +355,24 @@ class LlmService {
    * @returns {Array} - Default tool definitions
    */
   getDefaultTools() {
-    return [
-      {
-        name: 'searchKnowledgeBase',
-        description: 'Search the knowledge base for relevant information',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'The search query'
-            },
-            filters: {
-              type: 'object',
-              description: 'Optional filters for the search',
-              properties: {
-                sourceType: {
-                  type: 'string',
-                  description: 'Filter by source type (pdf, url, youtube, etc.)'
-                },
-                dateAdded: {
-                  type: 'string',
-                  description: 'Filter by date added (ISO string)'
-                }
-              }
-            }
-          },
-          required: ['query']
-        }
-      },
-      {
-        name: 'getItemContent',
-        description: 'Get the full content of a specific item in the knowledge base',
-        parameters: {
-          type: 'object',
-          properties: {
-            itemId: {
-              type: 'string',
-              description: 'The ID of the item to retrieve'
-            }
-          },
-          required: ['itemId']
-        }
-      },
-      {
-        name: 'summarizeContent',
-        description: 'Generate a summary of the provided content',
-        parameters: {
-          type: 'object',
-          properties: {
-            content: {
-              type: 'string',
-              description: 'The content to summarize'
-            },
-            length: {
-              type: 'string',
-              description: 'The desired length of the summary (short, medium, long)',
-              enum: ['short', 'medium', 'long']
-            }
-          },
-          required: ['content']
-        }
-      }
-    ];
+    return systemPrompt.getDefaultToolDefinitions();
+  }
+
+  /**
+   * Get a system prompt for the LLM
+   * @param {Object} options - Options for the system prompt
+   * @returns {string} - Formatted system prompt
+   */
+  getSystemPrompt(options = {}) {
+    return systemPrompt.createSystemPrompt(options);
+  }
+
+  /**
+   * Get a minimal system prompt for lightweight interactions
+   * @returns {string} - Minimal system prompt
+   */
+  getMinimalSystemPrompt() {
+    return systemPrompt.createMinimalSystemPrompt();
   }
 
   /**

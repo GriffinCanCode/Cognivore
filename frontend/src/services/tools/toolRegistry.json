@@ -1,5 +1,6 @@
 {
   "version": "1.0.0",
+  "note": "This file is kept for backward compatibility. Use sharedToolDefinitions.js for all new tool definitions.",
   "tools": [
     {
       "name": "summary",

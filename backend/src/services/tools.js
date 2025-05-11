@@ -7,6 +7,7 @@ const fs = require('fs').promises;
 const logger = require('../utils/logger');
 const database = require('./database');
 const llmService = require('./llm');
+const toolDefinitionsAdapter = require('../utils/toolDefinitionsAdapter');
 
 class ToolsService {
   constructor() {
@@ -30,12 +31,48 @@ class ToolsService {
       this.registerTool('recommendRelatedContent', this.recommendRelatedContent.bind(this));
       this.registerTool('summarizeContent', this.summarizeContent.bind(this));
       
+      // Check if our tool implementations match the shared definitions
+      this.validateToolImplementations();
+      
       this.logger.info('Tools loaded successfully');
       return true;
     } catch (error) {
       this.logger.error('Failed to initialize tools service', { error: error.message });
       return false;
     }
+  }
+
+  /**
+   * Validate that all registered tools match shared definitions
+   */
+  validateToolImplementations() {
+    // Get tool names defined in the shared definitions for backend
+    const definedToolNames = toolDefinitionsAdapter.getBackendToolNames();
+    // Get actually implemented tools
+    const implementedTools = Object.keys(this.tools);
+    
+    // Check for tools in definitions but not implemented
+    const missingImplementations = definedToolNames.filter(name => !implementedTools.includes(name));
+    if (missingImplementations.length > 0) {
+      this.logger.warn('Some tools defined in shared definitions are not implemented in backend', {
+        missingTools: missingImplementations
+      });
+    }
+    
+    // Check for tools implemented but not in definitions
+    const undefinedImplementations = implementedTools.filter(name => !definedToolNames.includes(name));
+    if (undefinedImplementations.length > 0) {
+      this.logger.warn('Some implemented tools are not defined in shared definitions', {
+        undefinedTools: undefinedImplementations
+      });
+    }
+    
+    this.logger.info('Tool implementation validation complete', {
+      definedCount: definedToolNames.length,
+      implementedCount: implementedTools.length,
+      missingCount: missingImplementations.length,
+      undefinedCount: undefinedImplementations.length
+    });
   }
 
   /**
@@ -59,10 +96,10 @@ class ToolsService {
    * @returns {Array} - List of available tool names
    */
   getAvailableTools() {
-    return Object.keys(this.tools).map(name => ({
-      name,
-      description: this.getToolDescription(name)
-    }));
+    const toolDefinitions = toolDefinitionsAdapter.getBackendToolDefinitions();
+    
+    // Filter to only include tools that are actually implemented
+    return toolDefinitions.filter(tool => this.tools[tool.name] !== undefined);
   }
 
   /**
@@ -71,7 +108,13 @@ class ToolsService {
    * @returns {string} - Tool description
    */
   getToolDescription(name) {
-    const descriptions = {
+    const toolDefinition = toolDefinitionsAdapter.getToolDefinition(name);
+    if (toolDefinition) {
+      return toolDefinition.description;
+    }
+    
+    // Fallback descriptions if shared definitions couldn't be loaded
+    const fallbackDescriptions = {
       'summary': 'Generate a concise summary of document content',
       'searchKnowledgeBase': 'Search the knowledge base for relevant information using semantic search',
       'getItemContent': 'Get the full content of a specific item in the knowledge base',
@@ -79,7 +122,7 @@ class ToolsService {
       'summarizeContent': 'Generate a concise summary of provided content with key points'
     };
     
-    return descriptions[name] || 'No description available';
+    return fallbackDescriptions[name] || 'No description available';
   }
 
   /**

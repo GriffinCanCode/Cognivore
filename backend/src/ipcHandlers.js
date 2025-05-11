@@ -11,9 +11,11 @@ const logger = createContextLogger('IPC');
 const { processPDF } = require('./services/pdfProcessor');
 const { processURL } = require('./services/urlProcessor');
 const { processYouTube } = require('./services/youtubeProcessor');
-const { deleteItem, listItems } = require('./services/database');
+const { deleteItem, listItems, semanticSearch: dbSemanticSearch } = require('./services/database');
 const { semanticSearch } = require('./services/search');
+const llmService = require('./services/llm');
 const toolsService = require('./services/tools');
+const config = require('./config');
 
 /**
  * Initialize all IPC handlers
@@ -24,6 +26,36 @@ function initializeIpcHandlers() {
 
   // Initialize tools service
   toolsService.initialize();
+
+  // Health check handler
+  ipcMain.handle('health-check', async () => {
+    try {
+      logger.debug('Health check requested');
+      return { status: 'ok', timestamp: new Date().toISOString() };
+    } catch (error) {
+      logger.error('Health check failed:', error);
+      return { status: 'error', error: error.message };
+    }
+  });
+
+  // Get config
+  ipcMain.handle('get-config', async () => {
+    try {
+      logger.debug('Config requested');
+      
+      // Check if API key is valid
+      const isApiKeyValid = await llmService.checkApiKey();
+      
+      return { 
+        llmModel: process.env.LLM_MODEL || 'gemini-2.0-flash',
+        embeddingModel: process.env.EMBEDDING_MODEL || 'embedding-001',
+        apiKeyValid: isApiKeyValid
+      };
+    } catch (error) {
+      logger.error('Error retrieving config:', error);
+      return { error: error.message };
+    }
+  });
 
   // Process PDF
   ipcMain.handle('process-pdf', async (event, filePath) => {
@@ -138,6 +170,87 @@ function initializeIpcHandlers() {
       return result; // Result already has success property
     } catch (error) {
       logger.error(`Error generating summary for document ${documentId}:`, error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // LLM chat
+  ipcMain.handle('chat', async (event, params) => {
+    try {
+      logger.info(`Chat request received with model: ${params.model || 'default'}`);
+      
+      if (!params || !params.message) {
+        throw new Error('Message is required for chat');
+      }
+      
+      const result = await llmService.chat(params);
+      logger.debug('Chat response generated successfully');
+      return result;
+    } catch (error) {
+      logger.error('Error in chat:', error);
+      throw error; // Let the frontend handle this error
+    }
+  });
+
+  // Generate embeddings
+  ipcMain.handle('generate-embeddings', async (event, params) => {
+    try {
+      logger.info('Embeddings generation requested');
+      
+      if (!params || !params.text) {
+        throw new Error('Text is required for embedding generation');
+      }
+      
+      const result = await llmService.generateEmbeddings(params.text, params.model);
+      logger.debug('Embeddings generated successfully');
+      return result;
+    } catch (error) {
+      logger.error('Error generating embeddings:', error);
+      throw error; // Let the frontend handle this error
+    }
+  });
+
+  // Execute tool call (from LLM)
+  ipcMain.handle('execute-tool-call', async (event, params) => {
+    try {
+      logger.info(`Tool call execution requested: ${params.toolName}`);
+      
+      if (!params || !params.toolName) {
+        throw new Error('Tool name is required for tool call execution');
+      }
+      
+      const result = await llmService.executeToolCall(params);
+      logger.debug(`Tool call executed successfully: ${params.toolName}`);
+      return result;
+    } catch (error) {
+      logger.error(`Error executing tool call: ${params?.toolName || 'unknown'}`, error);
+      throw error; // Let the frontend handle this error
+    }
+  });
+
+  // Semantic RAG search (advanced with options)
+  ipcMain.handle('semantic-search', async (event, query, queryVector, options = {}) => {
+    try {
+      logger.info(`Advanced semantic search for: "${query}"`);
+      
+      // Generate embeddings if queryVector not provided
+      let vectorToUse = queryVector;
+      if (!vectorToUse && query) {
+        logger.debug('Generating embeddings for semantic search query');
+        const embeddingResult = await llmService.generateEmbeddings(query);
+        vectorToUse = embeddingResult.embedding;
+      }
+      
+      if (!vectorToUse) {
+        throw new Error('Either query or queryVector must be provided for semantic search');
+      }
+      
+      // Perform semantic search with our advanced implementation
+      const results = await dbSemanticSearch(query, vectorToUse, options);
+      logger.debug(`Advanced semantic search completed with ${results.length} results`);
+      return { success: true, results };
+    } catch (error) {
+      logger.error('Error performing advanced semantic search:', error);
       return { success: false, error: error.message };
     }
   });

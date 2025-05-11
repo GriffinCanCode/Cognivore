@@ -481,3 +481,70 @@
   - Improved preload.js IPC bridge with timeout handling and better error recovery
   - Enhanced error reporting to provide more helpful feedback to users
   - Added explicit loading state management in ChatUI component
+
+## [0.3.4] - Retrieval Augmented Generation (RAG) System
+
+### Added
+- Implemented Retrieval Augmented Generation (RAG) system for LLM integration
+  - Added semanticSearch function to database.js for optimized RAG queries
+  - Added getItemById function to database.js for efficient content retrieval
+  - Created backend LLM service (llm.js) for Gemini model interactions
+  - Added RAG tools to tools.js (searchKnowledgeBase, getItemContent, recommendRelatedContent)
+  - Enhanced IPC handlers to support LLM chat, embedding generation, and tool execution
+  - Implemented memory-optimized content processing with token counting
+
+### Changed
+
+### Fixed
+
+## [0.3.5] - System Prompt Integration
+
+### Added
+- Created modular system prompt management for agent configuration
+  - Implemented `frontend/src/services/systemPrompt.js`: Defines agent purpose and available tools
+  - Added configurable system prompt functions with user personalization
+  - Created minimal system prompt option for lightweight interactions
+  - Implemented tool definition standardization for consistent schema
+- Enhanced LLM service with system prompt integration
+  - Updated `frontend/src/services/LlmService.js` to use system prompts
+  - Added automatic system prompt insertion for chat history
+  - Created helper methods for generating different system prompt types
+  - Improved chat handling with proper system message integration
+
+### Changed
+- Refactored tool definitions to use centralized system
+  - Moved tool definitions from LlmService to systemPrompt module
+  - Enhanced consistency between frontend and backend tool definitions
+  - Improved organization of tool-related code
+- Updated chat processing pipeline
+  - Added formatChatHistoryWithSystemPrompt for automatic system prompt insertion
+  - Enhanced sendMessage method to use configured system prompts
+  - Improved chat initialization with proper system context
+
+## [0.3.6] - Centralized Tool Definitions
+
+### Added
+- Created centralized tool definition system for frontend and backend
+  - Implemented `frontend/src/services/tools/sharedToolDefinitions.js`: Single source of truth for all tools
+  - Added `backend/src/utils/toolDefinitionsAdapter.js`: Backend adapter for shared definitions
+  - Implemented tool validation to ensure consistency across codebase
+  - Added location-based filtering to manage tool availability (frontend/backend/both)
+  - Created utility functions for accessing and working with tool definitions
+
+### Changed
+- Refactored tools system for unified definitions
+  - Updated `frontend/src/services/systemPrompt.js` to use shared tool definitions
+  - Modified `frontend/src/services/tools/index.js` to support shared definitions
+  - Updated `backend/src/services/tools.js` to validate against shared definitions
+  - Added backward compatibility notes to `frontend/src/services/tools/toolRegistry.json`
+  - Improved tool registration and validation process in backend
+  - Enhanced error handling for missing tool implementations
+
+### Fixed
+- Fixed module compatibility issues between frontend and backend
+  - Resolved "Unexpected token 'export'" error in shared tool definitions
+  - Updated backend tools service to properly initialize logger before use
+  - Simplified toolDefinitionsAdapter to use embedded definitions rather than dynamic imports
+  - Fixed ES module/CommonJS compatibility in frontend module exports
+  - Improved handling of module loading across different environments
+  - Added cross-environment support for both Electron renderer and Node.js contexts
