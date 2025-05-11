@@ -1,4 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+// IMPORTANT: Load name setter before anything else
+require('./electron-app-name-setter');
+
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const logger = require('./utils/logger');
@@ -6,6 +9,73 @@ const net = require('net');
 
 // Check if we're in development mode
 const isDev = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
+
+// Check if we're running from an asar package
+const isAsar = __dirname.includes('app.asar');
+
+// Set application name - ensure this happens early
+app.name = 'Cognivore';
+app.setName('Cognivore');
+app.setAppUserModelId('com.cognivore.app');
+
+// For macOS, add this code to fix the dock name and protocol handler
+if (process.platform === 'darwin') {
+  // Tell macOS we are Cognivore for all protocol handlers
+  app.setAsDefaultProtocolClient('cognivore');
+  
+  // Fix dock and menu bar appearance
+  app.whenReady().then(() => {
+    // We need to set the dock name explicitly
+    if (app.dock) {
+      // Set dock name
+      app.dock.setMenu(Menu.buildFromTemplate([
+        { label: 'Cognivore' }
+      ]));
+      
+      // Set dock icon from icon file
+      const iconPath = path.join(__dirname, '../../app-icon.png');
+      if (fs.existsSync(iconPath)) {
+        app.dock.setIcon(iconPath);
+      }
+    }
+    
+    // Create a completely new application menu
+    const template = [
+      // First empty item fixes the menu bar name issue on macOS
+      { label: '' },
+      {
+        // Use HTML formatting to make the Cognivore label bold
+        label: '<b>Cognivore</b>',
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' }
+        ]
+      },
+      { role: 'fileMenu' },
+      { role: 'editMenu' },
+      { role: 'viewMenu' },
+      { role: 'windowMenu' },
+      { role: 'help' }
+    ];
+    
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+  });
+  
+  // Set about panel info
+  app.setAboutPanelOptions({
+    applicationName: 'Cognivore',
+    applicationVersion: app.getVersion(),
+    copyright: '© 2025 Cognivore',
+  });
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 if (require('electron-squirrel-startup')) {
@@ -134,6 +204,8 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    title: 'Cognivore',
+    icon: path.join(__dirname, '../../app-icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -146,6 +218,24 @@ function createMainWindow() {
       sandbox: false // Required for some Node.js modules in preload script
     }
   });
+
+  // Ensure title remains as "Cognivore" even after page loads
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault();
+    mainWindow.setTitle('Cognivore');
+  });
+  
+  // Also set title on ready-to-show for extra reliability
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.setTitle('Cognivore');
+  });
+  
+  // Force window title again after 2 seconds
+  setTimeout(() => {
+    if (mainWindow) {
+      mainWindow.setTitle('Cognivore');
+    }
+  }, 2000);
 
   // Set Content Security Policy
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -169,8 +259,12 @@ function createMainWindow() {
     // Open DevTools in development mode
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, load the bundled version
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // In production, determine the correct path based on whether we're in an asar package
+    const indexPath = isAsar ? path.join(path.dirname(path.dirname(__dirname)), 'dist', 'index.html') 
+                            : path.join(__dirname, '../dist/index.html');
+    
+    console.log('Loading index from:', indexPath);
+    mainWindow.loadFile(indexPath);
   }
 
   // Window closed event
@@ -205,6 +299,20 @@ function setupEssentialIpcHandlers() {
 
 // When Electron has finished initialization and is ready
 app.whenReady().then(async () => {
+  // Set dock icon for macOS
+  if (process.platform === 'darwin') {
+    const iconPath = path.join(__dirname, '../../app-icon.png');
+    if (fs.existsSync(iconPath)) {
+      app.dock.setIcon(iconPath);
+    }
+    
+    // Explicitly set the dock name via the menu - setName doesn't exist
+    app.dock.setMenu(Menu.buildFromTemplate([
+      { label: 'Cognivore' }
+    ]));
+    console.log('Set dock menu to display Cognivore');
+  }
+  
   logger.info('Application is ready');
   
   try {

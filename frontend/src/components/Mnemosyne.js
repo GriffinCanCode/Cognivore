@@ -564,7 +564,8 @@ class Mnemosyne {
       const options = {
         saveFile: true,
         generateEmbedding: true,
-        generateSummary: true
+        generateSummary: true,
+        useLLM: true  // Explicitly enable LLM for summary generation
       };
       
       // Process the PDF with enhanced options
@@ -628,7 +629,8 @@ class Mnemosyne {
         saveHtml: true,
         generateEmbedding: true,
         generateSummary: true,
-        saveMetadata: true
+        saveMetadata: true,
+        useLLM: true  // Explicitly enable LLM for summary generation
       };
       
       // Process the URL with enhanced options
@@ -689,7 +691,12 @@ class Mnemosyne {
         saveThumbnail: true,
         generateEmbedding: true,
         generateSummary: true,
-        saveMetadata: true
+        saveMetadata: true,
+        useLLM: true,  // Explicitly enable LLM for summary generation
+        // Explicitly save the YouTube URL for linking back
+        youtubeUrl: url,
+        // Try to extract and save a thumbnail URL
+        extractThumbnail: true
       };
       
       // Process the YouTube URL with enhanced options
@@ -760,7 +767,7 @@ class Mnemosyne {
     
     const subtitle = document.createElement('p');
     subtitle.className = 'mnemosyne-subtitle';
-    subtitle.textContent = 'Greek goddess of memory and mother of the Muses';
+    subtitle.textContent = 'The Keeper of the Knowledge of the World';
     
     // Create decorative elements
     const titleGlow = document.createElement('div');

@@ -1,19 +1,24 @@
 {
-  "name": "knowledge-store",
+  "name": "cognivore",
   "version": "0.1.0",
   "description": "A personal knowledge management system",
   "main": "frontend/src/main.js",
   "scripts": {
-    "start": "electron frontend/src/main.js",
-    "dev": "cross-env NODE_ENV=development electron frontend/src/main.js",
+    "start": "NODE_OPTIONS=\"--inspect --max-old-space-size=4096\" ELECTRON_APP_NAME=Cognivore ELECTRON_BUNDLE_INFO_PLIST=frontend/mac-info.plist electron frontend/src/main.js",
+    "dev": "cross-env NODE_ENV=development NODE_OPTIONS=\"--inspect --max-old-space-size=4096\" ELECTRON_APP_NAME=Cognivore ELECTRON_BUNDLE_INFO_PLIST=frontend/mac-info.plist electron frontend/src/main.js",
+    "mac-dev": "cd frontend && npm run fix-dock-name && npm run fix-dock-icon && cd .. && npm run dev",
+    "mac-start": "cd frontend && npm run fix-dock-name && npm run fix-dock-icon && cd .. && npm run start",
     "backend": "cd backend && node server.js",
     "backend:dev": "cd backend && npm run dev",
     "frontend": "cd frontend && npm run start",
     "dev:all": "concurrently \"npm run backend\" \"npm run dev\"",
     "start:all": "concurrently \"npm run backend\" \"npm run start\"",
+    "mac-dev:all": "concurrently \"npm run backend\" \"npm run mac-dev\"",
+    "mac-start:all": "concurrently \"npm run backend\" \"npm run mac-start\"",
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "test": "cd backend && npm test",
-    "postinstall": "npm install concurrently --save-dev"
+    "postinstall": "npm install concurrently --save-dev",
+    "fix-mac-name": "cd frontend && node scripts/fix-mac-name.js"
   },
   "keywords": [
     "knowledge",

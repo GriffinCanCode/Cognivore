@@ -127,9 +127,10 @@ class DocProcessor {
   /**
    * Process a YouTube URL
    * @param {string} url - YouTube URL to process
+   * @param {Object} options - Processing options
    * @returns {Promise<Object>} - Processing result with summary
    */
-  async processYouTube(url) {
+  async processYouTube(url, options = {}) {
     if (!url) {
       const message = 'Please enter a YouTube URL';
       this.notify('warning', message);
@@ -141,15 +142,49 @@ class DocProcessor {
       this.notify('info', 'Processing YouTube URL...');
       docProcessorLogger.info(`Processing YouTube URL: ${url}`);
       
-      const result = await this.apiService.processYouTube(url);
+      // Extract video ID for thumbnail generation
+      let videoId = '';
+      try {
+        const urlObj = new URL(url);
+        if (url.includes('youtube.com/watch')) {
+          videoId = urlObj.searchParams.get('v');
+        } else if (url.includes('youtu.be/')) {
+          videoId = urlObj.pathname.split('/')[1];
+        }
+      } catch (parseError) {
+        docProcessorLogger.warn(`Could not parse YouTube URL: ${parseError.message}`);
+      }
+      
+      // Generate thumbnail URL if we have a video ID
+      let thumbnailUrl = null;
+      if (videoId) {
+        // Use high quality thumbnail
+        thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+        docProcessorLogger.info(`Generated thumbnail URL: ${thumbnailUrl}`);
+      }
+      
+      // Merge options with defaults and add thumbnail URL
+      const processOptions = {
+        ...options,
+        youtubeUrl: url,
+        thumbnailUrl
+      };
+      
+      // Pass options to the API service
+      const result = await this.apiService.processYouTube(url, processOptions);
       
       // Generate summary from the processed content
       const summary = await this.generateDocumentSummary(result);
       
       this.notify('success', `Successfully processed YouTube video: ${result.title || 'Unnamed video'}`);
-      this.notifyListeners('youtube:processed', { id: result.id, url, summary });
+      this.notifyListeners('youtube:processed', { 
+        id: result.id, 
+        url, 
+        summary,
+        thumbnailUrl
+      });
       
-      return { ...result, summary };
+      return { ...result, summary, thumbnailUrl };
     } catch (error) {
       const errorMessage = `Failed to process YouTube URL: ${error.message}`;
       this.notify('error', errorMessage);

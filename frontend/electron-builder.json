@@ -1,0 +1,28 @@
+{
+  "appId": "com.cognivore.app",
+  "productName": "Cognivore",
+  "files": [
+    "dist/**/*",
+    "src/**/*",
+    "node_modules/**/*",
+    "package.json",
+    "main.js"
+  ],
+  "directories": {
+    "buildResources": "resources",
+    "output": "dist/electron-build"
+  },
+  "mac": {
+    "category": "public.app-category.productivity",
+    "icon": "resources/icon.png",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "darkModeSupport": true,
+    "target": [
+      "dir"
+    ],
+    "extraFiles": [
+      "resources/Info.plist"
+    ]
+  }
+}

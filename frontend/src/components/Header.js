@@ -34,7 +34,7 @@ class Header {
     header.classList.add('fade-in');
     
     const title = document.createElement('h1');
-    title.textContent = 'Knowledge Store';
+    title.textContent = 'Cognivore';
     
     const subtitle = document.createElement('p');
     subtitle.textContent = "Your Personal Knowledge Management System";

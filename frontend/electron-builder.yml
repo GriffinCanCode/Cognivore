@@ -1,0 +1,13 @@
+appId: com.cognivore.app
+productName: Cognivore
+files:
+  - dist/**/*
+  - src/**/*
+  - node_modules/**/*
+  - package.json
+buildResources: resources
+output: dist/electron-build
+asar: true
+mac:
+  category: public.app-category.productivity
+  icon: resources/app-icon.png 

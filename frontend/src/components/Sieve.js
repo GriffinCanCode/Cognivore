@@ -81,9 +81,32 @@ class Sieve {
     const header = document.createElement('div');
     header.className = 'sieve-header';
     
+    // Create enhanced title with particle effects similar to Mnemosyne
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'sieve-title-container';
+    
+    const titleGlow = document.createElement('div');
+    titleGlow.className = 'title-glow';
+    
+    const titleParticles = document.createElement('div');
+    titleParticles.className = 'title-particles';
+    
     const title = document.createElement('h2');
-    title.textContent = 'Knowledge Sieve';
     title.className = 'sieve-title';
+    
+    // Add individual letter spans for animation like in Mnemosyne
+    const titleText = 'The Sieve';
+    [...titleText].forEach(letter => {
+      const span = document.createElement('span');
+      span.className = 'title-letter';
+      span.textContent = letter;
+      span.setAttribute('data-letter', letter);
+      title.appendChild(span);
+    });
+    
+    titleContainer.appendChild(titleGlow);
+    titleContainer.appendChild(titleParticles);
+    titleContainer.appendChild(title);
     
     this.refreshButton = document.createElement('button');
     this.refreshButton.className = 'sieve-refresh-btn';
@@ -98,7 +121,7 @@ class Sieve {
     `;
     this.addEventListenerWithCleanup(this.refreshButton, 'click', this.refreshItems);
     
-    header.appendChild(title);
+    header.appendChild(titleContainer);
     header.appendChild(this.refreshButton);
     
     // Filter and search section
@@ -141,6 +164,82 @@ class Sieve {
     this.container.appendChild(header);
     this.container.appendChild(filterSection);
     this.container.appendChild(this.itemList);
+    
+    // Add CSS for YouTube thumbnails
+    const style = document.createElement('style');
+    style.textContent = `
+      .sieve-item-thumbnail-container {
+        position: relative;
+        width: 100%;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 8px;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      
+      .sieve-item-thumbnail-container:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+      }
+      
+      .sieve-item-thumbnail {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: cover;
+      }
+      
+      .sieve-item-play-button {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 60px;
+        height: 60px;
+        background-color: rgba(0, 0, 0, 0.7);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        opacity: 0.9;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+      
+      .sieve-item-thumbnail-container:hover .sieve-item-play-button {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+      }
+      
+      .sieve-item-link-container {
+        margin-top: 8px;
+        text-align: center;
+      }
+      
+      .sieve-item-youtube-link {
+        color: #e74c3c;
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: color 0.2s ease;
+      }
+      
+      .sieve-item-youtube-link:hover {
+        color: #c0392b;
+        text-decoration: underline;
+      }
+      
+      .watch-btn {
+        background-color: #e74c3c;
+        color: white;
+      }
+      
+      .watch-btn:hover {
+        background-color: #c0392b;
+      }
+    `;
+    document.head.appendChild(style);
     
     return this.container;
   }
@@ -365,27 +464,120 @@ class Sieve {
     const cardContent = document.createElement('div');
     cardContent.className = 'sieve-item-content';
     
-    const preview = document.createElement('p');
-    preview.className = 'sieve-item-preview';
-    preview.textContent = item.preview || 'No preview available';
-    
-    cardContent.appendChild(preview);
+    // Check if this is a YouTube item with a thumbnail
+    if (item.source_type === 'youtube') {
+      if (item.thumbnail_url) {
+        // Create thumbnail container
+        const thumbnailContainer = document.createElement('div');
+        thumbnailContainer.className = 'sieve-item-thumbnail-container';
+        
+        // Create thumbnail image
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'sieve-item-thumbnail';
+        thumbnail.src = item.thumbnail_url;
+        thumbnail.alt = item.title || 'YouTube Video';
+        thumbnail.loading = 'lazy'; // Lazy load images
+        
+        // Add play button overlay
+        const playButton = document.createElement('div');
+        playButton.className = 'sieve-item-play-button';
+        playButton.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="10 8 16 12 10 16 10 8"></polygon>
+            <circle cx="12" cy="12" r="10" fill="none"></circle>
+          </svg>
+        `;
+        
+        // Make the whole thumbnail clickable
+        thumbnailContainer.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent card flip
+          if (item.source_identifier) {
+            window.open(item.source_identifier, '_blank');
+          }
+        });
+        
+        // Assemble thumbnail
+        thumbnailContainer.appendChild(thumbnail);
+        thumbnailContainer.appendChild(playButton);
+        cardContent.appendChild(thumbnailContainer);
+      } else {
+        // Fallback if no thumbnail available
+        const preview = document.createElement('p');
+        preview.className = 'sieve-item-preview';
+        preview.textContent = item.preview || 'No preview available';
+        cardContent.appendChild(preview);
+      }
+      
+      // Add YouTube link as text
+      if (item.source_identifier) {
+        const linkContainer = document.createElement('div');
+        linkContainer.className = 'sieve-item-link-container';
+        
+        const link = document.createElement('a');
+        link.href = item.source_identifier;
+        link.className = 'sieve-item-youtube-link';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Watch on YouTube';
+        
+        linkContainer.appendChild(link);
+        cardContent.appendChild(linkContainer);
+      }
+    } else {
+      // Regular text preview for non-YouTube items
+      const preview = document.createElement('p');
+      preview.className = 'sieve-item-preview';
+      preview.textContent = item.preview || 'No preview available';
+      cardContent.appendChild(preview);
+      
+      // Add AI summary if available
+      if (item.summary) {
+        const summary = document.createElement('div');
+        summary.className = 'sieve-item-summary';
+        summary.textContent = item.summary;
+        cardContent.appendChild(summary);
+      }
+    }
     
     // Card actions
     const cardActions = document.createElement('div');
     cardActions.className = 'sieve-item-actions';
     
-    const viewBtn = document.createElement('button');
-    viewBtn.className = 'sieve-action-btn view-btn';
-    viewBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-        <circle cx="12" cy="12" r="3"></circle>
-      </svg>
-      <span>View</span>
-    `;
-    this.addEventListenerWithCleanup(viewBtn, 'click', () => this.handleCardFlip(item.id, item));
+    // For YouTube items, add a watch button
+    if (item.source_type === 'youtube' && item.source_identifier) {
+      const watchBtn = document.createElement('button');
+      watchBtn.className = 'sieve-action-btn watch-btn';
+      watchBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <span>Watch</span>
+      `;
+      this.addEventListenerWithCleanup(watchBtn, 'click', (e) => {
+        e.stopPropagation();
+        window.open(item.source_identifier, '_blank');
+      });
+      
+      cardActions.appendChild(watchBtn);
+    }
     
+    // Flip button
+    const flipBtn = document.createElement('button');
+    flipBtn.className = 'sieve-action-btn flip-btn';
+    flipBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <polyline points="3 12 5 12 21 12"></polyline>
+        <polyline points="3 18 5 18 21 18"></polyline>
+      </svg>
+      <span>Details</span>
+    `;
+    this.addEventListenerWithCleanup(flipBtn, 'click', (e) => {
+      e.stopPropagation();
+      this.handleCardFlip(item.id, item);
+    });
+    
+    // Delete button
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'sieve-action-btn delete-btn';
     deleteBtn.innerHTML = `
@@ -395,9 +587,12 @@ class Sieve {
       </svg>
       <span>Delete</span>
     `;
-    this.addEventListenerWithCleanup(deleteBtn, 'click', () => this.handleDeleteItem(item));
+    this.addEventListenerWithCleanup(deleteBtn, 'click', (e) => {
+      e.stopPropagation();
+      this.handleDeleteItem(item);
+    });
     
-    cardActions.appendChild(viewBtn);
+    cardActions.appendChild(flipBtn);
     cardActions.appendChild(deleteBtn);
     
     // Assemble front of card
@@ -437,7 +632,10 @@ class Sieve {
         <line x1="6" y1="6" x2="18" y2="18"></line>
       </svg>
     `;
-    this.addEventListenerWithCleanup(closeBtn, 'click', () => this.handleCardFlip(item.id, null));
+    this.addEventListenerWithCleanup(closeBtn, 'click', (e) => {
+      e.stopPropagation();
+      this.handleCardFlip(item.id, null);
+    });
     
     backHeader.appendChild(backTitle);
     backHeader.appendChild(closeBtn);
@@ -448,6 +646,22 @@ class Sieve {
     
     // Metadata section
     const metadata = this.createMetadataSection(item);
+    
+    // AI-generated summary, if available
+    if (item.summary) {
+      const summarySection = document.createElement('div');
+      summarySection.className = 'sieve-card-summary';
+      
+      const summaryTitle = document.createElement('h4');
+      summaryTitle.textContent = 'AI Summary';
+      
+      const summaryContent = document.createElement('p');
+      summaryContent.textContent = item.summary;
+      
+      summarySection.appendChild(summaryTitle);
+      summarySection.appendChild(summaryContent);
+      backContent.appendChild(summarySection);
+    }
     
     // Text content
     const textContent = document.createElement('div');
@@ -476,7 +690,10 @@ class Sieve {
         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
       </svg>
     `;
-    this.addEventListenerWithCleanup(copyBtn, 'click', () => this.copyItemText(item));
+    this.addEventListenerWithCleanup(copyBtn, 'click', (e) => {
+      e.stopPropagation();
+      this.copyItemText(item);
+    });
     
     // Export button
     const exportBtn = document.createElement('button');
@@ -489,7 +706,10 @@ class Sieve {
         <line x1="12" y1="15" x2="12" y2="3"></line>
       </svg>
     `;
-    this.addEventListenerWithCleanup(exportBtn, 'click', () => this.exportItemContent(item));
+    this.addEventListenerWithCleanup(exportBtn, 'click', (e) => { 
+      e.stopPropagation();
+      this.exportItemContent(item);
+    });
     
     actionButtons.appendChild(copyBtn);
     actionButtons.appendChild(exportBtn);
@@ -672,7 +892,7 @@ class Sieve {
       return;
     }
     
-    sieveLogger.info(`Attempting to flip card with ID: ${itemId}`);
+    sieveLogger.info(`Flipping card with ID: ${itemId}`);
     
     const targetContainer = this.container.querySelector(`.sieve-card-flip-container[data-item-id="${itemId}"]`);
     
@@ -681,11 +901,8 @@ class Sieve {
       return;
     }
     
-    sieveLogger.info(`Found target container: ${targetContainer.className}`);
-    
     // If this card is already flipped and we're closing it
     if (this.flippedCardId === itemId && !itemData) {
-      sieveLogger.info(`Unflipping card ${itemId}`);
       targetContainer.classList.remove('flipped');
       this.flippedCardId = null;
       return;
@@ -695,31 +912,18 @@ class Sieve {
     if (this.flippedCardId && this.flippedCardId !== itemId) {
       const previousFlipped = this.container.querySelector(`.sieve-card-flip-container[data-item-id="${this.flippedCardId}"]`);
       if (previousFlipped) {
-        sieveLogger.info(`Unflipping previous card ${this.flippedCardId}`);
         previousFlipped.classList.remove('flipped');
       }
     }
     
-    // Force update to ensure rendering
+    // Flip the target card after a small delay to ensure smooth animation
     setTimeout(() => {
-      // Flip the target card
-      sieveLogger.info(`Flipping card ${itemId}`);
       targetContainer.classList.add('flipped');
       this.flippedCardId = itemId;
       
       // Scroll the flipped card into view if needed
       targetContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      
-      // Add debug info to console
-      console.log('Card flipped:', {
-        id: itemId,
-        element: targetContainer,
-        hasFlippedClass: targetContainer.classList.contains('flipped'),
-        cardStyles: window.getComputedStyle(targetContainer.querySelector('.sieve-item-card')),
-        frontStyles: window.getComputedStyle(targetContainer.querySelector('.sieve-card-front')),
-        backStyles: window.getComputedStyle(targetContainer.querySelector('.sieve-card-back'))
-      });
-    }, 50); // Small delay to ensure DOM updates
+    }, 50);
   }
   
   copyItemText(item) {

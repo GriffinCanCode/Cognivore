@@ -2,6 +2,7 @@
  * ChatMessages Component - Displays chat message history with an enhanced visual design
  */
 import ThinkingVisualization from './ThinkingVisualization.js';
+import SpecialWordRenderer from './SpecialWordRenderer.js';
 import logger from '../utils/logger.js';
 
 // Create context-specific logger
@@ -19,6 +20,7 @@ class ChatMessages {
     this.isLoading = isLoading;
     this.observer = null;
     this.thinkingVisualization = null;
+    this.specialWordRenderer = new SpecialWordRenderer();
     this.setupIntersectionObserver();
   }
 
@@ -141,6 +143,9 @@ class ChatMessages {
     
     // Convert line breaks to <br>
     formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Apply special word styling
+    formatted = this.specialWordRenderer.processHtml(formatted);
     
     return formatted;
   }
@@ -471,7 +476,7 @@ class ChatMessages {
   }
 
   /**
-   * Clean up any resources used by the component
+   * Clean up component resources
    */
   cleanup() {
     messagesLogger.debug('ChatMessages cleanup called');
@@ -485,6 +490,9 @@ class ChatMessages {
       this.thinkingVisualization.cleanup();
       this.thinkingVisualization = null;
     }
+    
+    // Clean up special word renderer if exists
+    this.specialWordRenderer = null;
     
     // Remove scroll to bottom button if exists
     const scrollButton = document.querySelector('.scroll-to-bottom');

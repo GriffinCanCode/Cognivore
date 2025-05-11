@@ -53,9 +53,9 @@ class ApiService {
   }
   
   // Process a YouTube URL
-  async processYouTube(url) {
+  async processYouTube(url, options = {}) {
     try {
-      const response = await this.api.processYouTube(url);
+      const response = await this.api.processYouTube(url, options);
       if (!response.success) {
         throw new Error(response.error || 'Failed to process YouTube URL');
       }

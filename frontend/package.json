@@ -1,14 +1,20 @@
 {
-  "name": "knowledge-store-frontend",
+  "name": "cognivore",
+  "productName": "Cognivore",
   "version": "0.1.0",
-  "description": "Frontend for Knowledge Store application",
-  "main": "src/main.js",
+  "description": "Frontend for Cognivore application",
+  "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
+    "start": "ELECTRON_APP_NAME=Cognivore ELECTRON_BUNDLE_INFO_PLIST=./mac-info.plist electron .",
+    "dev": "ELECTRON_APP_NAME=Cognivore ELECTRON_BUNDLE_INFO_PLIST=./mac-info.plist electron . --dev",
     "build": "node scripts/build.js",
     "webpack": "webpack --mode production",
-    "webpack-dev": "webpack --mode development --watch"
+    "webpack-dev": "webpack --mode development --watch",
+    "fix-mac-name": "node scripts/fix-mac-name.js",
+    "apply-mac-info": "node scripts/apply-mac-info-plist.js",
+    "fix-dock-name": "node scripts/fix-dock-name.js",
+    "fix-dock-icon": "node scripts/fix-dock-icon.js",
+    "mac-dev": "npm run fix-dock-name && npm run fix-dock-icon && npm run dev"
   },
   "keywords": [
     "knowledge",
@@ -28,7 +34,7 @@
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.8.1",
     "electron": "^27.0.0",
-    "electron-builder": "^24.0.0",
+    "electron-builder": "^26.0.12",
     "html-webpack-plugin": "^5.5.3",
     "style-loader": "^3.3.3",
     "webpack": "^5.89.0",
@@ -40,5 +46,43 @@
     "electron-squirrel-startup": "^1.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
+  },
+  "build": {
+    "appId": "com.cognivore.app",
+    "productName": "Cognivore",
+    "files": [
+      "dist/**/*",
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "resources",
+      "output": "dist/electron-build"
+    },
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "../app-icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "darkModeSupport": true
+    },
+    "win": {
+      "icon": "../app-icon.png",
+      "target": [
+        "dir"
+      ]
+    },
+    "linux": {
+      "icon": "../app-icon.png",
+      "target": [
+        "dir"
+      ]
+    },
+    "extraMetadata": {
+      "name": "Cognivore"
+    },
+    "electronDist": "node_modules/electron/dist"
   }
 }

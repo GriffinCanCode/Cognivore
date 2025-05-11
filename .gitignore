@@ -54,8 +54,6 @@ coverage/
 
 # Electron specific
 .electron-gyp/
-electron-builder.yml
-electron-builder-*.yml
 .electron-builder.env
 out/
 app/dist/

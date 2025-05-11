@@ -1,5 +1,5 @@
 /**
- * Main App Component - Coordinates the Knowledge Store application
+ * Main App Component - Coordinates the Cognivore application
  */
 import Sidebar from './Sidebar.js';
 import ChatHeader from './ChatHeader.js';
@@ -52,7 +52,7 @@ class App {
     
     // Create components
     this.sidebar = new Sidebar(this.handleNavigation.bind(this));
-    this.chatHeader = new ChatHeader('Knowledge Store');
+    this.chatHeader = new ChatHeader('Cognivore');
     
     // Create ChatUI with notification service
     this.chatUI = new ChatUI(notificationService);

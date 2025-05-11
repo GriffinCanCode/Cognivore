@@ -2,6 +2,7 @@
 import LlmService from '../services/LlmService.js';
 import ChatMessages from './ChatMessages.js';
 import ChatInput from './ChatInput.js';
+import SpecialWordRenderer from './SpecialWordRenderer.js';
 import logger from '../utils/logger.js';
 
 // Create context-specific logger
@@ -20,6 +21,7 @@ class ChatUI {
     // Child Components
     this.chatMessages = null;
     this.chatInput = null;
+    this.specialWordRenderer = new SpecialWordRenderer();
     
     // State
     this.container = null;
@@ -531,6 +533,9 @@ class ChatUI {
       this.chatMessages.cleanup();
       this.chatMessages = null;
     }
+    
+    // Clean up the special word renderer
+    this.specialWordRenderer = null;
     
     // Reset container reference
     this.container = null;

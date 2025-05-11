@@ -25,11 +25,11 @@ class Footer {
     
     const versionEl = document.createElement('span');
     versionEl.className = 'footer-version';
-    versionEl.textContent = `Knowledge Store v${this.version}`;
+    versionEl.textContent = `Cognivore v${this.version}`;
     
     const copyrightEl = document.createElement('span');
     copyrightEl.className = 'footer-copyright';
-    copyrightEl.textContent = `© ${this.currentYear} Knowledge Store`;
+    copyrightEl.textContent = `© ${this.currentYear} Cognivore`;
     
     infoContainer.appendChild(versionEl);
     infoContainer.appendChild(document.createTextNode(' • '));

@@ -231,6 +231,46 @@ async function storeFile(sourcePath, sourceType, identifier) {
 }
 
 /**
+ * Store YouTube thumbnail for a video
+ * @param {string} thumbnailUrl - URL of the YouTube thumbnail
+ * @param {string} identifier - Unique identifier 
+ * @returns {Promise<Object>} - Thumbnail storage information
+ */
+async function storeYouTubeThumbnail(thumbnailUrl, identifier) {
+  try {
+    const targetDir = config.storage?.videoPath || path.join(config.database.path, 'video_storage');
+    
+    // Ensure directory exists
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    
+    // Generate target filename
+    const targetPath = path.join(targetDir, `${identifier}_thumbnail.jpg`);
+    
+    // Store the thumbnail URL in a JSON file for retrieval
+    const thumbnailData = {
+      url: thumbnailUrl,
+      id: identifier,
+      timestamp: new Date().toISOString()
+    };
+    
+    fs.writeFileSync(targetPath + '.json', JSON.stringify(thumbnailData, null, 2));
+    
+    logger.info(`Stored YouTube thumbnail reference: ${targetPath}.json`);
+    return {
+      path: targetPath + '.json',
+      url: thumbnailUrl
+    };
+  } catch (error) {
+    logger.error(`Error storing YouTube thumbnail: ${error.message}`);
+    return {
+      error: error.message
+    };
+  }
+}
+
+/**
  * Store transcript data for video content
  * @param {string} transcript - The transcript text
  * @param {string} identifier - Unique identifier 
@@ -377,6 +417,34 @@ const addItem = optimizeQuery(
         // Update item with file information
         dbItem.file_path = fileInfo.path;
         dbItem.file_size = fileInfo.size;
+      }
+      
+      // Handle YouTube specific metadata
+      if (dbItem.source_type === 'youtube') {
+        // Ensure source_identifier has the YouTube URL
+        if (!dbItem.source_identifier && dbItem.youtubeUrl) {
+          dbItem.source_identifier = dbItem.youtubeUrl;
+        }
+        
+        // Store the thumbnail URL reference if available
+        if (dbItem.thumbnailUrl) {
+          const thumbnailInfo = await storeYouTubeThumbnail(
+            dbItem.thumbnailUrl,
+            dbItem.id || crypto.randomUUID()
+          );
+          
+          if (thumbnailInfo.url) {
+            dbItem.thumbnail_url = thumbnailInfo.url;
+          }
+        }
+        
+        // Make sure source_identifier is a full YouTube link
+        if (dbItem.source_identifier && !dbItem.source_identifier.startsWith('http')) {
+          // Convert video ID to full URL if needed
+          if (dbItem.source_identifier.length === 11) { // Standard YouTube video ID length
+            dbItem.source_identifier = `https://www.youtube.com/watch?v=${dbItem.source_identifier}`;
+          }
+        }
       }
       
       // Handle transcript storage for YouTube videos
@@ -534,6 +602,7 @@ const listItems = optimizeQuery(
           title: item.title || 'Untitled',
           source_type: item.source_type,
           source_identifier: item.source_identifier,
+          thumbnail_url: item.thumbnail_url || null,
           preview: preview,
           created_at: item.created_at
         };
@@ -907,6 +976,7 @@ module.exports = {
   analyzeDatabasePerformance,
   storeFile,
   storeTranscript,
+  storeYouTubeThumbnail,
   compressText,
   decompressText
 }; 

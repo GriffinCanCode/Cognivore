@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Special Words Demo</title>
+  <link rel="stylesheet" href="./styles/components/special-words.css">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      line-height: 1.6;
+      background-color: #0f172a;
+      color: #f3f4f6;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .message {
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .user-message {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      align-self: flex-end;
+    }
+    
+    .assistant-message {
+      background: rgba(30, 41, 59, 0.8);
+      color: #f3f4f6;
+      align-self: flex-start;
+    }
+    
+    button {
+      display: block;
+      margin: 20px auto;
+      padding: 10px 20px;
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    button:hover {
+      background-color: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <h1>Special Words Demo</h1>
+  
+  <div class="message user-message">
+    <p>I'd like to know more about how Cognivore helps me manage knowledge.</p>
+  </div>
+  
+  <div class="message assistant-message">
+    <p>Cognivore is designed to be a servant of Mnemosyne, the goddess of memory. While Mnemosyne represents the divine aspect of memory and knowledge preservation, Cognivore functions as the practical implementation of those ideals.</p>
+    <p>When you interact with Cognivore, you're engaging with a system that processes, organizes, and retrieves knowledge in service to Mnemosyne's purpose. The name Cognivore suggests a "devourer of knowledge" - consuming information and making it accessible to you.</p>
+  </div>
+  
+  <div class="message user-message">
+    <p>That's interesting. So Mnemosyne is the concept and Cognivore is the tool?</p>
+  </div>
+  
+  <div class="message assistant-message">
+    <p>Exactly! Mnemosyne represents the ideal of perfect memory and knowledge preservation from Greek mythology. As the mother of the Muses, she embodies inspiration and the preservation of stories and wisdom.</p>
+    <p>Cognivore, acting as her servant, is the practical implementation - the tool that helps you capture, process, and recall information. Every time you save a document or search for knowledge, Cognivore is working in service to Mnemosyne's purpose.</p>
+  </div>
+  
+  <button id="process-btn">Process Special Words</button>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Create our SpecialWordRenderer equivalent in plain JS
+      const specialWords = {
+        'mnemosyne': {
+          class: 'special-word mnemosyne',
+          title: 'Goddess of Memory and Mother of the Muses'
+        },
+        'cognivore': {
+          class: 'special-word cognivore',
+          title: 'Servant of Mnemosyne, Devourer of Knowledge'
+        }
+      };
+      
+      function processText(text) {
+        if (!text) return '';
+        
+        // Create a pattern to match our special words (whole word, case insensitive)
+        const specialWordsPattern = Object.keys(specialWords)
+          .map(word => `\\b(${word})\\b`)
+          .join('|');
+        
+        const regex = new RegExp(specialWordsPattern, 'gi');
+        
+        // Replace matches with styled versions
+        return text.replace(regex, (match) => {
+          const word = match.toLowerCase();
+          const config = specialWords[word];
+          return `<span class="${config.class}" title="${config.title}">${match}</span>`;
+        });
+      }
+      
+      // Process all text nodes in a DOM tree
+      function processTextNodes(node) {
+        // Skip processing for script and style elements
+        if (node.nodeName === 'SCRIPT' || node.nodeName === 'STYLE') {
+          return;
+        }
+        
+        // Process text nodes
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+          // Create a temporary span to hold the processed text
+          const span = document.createElement('span');
+          span.innerHTML = processText(node.textContent);
+          
+          // Replace the text node with the span's children
+          const parent = node.parentNode;
+          const nextSibling = node.nextSibling;
+          
+          while (span.firstChild) {
+            parent.insertBefore(span.firstChild, nextSibling);
+          }
+          
+          // Remove the original text node
+          parent.removeChild(node);
+        } else {
+          // Process child nodes recursively
+          const children = [...node.childNodes];
+          children.forEach(child => processTextNodes(child));
+        }
+      }
+      
+      // Add click event to process button
+      document.getElementById('process-btn').addEventListener('click', function() {
+        // Process all message paragraphs
+        document.querySelectorAll('.message p').forEach(p => {
+          processTextNodes(p);
+        });
+        
+        // Hide the button after processing
+        this.style.display = 'none';
+      });
+    });
+  </script>
+</body>
+</html> 

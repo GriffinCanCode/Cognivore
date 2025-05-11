@@ -1,3 +1,37 @@
+## [0.3.30] - Sieve Component UI Refinements
+
+### Changed
+- Enhanced Sieve component with streamlined UI and improved visual effects
+  - Removed card reflection effect for cleaner appearance
+  - Replaced "View" button with "Flip" button for more intuitive interaction
+  - Enhanced title styling with animated letter effects similar to Mnemosyne
+  - Added particle and glow effects to title for visual consistency
+  - Improved card flipping animation with smoother transitions
+
+## [0.3.29] - YouTube Video Thumbnail Preview and Link
+
+### Added
+- Enhanced YouTube video handling with thumbnail preview and direct video links
+  - Added thumbnail extraction and storage in database.js
+  - Implemented thumbnail display in Sieve component with play button overlay
+  - Added direct "Watch" button to YouTube items in Sieve component
+  - Created clickable thumbnails that open YouTube videos in a new tab
+  - Implemented YouTube link display on video cards
+
+## [0.3.28] - Sieve Component UI Enhancements
+
+### Changed
+- Enhanced Sieve component with modern UI details and visual improvements
+  - Added subtle gradient and pattern overlay to component background
+  - Improved header with animated accent line and title glow effect
+  - Enhanced refresh button with shine animation and interactive feedback
+  - Added depth to filter section with subtle shadows and backdrop blur
+  - Improved filter buttons with animated underline indicators
+  - Enhanced card styling with better shadows, gradients and hover effects
+  - Improved micro-interactions and transition animations throughout
+  - Optimized card flip animations with better timing functions
+  - Added subtle particles and glow effects for modern aesthetic
+
 ## [0.3.27] - Removed Deprecated Sidebar Navigation Items
 
 ### Changed
@@ -5,7 +39,7 @@
   - Removed items from navItems array in Sidebar.js
   - Updated CSS animation delays in sidebar.css to match fewer navigation items
   - These features have been replaced by agent and Mnemosyne functionality
-
+  - 
 ## [0.3.26] - Advanced Memory Management for Embedding Operations
 
 ### Added
@@ -869,3 +903,77 @@
 - Added preload API for renderer process logging
 - Extended config with logging settings
 - Refactored services to use contextual loggers
+
+## New Features
+
+### Special Word Renderer Component
+- Added `SpecialWordRenderer.js` component that detects and applies special styling to the words "Mnemosyne" and "Cognivore" in chat messages
+- Created `special-words.css` for styling special words with gradient text, subtle animations, and hover effects
+- Integrated with ChatMessages and ChatUI components
+- Words are rendered at the same size as surrounding text but with special visual treatment to dramatize their importance
+- Added informative tooltips that appear on hover
+- Created demo page at `special-words-demo.html` for testing and demonstration
+
+## [Unreleased]
+
+### Added
+
+### Changed
+- Rebranded application as "Cognivore" with new app icon and logo
+- Updated application name in all areas (package.json, window title, sidebar)
+- Added proper electron-builder configuration for application branding
+- Improved logo display in sidebar with better sizing and positioning
+- Switched to transparent logo for better visual integration
+
+### Fixed
+- Fixed window title still showing "Electron" instead of "Cognivore"
+- Fixed app icon in taskbar using default Electron icon instead of custom logo
+
+## Build System Improvements
+
+- Fixed Electron build process to properly handle main.js entry point
+- Added a temporary workaround for electron-builder asar issues
+- Created documentation for electron-builder setup and troubleshooting
+- Added direct main.js entry point in root directory to fix entry point issues
+
+## App Name and Branding
+
+- Fixed issues with application display name on macOS
+- Consolidated electron-builder configuration to ensure "Cognivore" appears in all UI elements
+- Added proper Info.plist template for macOS builds
+- Enhanced app metadata and about panel information
+
+## macOS Menu Bar Branding Fix
+
+- Fixed macOS menu bar still showing "Electron" instead of "Cognivore"
+- Added dedicated script to patch Electron.app Info.plist for development mode
+- Enhanced app menu construction to correctly show Cognivore in menu items
+- Added proper CFBundleName and CFBundleDisplayName in Info.plist templates
+
+## Enhanced macOS Menu Bar Branding Fix
+
+- Added multiple approaches to ensure proper app name in macOS menu bar:
+  - Environmental variable approach (ELECTRON_APP_NAME) in npm scripts
+  - Early application name setter module that runs before Electron loads
+  - Root main.js entry point environment variable setting
+  - Enhanced menu customization with direct manipulation
+
+## macOS Dock Name Fix
+
+- Fixed the application name in the macOS dock by:
+  - Creating a dedicated fix-dock-name.js script that modifies the Electron.app bundle
+  - Using the app.dock API to set the dock menu with correct name
+  - Adding mac-specific npm scripts that run the dock fix before launch
+  - Directly renaming the Electron binary to Cognivore and updating CFBundleExecutable
+  - Configuring empty-first-item menu template to replace "Electron" in menu bar
+
+## macOS Dock and Menu Enhancement
+
+- Improved macOS app branding with enhanced fixes:
+  - Added bold formatting to Cognivore menu item for better visibility
+  - Created dedicated fix-dock-icon script with multiple approaches for stubborn dock naming issues
+  - Added PlistBuddy direct editing for more reliable property setting
+  - Enhanced binary renaming approach with symbolic links for compatibility
+  - Added app bundle touching to force macOS to refresh bundle cache
+  - Implemented explicit app.dock.setName call in app.whenReady handler
+  - Added automated scripts to fix both dock icon and menu names before launch
