@@ -72,12 +72,106 @@ const api = {
   }
 };
 
-// Server proxy to handle HTTP requests to backend using electron.net
+// Server proxy to handle communication with backend
 const serverProxy = {
-  // Base URL for the backend API
+  // Base URL for the backend API (fallback only)
   baseUrl: 'http://localhost:3001',
   
-  // Net request wrapper with standard error handling
+  // Check health endpoint to verify backend is running
+  async checkHealth() {
+    log.info('Checking backend health status via IPC');
+    try {
+      // First try IPC
+      try {
+        const result = await ipcRenderer.invoke('check-health');
+        log.info('Backend health status via IPC:', result);
+        return result;
+      } catch (ipcError) {
+        log.error('IPC health check failed, falling back to HTTP:', ipcError);
+        
+        // Fall back to HTTP request
+        return this.request('/api/health');
+      }
+    } catch (error) {
+      log.error('Backend health check failed:', error);
+      throw error;
+    }
+  },
+  
+  // Get config 
+  async getConfig() {
+    log.info('Getting LLM config via IPC');
+    try {
+      try {
+        return await ipcRenderer.invoke('get-config');
+      } catch (ipcError) {
+        log.error('IPC getConfig failed, falling back to HTTP:', ipcError);
+        return this.request('/api/llm/config');
+      }
+    } catch (error) {
+      log.error('Failed to get config:', error);
+      throw error;
+    }
+  },
+  
+  // Chat with LLM
+  async chat(data) {
+    log.info('Sending chat request via IPC');
+    try {
+      try {
+        return await ipcRenderer.invoke('chat', data);
+      } catch (ipcError) {
+        log.error('IPC chat failed, falling back to HTTP:', ipcError);
+        return this.request('/api/llm/chat', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+      }
+    } catch (error) {
+      log.error('Chat request failed:', error);
+      throw error;
+    }
+  },
+  
+  // Execute tool call
+  async executeToolCall(data) {
+    log.info('Executing tool call via IPC');
+    try {
+      try {
+        return await ipcRenderer.invoke('execute-tool-call', data);
+      } catch (ipcError) {
+        log.error('IPC executeToolCall failed, falling back to HTTP:', ipcError);
+        return this.request('/api/llm/execute-tool', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+      }
+    } catch (error) {
+      log.error('Execute tool call failed:', error);
+      throw error;
+    }
+  },
+  
+  // Generate embeddings
+  async generateEmbeddings(data) {
+    log.info('Generating embeddings via IPC');
+    try {
+      try {
+        return await ipcRenderer.invoke('generate-embeddings', data);
+      } catch (ipcError) {
+        log.error('IPC generateEmbeddings failed, falling back to HTTP:', ipcError);
+        return this.request('/api/llm/embeddings', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+      }
+    } catch (error) {
+      log.error('Generate embeddings failed:', error);
+      throw error;
+    }
+  },
+  
+  // Net request wrapper with standard error handling (keeping as fallback)
   async request(url, options = {}) {
     return new Promise((resolve, reject) => {
       try {
@@ -244,48 +338,6 @@ const serverProxy = {
       log.error(`Failed to create fallback request for ${url}:`, error);
       reject(error);
     }
-  },
-  
-  // Check health endpoint to verify backend is running
-  async checkHealth() {
-    log.info('Checking backend health status at /api/health');
-    try {
-      const result = await this.request('/api/health');
-      log.info('Backend health status:', result);
-      return result;
-    } catch (error) {
-      log.error('Backend health check failed:', error);
-      throw error;
-    }
-  },
-  
-  // Get config
-  async getConfig() {
-    return this.request('/api/llm/config');
-  },
-  
-  // Chat with LLM
-  async chat(data) {
-    return this.request('/api/llm/chat', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
-  },
-  
-  // Execute tool call
-  async executeToolCall(data) {
-    return this.request('/api/llm/execute-tool', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
-  },
-  
-  // Generate embeddings
-  async generateEmbeddings(data) {
-    return this.request('/api/llm/embeddings', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    });
   }
 };
 

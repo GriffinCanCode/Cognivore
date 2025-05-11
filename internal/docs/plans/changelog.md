@@ -298,7 +298,55 @@
 - Enhanced input field management with proper focus handling
 - Added better component cleanup when navigating between sections
 
+## [0.2.7] - Backend Communication Fix
+
+### Fixed
+- Fixed critical backend communication issues preventing chat from functioning
+  - Added proper IPC handlers in `backend/server.js` to handle direct communication with frontend
+  - Updated `frontend/src/preload.js` to prioritize IPC communication over HTTP fallback
+  - Enhanced error handling for backend connection issues with better user feedback
+  - Fixed "Electron net module is not available" error by implementing proper IPC channels
+  - Added direct IPC handlers for health check, config, chat, and tool execution
+  - Improved `frontend/src/main.js` to initialize backend server and set up IPC handlers
+  - Added basic IPC handlers directly in the main process as a fallback
+  - Created robust failover from IPC to HTTP when needed
+  - Enhanced error reporting with specific error messages for connection issues
+
+### Added
+- Added better backend server integration with Electron
+  - Implemented proper backend server initialization in the main process
+  - Added IPC bridge between frontend and backend services
+  - Created direct communication channel between renderer process and backend
+
+### Changed
+- Improved communication architecture between frontend and backend
+  - Changed from HTTP-only to IPC-first with HTTP fallback approach
+  - Enhanced error handling for backend connectivity issues
+  - Improved logging for backend connection status
+
+## [0.2.8] - Chat Input Fix
+
+### Fixed
+- Fixed critical issue with chat input not properly sending messages
+  - Added proper method binding in ChatInput.js to prevent context loss 
+  - Improved Enter key handling with better input validation
+  - Fixed binding issues between App.js and ChatUI.js components
+  - Enhanced error handling in message submission process
+  - Added direct button click handler for better mobile support
+  - Created separated submitMessage method for cleaner code structure
+  - Fixed input state management after message submission
+  - Added proper validation of message content before submission
+
 ## [Unreleased]
+
+### Fixed
+- Fixed critical Google Generative AI integration issues
+  - Added robust API key discovery from multiple sources (.env, config.json)
+  - Fixed model name from "gemini-2.5-flash" to "gemini-2.0-flash" (supported model)
+  - Added better error handling for API key and model selection issues
+  - Enhanced user feedback for API key configuration
+  - Added comprehensive instructions in backend/README.md for setting up the environment
+  - Prevented attempts to use non-existent "gemini-2.5-flash" model in frontend
 
 ### Removed
 - Removed legacy UI implementation entirely
@@ -477,3 +525,16 @@
   - Fixed container reference tracking throughout component lifecycle
   - Implemented recovery mechanisms for detached DOM nodes
   - Added deferred DOM verification through setTimeout
+
+## 2023-11-10
+
+- Improved separation of concerns by moving ChatInput management from App.js to ChatUI.js
+- Added isOwnInstance flag to ChatInput to track component ownership
+- Added focusInput method to ChatUI for better component encapsulation
+- Simplified App.js by removing direct ChatInput handling
+
+## 2024-06-22
+- Improved mobile menu toggle button styling in ChatHeader
+- Enhanced button appearance with better hover and active states
+- Added proper menu icon rotation transition for menu toggle
+- Improved responsive design of header elements for mobile devices

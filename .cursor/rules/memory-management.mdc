@@ -1,0 +1,28 @@
+---
+description: 
+globs: memory*
+alwaysApply: false
+---
+# Memory Management
+
+The application includes a sophisticated memory management system for handling large document processing.
+
+## Key Components
+- `backend/src/memory/memoryManager.js` - Core memory monitoring and optimization
+- `backend/src/memory/heapAnalyzer.js` - Advanced heap analysis and memory issue detection
+- `backend/src/memory/batchOptimizer.js` - Memory-optimized batch processing
+- `backend/src/memory/dbMemoryManager.js` - Database-specific memory management
+
+## Batch Processing
+- Uses dynamic batch sizing based on document/text size
+- Implements automatic garbage collection between batches
+- Features memory trend analysis to detect potential memory leaks
+- Adapts batch sizes for varying document sizes
+
+## Best Practices
+- Use memory-aware processing for large document sets
+- Implement proper cleanup between batch operations
+- Track memory usage during processing-intensive operations
+- Use the memory manager for database operations with large datasets
+
+Always consider memory implications when processing large documents or performing database operations.

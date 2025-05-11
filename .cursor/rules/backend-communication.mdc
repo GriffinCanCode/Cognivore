@@ -1,0 +1,30 @@
+---
+description: 
+globs: *backend/*
+alwaysApply: false
+---
+# Backend Communication
+
+The application uses both IPC and HTTP for frontend-backend communication.
+
+## Communication Patterns
+- Primary: IPC (Inter-Process Communication) via Electron
+- Fallback: HTTP for environments where IPC is unavailable
+
+## IPC Handlers
+- Centralized in `backend/src/ipcHandlers.js`
+- Initialized from the main process in `frontend/src/main.js`
+- Channels include health checks, config, chat, and tool execution
+
+## Frontend Integration
+- `frontend/src/preload.js` exposes IPC communication to the renderer process
+- Communication prioritizes IPC over HTTP fallback
+- Error handling includes proper feedback for connection issues
+
+## Common Issues
+- Port mismatches between frontend and backend (3000 vs 3001)
+- IPC connection failures requiring HTTP fallback
+- Timeout handling for backend requests
+- Error handling for detached or missing DOM elements
+
+Always ensure proper error handling and fallback mechanisms when modifying communication code.

@@ -4,7 +4,6 @@
 import Sidebar from './Sidebar.js';
 import ChatHeader from './ChatHeader.js';
 import ChatUI from './ChatUI.js';
-import ChatInput from './ChatInput.js';
 
 class App {
   constructor() {
@@ -12,7 +11,6 @@ class App {
     this.sidebar = null;
     this.chatHeader = null;
     this.chatUI = null;
-    this.chatInput = null;
     this.sidebarOverlay = null;
     this.isMobile = window.innerWidth < 768;
   }
@@ -35,6 +33,9 @@ class App {
     
     // Pass app reference to ChatUI
     this.chatUI.app = this;
+    
+    // Ensure handleSubmit is bound to the ChatUI instance
+    this.chatUI.handleSubmit = this.chatUI.handleSubmit.bind(this.chatUI);
     
     // Set mobile menu toggle callback
     this.chatHeader.setMenuToggleCallback(this.toggleMobileMenu.bind(this));
@@ -61,11 +62,11 @@ class App {
     // Handle specific navigation actions
     if (itemId === 'ai-assistant' && this.chatUI) {
       // For AI Assistant, just make sure it's visible and has focus
-      this.chatInput?.focus();
+      this.chatUI.focusInput();
     } else if (itemId === 'new-chat' && this.chatUI) {
       // For new chat, clear the messages and start fresh
       this.chatUI.handleNewChat();
-      this.chatInput?.focus();
+      this.chatUI.focusInput();
     }
     
     // If on mobile, close the sidebar
@@ -160,19 +161,9 @@ class App {
     const chatElement = this.chatUI.render();
     mainContent.appendChild(chatElement);
     
-    // Create the chat input - IMPORTANT: bind directly to the ChatUI instance's handler
-    console.log('Creating ChatInput...');
-    this.chatInput = new ChatInput((message) => {
-      console.log('Input submit received with message:', message);
-      this.chatUI.handleSubmit(message);
-    });
-    
-    const inputElement = this.chatInput.render();
+    // Get the chat input element from ChatUI
+    const inputElement = this.chatUI.getInputElement();
     mainContent.appendChild(inputElement);
-    
-    // Update chatUI to use this input
-    console.log('Setting chatInput reference in ChatUI');
-    this.chatUI.chatInput = this.chatInput;
     
     this.container.appendChild(mainContent);
     
@@ -180,7 +171,10 @@ class App {
     document.getElementById('app').appendChild(this.container);
     
     // Focus the input field
-    this.chatInput.focus();
+    setTimeout(() => {
+      // Delay focus to ensure DOM is fully rendered
+      this.chatUI.focusInput();
+    }, 100);
     
     console.log('App rendering complete');
   }
@@ -195,7 +189,6 @@ class App {
     if (this.sidebar) this.sidebar.cleanup();
     if (this.chatHeader) this.chatHeader.cleanup();
     if (this.chatUI) this.chatUI.cleanup();
-    if (this.chatInput) this.chatInput.cleanup();
     
     // Remove overlay if exists
     if (this.sidebarOverlay && this.sidebarOverlay.parentNode) {
@@ -222,7 +215,6 @@ class App {
     this.sidebar = null;
     this.chatHeader = null;
     this.chatUI = null;
-    this.chatInput = null;
     this.sidebarOverlay = null;
   }
 }

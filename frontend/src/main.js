@@ -13,8 +13,9 @@ if (require('electron-squirrel-startup')) {
 
 // Keep a global reference of the mainWindow object to prevent garbage collection
 let mainWindow = null;
+let backendServer = null;
 
-// Initialize backend IPC handlers
+// Initialize backend IPC handlers from ipcHandlers.js
 function initializeIPC() {
   try {
     // Import the backend IPC handlers - try different paths for flexibility
@@ -46,12 +47,42 @@ function initializeIPC() {
     // Initialize the IPC handlers
     if (typeof handlers.initializeIpcHandlers === 'function') {
       handlers.initializeIpcHandlers();
-      logger.info('IPC handlers initialized successfully');
+      logger.info('IPC handlers initialized successfully from ipcHandlers.js');
     } else {
       logger.error('initializeIpcHandlers function not found in backend module');
     }
   } catch (error) {
     logger.error('Error initializing IPC handlers:', error);
+  }
+}
+
+// Initialize the backend server
+function initializeBackendServer() {
+  try {
+    // Try different paths for server.js
+    let serverPath = path.join(__dirname, '../../backend/server.js');
+    
+    // If the direct path doesn't exist, try relative to app root
+    if (!fs.existsSync(serverPath)) {
+      const appRoot = path.resolve(app.getAppPath(), '..');
+      serverPath = path.join(appRoot, 'backend/server.js');
+      
+      // If still not found, log error and return
+      if (!fs.existsSync(serverPath)) {
+        logger.error(`Backend server not found at: ${serverPath}`);
+        return null;
+      }
+    }
+    
+    // Dynamically require the server
+    logger.info(`Loading backend server from: ${serverPath}`);
+    backendServer = require(serverPath);
+    logger.info('Backend server initialized (with safe fallback IPC handlers)');
+    
+    return backendServer;
+  } catch (error) {
+    logger.error('Error initializing backend server:', error);
+    return null;
   }
 }
 
@@ -107,12 +138,38 @@ function createMainWindow() {
   logger.info('Main window created successfully');
 }
 
+// Directly implement essential IPC handlers to ensure they are always available
+// These act as the primary handlers that the UI will interact with
+function setupEssentialIpcHandlers() {
+  // Health check - primary handler
+  ipcMain.handle('check-health', async () => {
+    logger.info('IPC: Health check request received');
+    return { status: 'ok', version: '1.0.0' };
+  });
+
+  // Get config - primary handler
+  ipcMain.handle('get-config', async () => {
+    logger.info('IPC: Get config request received');
+    return {
+      llmModel: process.env.LLM_MODEL || 'gemini-2.5-flash',
+      embeddingModel: process.env.EMBEDDING_MODEL || 'embedding-001',
+      serverVersion: '1.0.0'
+    };
+  });
+
+  logger.info('Essential IPC handlers set up directly in main process');
+}
+
 // When Electron has finished initialization and is ready
 app.whenReady().then(async () => {
   logger.info('Application is ready');
   
   try {
-    // Initialize database first (using simpler method to avoid dbMemoryManager issues)
+    // Step 1: Set up essential IPC handlers in main process first
+    // These are the primary handlers that the UI depends on
+    setupEssentialIpcHandlers();
+    
+    // Step 2: Initialize database
     logger.info('Initializing database...');
     const configPath = path.join(__dirname, '../../backend/src/config');
     const databasePath = path.join(__dirname, '../../backend/src/services/database');
@@ -125,10 +182,15 @@ app.whenReady().then(async () => {
     await initializeDatabase();
     logger.info('Database initialized successfully');
     
-    // Initialize IPC handlers after database is ready
+    // Step 3: Initialize the backend server with HTTP endpoints
+    // The server.js will add fallback IPC handlers only if the channels aren't already registered
+    backendServer = initializeBackendServer();
+    
+    // Step 4: Initialize domain-specific IPC handlers from ipcHandlers.js
+    // These handle operations like PDF processing, listing items, etc.
     initializeIPC();
     
-    // Create the main window
+    // Step 5: Create the main window after all backend initialization is complete
     createMainWindow();
   } catch (error) {
     logger.error('Error during application initialization:', error);

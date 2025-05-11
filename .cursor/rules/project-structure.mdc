@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project Structure
+
+This application uses an Electron-based architecture with separate frontend and backend:
+
+## Frontend
+- `frontend/src/` - Main frontend code
+  - `frontend/src/components/` - UI components including ChatUI
+  - `frontend/src/services/` - Service layer for API communication
+  - `frontend/src/utils/` - Frontend utilities
+  - `frontend/src/main.js` - Electron main process
+  - `frontend/src/preload.js` - Electron preload script
+- `frontend/public/` - Public assets and CSS
+
+## Backend
+- `backend/src/` - Main backend code
+  - `backend/src/services/` - Backend services (database, search, etc.)
+  - `backend/src/utils/` - General utilities
+  - `backend/src/memory/` - Memory management system
+  - `backend/src/ipcHandlers.js` - IPC communication handlers
+
+## Documentation
+- `internal/docs/` - Internal documentation, planning, and tracking
+
+Always check relevant components for code patterns before making changes. The codebase uses a mixture of class-based and functional components.

@@ -1,1 +1,137 @@
-/* Header styles - empty as requested */
+/* Header styles for Knowledge Store */
+
+.chat-header {
+  height: var(--header-height, 64px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.5rem;
+  background-color: var(--bg-primary, #0c1122);
+  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+/* Left side with app title and icon */
+.app-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.app-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color, #2563eb);
+}
+
+/* Mobile menu toggle button */
+.mobile-menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #f3f4f6);
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
+.mobile-menu-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.mobile-menu-toggle:active {
+  transform: scale(0.95);
+}
+
+.mobile-menu-toggle .menu-icon {
+  transition: transform 0.3s ease;
+}
+
+.sidebar-visible .mobile-menu-toggle .menu-icon {
+  transform: rotate(90deg);
+}
+
+/* Header actions on the right side */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* New Chat button */
+.header-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  background-color: transparent;
+  color: var(--text-primary, #f3f4f6);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.header-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.new-chat-button {
+  background-color: var(--primary-color, #2563eb);
+  color: white;
+  border: none;
+}
+
+.new-chat-button:hover {
+  background-color: var(--primary-light, #3b82f6);
+}
+
+/* User menu */
+.user-menu {
+  display: flex;
+  align-items: center;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--primary-color, #2563eb);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .mobile-menu-toggle {
+    display: flex;
+  }
+  
+  .chat-header {
+    padding: 0 1rem;
+  }
+  
+  .header-button span {
+    display: none;
+  }
+  
+  .header-button {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+}

@@ -4,13 +4,21 @@
 class ChatInput {
   /**
    * Constructor for ChatInput component
-   * @param {Function} onSubmit - Callback for message submission
+   * @param {Function} onSubmit - Callback function for message submission
    */
   constructor(onSubmit) {
     this.container = null;
-    this.onSubmit = onSubmit || (() => {});
+    this.inputField = null;
+    this.submitButton = null;
+    this.onSubmit = onSubmit;
     this.isDisabled = false;
-    this.placeholder = 'Type your message here...';
+    this.placeholderText = 'Ask a question...';
+    
+    // Flag to track if this instance was created by ChatUI (not by App)
+    this.isOwnInstance = true;
+    
+    // Bind methods
+    this.handleSubmit = this.handleSubmit.bind(this);
   }
 
   /**
@@ -22,9 +30,9 @@ class ChatInput {
     this.isDisabled = isDisabled;
     
     if (placeholder) {
-      this.placeholder = placeholder;
+      this.placeholderText = placeholder;
     } else {
-      this.placeholder = isDisabled ? 
+      this.placeholderText = isDisabled ? 
         'Waiting for response...' : 
         'Type your message here...';
     }
@@ -36,7 +44,7 @@ class ChatInput {
       
       if (inputField) {
         inputField.disabled = this.isDisabled;
-        inputField.placeholder = this.placeholder;
+        inputField.placeholder = this.placeholderText;
       }
       
       if (sendButton) {
@@ -58,16 +66,16 @@ class ChatInput {
   }
 
   /**
-   * Handle form submission
-   * @param {Event} e - The form submission event
+   * Actually submit the message to the onSubmit callback
+   * Separate from handleSubmit to allow direct calling
    */
-  handleSubmit(e) {
-    e.preventDefault();
+  submitMessage() {
+    if (!this.container) return;
     
     const inputField = this.container.querySelector('.chat-input');
     if (!inputField || !inputField.value.trim() || this.isDisabled) return;
     
-    const message = inputField.value;
+    const message = inputField.value.trim();
     console.log('ChatInput submitting message:', message);
     
     // Clear input field before calling onSubmit to prevent double submissions
@@ -83,6 +91,15 @@ class ChatInput {
     
     // Focus the input field again
     this.focus();
+  }
+
+  /**
+   * Handle form submission
+   * @param {Event} e - The form submission event
+   */
+  handleSubmit(e) {
+    if (e) e.preventDefault();
+    this.submitMessage();
   }
 
   /**
@@ -102,7 +119,7 @@ class ChatInput {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'chat-input';
-    input.placeholder = this.placeholder;
+    input.placeholder = this.placeholderText;
     input.disabled = this.isDisabled;
     input.autocomplete = 'off';
     
@@ -117,31 +134,40 @@ class ChatInput {
       </svg>
     `;
     
-    // Enhanced submit handler with better debouncing
-    const submitHandler = (e) => {
-      e.preventDefault();
-      if (this.isDisabled) return;
-      
-      // Temporarily disable to prevent double submissions
-      this.setDisabled(true);
-      
-      // Call handleSubmit
-      this.handleSubmit(e);
-      
-      // Re-enable after a short delay if not programmatically kept disabled
-      setTimeout(() => {
-        if (!this.isDisabled) {
-          this.setDisabled(false);
-        }
-      }, 50);
-    };
-    
-    inputForm.addEventListener('submit', submitHandler);
+    // Use the bound handleSubmit to ensure proper 'this' context
+    inputForm.addEventListener('submit', this.handleSubmit);
     
     // Add keydown handler for better control
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
-        submitHandler(e);
+        e.preventDefault(); // Prevent default form submission
+        
+        // Prevent handling if disabled
+        if (this.isDisabled) return;
+        
+        // Only submit if we have a non-empty message
+        if (input.value.trim()) {
+          // Temporarily disable to prevent double submissions
+          this.setDisabled(true);
+          
+          // Call handleSubmit directly with proper context
+          this.handleSubmit();
+          
+          // Re-enable after a short delay if not programmatically kept disabled
+          setTimeout(() => {
+            if (!this.isDisabled) {
+              this.setDisabled(false);
+            }
+          }, 50);
+        }
+      }
+    });
+    
+    // Direct click handler on the button for better mobile support
+    sendButton.addEventListener('click', (e) => {
+      if (!this.isDisabled && input.value.trim()) {
+        e.preventDefault();
+        this.handleSubmit();
       }
     });
     

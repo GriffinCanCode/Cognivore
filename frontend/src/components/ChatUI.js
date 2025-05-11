@@ -24,6 +24,14 @@ class ChatUI {
     this.error = null;
     this.modelInfo = null;
     this.backendUnavailable = false;
+    
+    // App reference
+    this.app = null;
+    
+    // Bind methods to this instance
+    this.handleSubmit = this.handleSubmit.bind(this);
+    this.handleNewChat = this.handleNewChat.bind(this);
+    this.updateUI = this.updateUI.bind(this);
   }
 
   /**
@@ -51,7 +59,11 @@ class ChatUI {
       
       // Initialize child components
       this.chatMessages = new ChatMessages(this.messages, this.isLoading);
-      this.chatInput = new ChatInput(this.handleSubmit.bind(this));
+      
+      // Initialize ChatInput component
+      if (!this.chatInput) {
+        this.chatInput = new ChatInput(this.handleSubmit);
+      }
       
       // Update UI if container exists
       if (this.container) {
@@ -92,14 +104,18 @@ class ChatUI {
    * @param {string} message - The message to send
    */
   async handleSubmit(message) {
-    if (!message.trim()) return;
+    // Check for valid message and not already in loading state
+    if (!message || !message.trim() || this.isLoading) {
+      console.log('Invalid message or already loading, ignoring submission');
+      return;
+    }
     
     console.log('ChatUI.handleSubmit called with message:', message);
     
     // Create user message object
     const userMessage = {
       role: 'user',
-      content: message,
+      content: message.trim(),
       timestamp: new Date().toISOString()
     };
     
@@ -194,6 +210,11 @@ class ChatUI {
             this.container.appendChild(newMessagesElement);
           }
         }
+      }
+      
+      // Re-enable input field
+      if (this.chatInput) {
+        this.chatInput.setDisabled(false);
       }
     }
   }
@@ -352,6 +373,14 @@ class ChatUI {
       container.appendChild(recoveryElement);
     }
     
+    // Create and append ChatInput if it doesn't exist yet
+    if (!this.chatInput) {
+      this.chatInput = new ChatInput(this.handleSubmit);
+    }
+    
+    // Get the input element to append
+    const inputElement = this.chatInput.render();
+    
     // Save reference to the container
     this.container = container;
     
@@ -363,11 +392,30 @@ class ChatUI {
   }
   
   /**
+   * Get the chat input element
+   * @returns {HTMLElement} - The chat input element
+   */
+  getInputElement() {
+    if (!this.chatInput) {
+      this.chatInput = new ChatInput(this.handleSubmit);
+    }
+    return this.chatInput.render();
+  }
+  
+  /**
    * Update the input field state based on loading and errors
    */
   updateInputFieldState() {
-    if (this.chatInput && this.chatInput !== this.app?.chatInput) {
-      this.chatInput = this.app?.chatInput;
+    if (!this.chatInput) {
+      return; // No input field to update
+    }
+    
+    // Reset chatInput reference if needed
+    if (this.chatInput !== this.app?.chatInput) {
+      // Only update from app's chatInput if we're still using the app-provided chatInput
+      if (!this.chatInput.isOwnInstance) {
+        this.chatInput = this.app?.chatInput;
+      }
     }
     
     if (this.chatInput) {
@@ -382,6 +430,15 @@ class ChatUI {
       }
     }
   }
+  
+  /**
+   * Focus the chat input
+   */
+  focusInput() {
+    if (this.chatInput) {
+      this.chatInput.focus();
+    }
+  }
 
   /**
    * Clean up component resources
@@ -390,6 +447,11 @@ class ChatUI {
     // Clean up the container if it exists
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
+    }
+    
+    // Clean up the chatInput if we created it
+    if (this.chatInput) {
+      this.chatInput.cleanup();
     }
     
     // Reset container reference

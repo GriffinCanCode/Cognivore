@@ -1,10 +1,11 @@
 // LlmService for Gemini 2.5 Flash integration
 class LlmService {
   constructor() {
-    this.defaultModel = 'gemini-2.5-flash'; // Fallback model
+    this.defaultModel = 'gemini-2.0-flash'; // Update to supported model
     this.defaultEmbeddingModel = 'embedding-001'; // Fallback embedding model
     this.config = null;
     this.configPromise = this.loadConfig();
+    this.apiKeyMissing = false;
   }
 
   /**
@@ -81,6 +82,11 @@ class LlmService {
     try {
       console.log('Attempting to send message to LLM backend...');
       
+      // If we already know the API key is missing, fail fast with a helpful message
+      if (this.apiKeyMissing) {
+        throw new Error('Google API key is missing. Please add your API key to the backend .env file and restart the server.');
+      }
+
       // Check if backend is available first
       const isBackendAvailable = await this.checkBackendStatus();
       if (!isBackendAvailable) {
@@ -90,8 +96,9 @@ class LlmService {
       // Ensure config is loaded
       await this.configPromise;
       
-      // Use model from options, or from config, or fallback to default
-      const modelToUse = options.model || (this.config?.llmModel) || this.defaultModel;
+      // IMPORTANT: Force using gemini-2.0-flash - the 2.5 version doesn't exist yet
+      // Will override any model from config or options
+      const modelToUse = 'gemini-2.0-flash';
       
       console.log(`Using model: ${modelToUse} for message`);
 
@@ -120,6 +127,12 @@ class LlmService {
         throw new Error('Backend server is not available. Please start the backend server by running "npm run server" in the backend directory.');
       } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new Error('Network error. Please check your internet connection and ensure the backend server is running.');
+      } else if (error.message.includes('API key not valid') || error.message.includes('API_KEY_INVALID')) {
+        // Mark that the API key is missing to avoid repeated failed requests
+        this.apiKeyMissing = true;
+        throw new Error('Google API key is invalid. Please check your GOOGLE_API_KEY in the backend .env file and restart the server.');
+      } else if (error.message.includes('is not found for API version') || error.message.includes('not supported for generateContent')) {
+        throw new Error('The model specified is not available. Please change LLM_MODEL in the backend .env file to "gemini-2.0-flash" and restart the server.');
       }
       
       throw error;

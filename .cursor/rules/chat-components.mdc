@@ -1,0 +1,26 @@
+---
+description: 
+globs: chat*,chatui*
+alwaysApply: false
+---
+# Chat Component Architecture
+
+The application has recently transitioned to a chat-based interface as the primary UI.
+
+## Key Components
+- `ChatUI.js` - Main chat container component
+- `ChatInput.js` - Handles user input and message submission
+- `ChatMessages.js` - Displays message history
+- `App.js` - Main application component that coordinates UI components
+
+## Considerations
+- Always ensure proper binding of methods in class components (e.g., `this.methodName = this.methodName.bind(this)`)
+- Messages should be properly validated before submission
+- Input state should be cleared after message submission
+- Ensure components don't duplicate UI elements like headers/footers
+- Verify DOM updates with proper container references and lifecycle handling
+
+## Styling
+- Chat interface uses a modern glassmorphism design with dark mode support
+- Message bubbles have distinct user/assistant appearances with hover effects
+- Components use separate CSS files in `frontend/public/styles/components/`
