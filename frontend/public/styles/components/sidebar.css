@@ -1,0 +1,254 @@
+/* Sidebar Component for Knowledge Store - Complements ChatUI Design */
+
+.app-sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  background-color: var(--sidebar-bg, #111827);
+  border-right: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1100; /* Increased z-index to ensure sidebar appears above other elements */
+  transition: width 0.3s ease, transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Logo and branding area */
+.sidebar-header {
+  height: var(--header-height, 64px);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar-logo img {
+  width: 32px;
+  height: 32px;
+}
+
+.sidebar-logo-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #f3f4f6);
+  transition: opacity 0.3s ease;
+}
+
+/* Navigation section */
+.sidebar-nav {
+  flex: 1;
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+/* Nav sections for grouping */
+.nav-section {
+  margin-bottom: 24px;
+}
+
+.nav-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(156, 163, 175, 0.8);
+  padding: 0 16px;
+  margin-bottom: 8px;
+}
+
+/* Navigation items */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: var(--text-primary, #f3f4f6);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-item.active {
+  background-color: var(--primary-color, #2563eb);
+  color: white;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.nav-item-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  opacity: 0.9;
+}
+
+.nav-item-text {
+  transition: opacity 0.3s ease;
+  font-size: 0.95rem;
+}
+
+/* Sidebar footer with user info and collapse button */
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--primary-color, #2563eb);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.user-details {
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.3s ease;
+}
+
+.user-name {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Sidebar toggle button */
+.sidebar-toggle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-primary, #f3f4f6);
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.3s ease;
+}
+
+/* Collapsed sidebar styles */
+.sidebar-collapsed .app-sidebar {
+  width: var(--sidebar-collapsed-width, 70px);
+}
+
+.sidebar-collapsed .sidebar-logo-text,
+.sidebar-collapsed .nav-item-text,
+.sidebar-collapsed .nav-section-title,
+.sidebar-collapsed .user-details {
+  opacity: 0;
+  width: 0;
+}
+
+.sidebar-collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
+/* Mobile sidebar styles */
+@media (max-width: 768px) {
+  .app-sidebar {
+    transform: translateX(-100%);
+    width: 240px;
+  }
+
+  .sidebar-visible .app-sidebar {
+    transform: translateX(0);
+  }
+  
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1050; /* Just below sidebar but above content */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  
+  .sidebar-visible .sidebar-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Ensure main content adjusts when sidebar is visible on mobile */
+  .sidebar-visible .main-content {
+    margin-left: 0 !important;
+  }
+}
+
+/* Animation for items */
+.nav-item {
+  animation: fadeInSlideRight 0.3s var(--animation-timing, cubic-bezier(0.215, 0.61, 0.355, 1));
+  animation-fill-mode: both;
+}
+
+.nav-item:nth-child(1) { animation-delay: 0.05s; }
+.nav-item:nth-child(2) { animation-delay: 0.1s; }
+.nav-item:nth-child(3) { animation-delay: 0.15s; }
+.nav-item:nth-child(4) { animation-delay: 0.2s; }
+.nav-item:nth-child(5) { animation-delay: 0.25s; }
+.nav-item:nth-child(6) { animation-delay: 0.3s; }
+
+@keyframes fadeInSlideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+} 

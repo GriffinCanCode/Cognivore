@@ -248,8 +248,232 @@
 
 ### New Components/Features
 - Added navigation system for app sections
-- Implemented search icon in search input
-- Added loading animation for search results
-- Enhanced content viewer with text formatting
-- Added button ripple effects
-- Implemented source linking for URL and YouTube sources
+
+### Fixed
+- Fixed TypeError in getSourceColor methods by adding null checks for undefined sourceType values
+  - Updated Dashboard.js, SearchSection.js, ContentList.js, and renderer.js to handle undefined source types
+  - Prevented "Cannot read properties of undefined (reading 'toLowerCase')" error that was breaking dashboard initialization
+- Fixed Content Security Policy issues with webpack bundling
+  - Modified webpack.config.js to use 'inline-source-map' instead of eval-based sourcemaps
+  - Added Content-Security-Policy meta tag in HtmlWebpackPlugin configuration
+  - Disabled webSecurity in Electron for development environments
+
+## [0.2.5] - Frontend CSS Optimization
+
+### Fixed
+- Resolved duplicate CSP (Content Security Policy) definitions in index.html
+- Removed duplicate bundle.js script tag from index.html
+- Fixed conflicting CSS animation definitions between main.css and component stylesheets
+- Eliminated multiple implementations of the same UI components (header/footer)
+
+### Added
+- Created shared animations.css file for consistent animations across all components
+- Improved CSS organization with proper import hierarchy
+- Enhanced style maintainability through better component isolation
+
+### Changed
+- Optimized CSS import structure for better performance
+- Consolidated animations into a shared file to reduce duplication
+- Improved component styling organization for better maintainability
+
+## [0.2.6] - Chat Implementation Optimization
+
+### Fixed
+- Fixed duplicate header creation in ChatUI component
+- Resolved conflict between App component and ChatUI for header and footer management
+- Fixed chat layout issues with proper container hierarchy
+- Eliminated input container duplication issues
+- Improved component cleanup to ensure proper removal of all elements
+- Fixed focus issues in chat input when rendering component
+
+### Added
+- Added chat-container-wrapper component for better structure
+- Created proper separation between shared app structure and chat-specific components
+- Improved header integration with consistent styling
+
+### Changed
+- Moved header creation responsibilities to App component
+- Updated ChatUI component to focus on chat functionality only
+- Improved component lifecycles to prevent memory leaks
+- Enhanced input field management with proper focus handling
+- Added better component cleanup when navigating between sections
+
+## [Unreleased]
+
+### Removed
+- Removed legacy UI implementation entirely
+  - Deleted `legacy-ui.css` file
+  - Removed RendererUI service and component
+  - Removed legacy route from Router configuration
+  - Updated App.js to remove legacy UI initialization and references
+
+### Added
+- Added ChatUI component to replace Dashboard, providing an interactive chat interface for knowledge queries
+- Implemented LlmService for frontend to communicate with Gemini 2.5 Flash LLM
+- Created RESTful API backend service for Gemini 2.5 Flash integration
+- Added tool calling support for knowledge base interactions
+- Implemented modern, responsive chat styling with message history and typing indicators
+
+### Changed
+- Completely replaced Dashboard.js with a modern React functional component
+- Updated styling from dashboard.css to chat-focused UI
+- Switched from static dashboard to interactive chat experience
+- Changed backend architecture to support LLM communication
+
+### Fixed
+- Fixed TypeError in getSourceColor methods by adding null checks for undefined sourceType values
+  - Updated Dashboard.js, SearchSection.js, ContentList.js, and renderer.js to handle undefined source types
+  - Prevented "Cannot read properties of undefined (reading 'toLowerCase')" error that was breaking dashboard initialization
+- Fixed Content Security Policy issues with webpack bundling
+  - Modified webpack.config.js to use 'inline-source-map' instead of eval-based sourcemaps
+  - Added Content-Security-Policy meta tag in HtmlWebpackPlugin configuration
+  - Disabled webSecurity in Electron for development environments
+- Fixed HTTP request error in preload.js
+  - Fixed "Cannot read properties of undefined (reading 'request')" error in serverProxy.request method 
+  - Improved handling of request body to ensure proper string conversion
+  - Added specific handling of protocol and session options
+  - Added Node.js http/https fallback implementation when Electron's net module is unavailable
+  - Updated Electron configuration to properly support Node.js modules in preload script
+- Fixed web security configuration to allow Gemini API access
+  - Updated Content-Security-Policy to include generativelanguage.googleapis.com in connect-src directive
+  - Improved Electron window security configuration while maintaining API access
+  - Enabled consistent webSecurity settings across development and production environments
+
+## 2023-05-10
+- Removed duplicate UI elements from the chat interface
+- Simplified the header component to avoid redundancy
+- Positioned the chat input at the bottom of the screen
+- Streamlined UI to focus on chat functionality
+- Emptied header CSS file as requested
+
+## UI Improvements
+
+- **Enhanced ChatUI**: Completely redesigned the chat interface with modern glass design, responsive messages, smoother animations, and improved visuals
+  - Added dynamic color scheme support with both light and dark mode
+  - Improved message bubbles with better visual hierarchy and readability
+  - Enhanced animations for a more polished user experience
+  - Added timestamps to messages
+  - Improved tool call display with better iconography
+  - Enhanced welcome screen with modern styling
+  - Better responsive design for mobile devices
+
+### v0.2.0 (Current)
+- **UI Overhaul**: Revamped chat interface with a sophisticated dark glassmorphism design.
+  - Improved message bubble styling with distinct user/assistant appearances and hover effects.
+  - Enhanced visual hierarchy, spacing, and typography across the chat UI.
+  - Refined styling for header, footer, input fields, buttons, code blocks, and loading indicators.
+  - Addressed footer rendering issues, ensuring correct placement and styling in chat view (`frontend/src/components/ChatUI.js`, `frontend/public/styles/components/chatui.css`, `frontend/public/styles/components/footer.css`).
+- **Component Integration**: `ChatUI.js` now correctly utilizes `Footer.js` for rendering the application footer.
+
+## Changelog
+
+### 2023-10-21
+- Initial project setup
+- Added basic knowledge store functionality
+- Created frontend UI with content input, search and viewing capabilities
+
+### 2023-10-22
+- Added PDF processing capabilities
+- Implemented content extraction service
+
+### 2023-10-28
+- Improved search functionality
+- Added metadata extraction for documents
+
+### 2023-11-05
+- Added URL content fetching
+- Enhanced fulltext search with better relevance scoring
+
+### 2023-12-10
+- Integrated AI assistant capabilities
+- Added RAG (Retrieval Augmented Generation) for knowledge base queries
+
+### 2024-06-20
+- Redesigned UI with ChatUI as the main landing page
+- Added modern glass-style interface with dark/light mode support
+- Implemented sidebar navigation for all app functionality
+- Updated styling with a complementary color scheme across the application
+- Created new component structure with improved accessibility and responsiveness
+- Added mobile-friendly navigation with collapsible sidebar
+
+## Latest Changes
+
+### Router System Implementation
+- Created a `Router` service to manage navigation between different UI components
+- Implemented `RendererUI` service to encapsulate the original renderer.js functionality
+- Added CSS namespace isolation for legacy UI with `legacy-ui.css`
+- Modified `App.js` to use the router system instead of direct DOM manipulation
+- Added navigation buttons for testing and switching between views
+
+### 2023-05-11
+- Fixed sidebar positioning issue that was causing it to appear below the chat interface instead of alongside it
+- Updated sidebar z-index and component hierarchy for proper display
+- Added mobile menu toggle functionality for responsive design
+- Improved CSS with fallback values for better cross-browser compatibility
+- Fixed main.js import error by separating Node.js and browser code
+- Eliminated duplicate renderer code by consolidating initialization in index.js
+- Fixed issue with duplicate UI elements by refactoring component responsibilities
+
+## 2023-05-10
+- Removed duplicate UI elements from the chat interface
+- Simplified the header component to avoid redundancy
+- Positioned the chat input at the bottom of the screen
+- Streamlined UI to focus on chat functionality
+- Emptied header CSS file as requested
+
+## UI Improvements
+
+- **Enhanced ChatUI**: Completely redesigned the chat interface with modern glass design, responsive messages, smoother animations, and improved visuals
+  - Added dynamic color scheme support with both light and dark mode
+  - Improved message bubbles with better visual hierarchy and readability
+  - Enhanced animations for a more polished user experience
+  - Added timestamps to messages
+  - Improved tool call display with better iconography
+  - Enhanced welcome screen with modern styling
+  - Better responsive design for mobile devices
+
+### v0.2.0 (Current)
+- **UI Overhaul**: Revamped chat interface with a sophisticated dark glassmorphism design.
+  - Improved message bubble styling with distinct user/assistant appearances and hover effects.
+  - Enhanced visual hierarchy, spacing, and typography across the chat UI.
+  - Refined styling for header, footer, input fields, buttons, code blocks, and loading indicators.
+  - Addressed footer rendering issues, ensuring correct placement and styling in chat view (`frontend/src/components/ChatUI.js`, `frontend/public/styles/components/chatui.css`, `frontend/public/styles/components/footer.css`).
+- **Component Integration**: `ChatUI.js` now correctly utilizes `Footer.js` for rendering the application footer.
+
+## 2023-05-11
+- Fixed UI rendering issues across the chat interface
+- Resolved component duplication between App.js and ChatUI.js
+- Fixed incorrect CSS path references in index.html
+- Corrected chat input container placement for proper styling
+- Ensured all required component CSS files are properly loaded
+- Enhanced webpack configuration for better CSS handling
+
+### Fixed
+- Fixed frontend-to-backend connection issues
+  - Corrected port mismatch (3000 vs 3001) in preload.js
+  - Added better error handling with clear instructions when backend isn't running
+  - Enhanced backend health checking with connection retry logic
+  - Improved user feedback when server is unavailable
+  - Added detailed logging for connection issues
+  - Fixed URL replacement to consistently use port 3001
+  - Added timeout handling for backend requests
+
+### Fixed Message Display Issues
+- Fixed critical bug with chat messages not displaying in the UI
+  - Resolved "container is null" error in ChatMessages component
+  - Improved container management to handle DOM attachment properly
+  - Enhanced error detection for detached containers
+  - Added DOM verification to ensure messages are displayed
+  - Fixed message count mismatch between memory and DOM
+  - Added fallback rendering mechanisms for edge cases
+  - Improved message rendering reliability with better container tracking
+
+### Additional DOM Reliability Fixes
+- Implemented guaranteed DOM rendering approach for chat messages
+  - Added stable ID-based container tracking 
+  - Created forced recreation of message elements to ensure proper DOM attachment
+  - Added verification steps to confirm DOM updates
+  - Enhanced error handling for message rendering failures
+  - Fixed container reference tracking throughout component lifecycle
+  - Implemented recovery mechanisms for detached DOM nodes
+  - Added deferred DOM verification through setTimeout

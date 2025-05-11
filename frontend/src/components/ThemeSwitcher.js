@@ -5,6 +5,9 @@ class ThemeSwitcher {
     this.container = null;
     this.toggle = null;
     
+    // Apply dark theme immediately
+    this.applyTheme();
+    
     // Attempt to load saved theme preference from localStorage
     this.loadThemePreference();
   }
@@ -12,12 +15,20 @@ class ThemeSwitcher {
   loadThemePreference() {
     try {
       const savedTheme = localStorage.getItem('theme-preference');
+      // Only use light theme if explicitly set
       if (savedTheme === 'light') {
         this.isDarkTheme = false;
+        this.applyTheme();
+      } else {
+        // If no preference or 'dark', ensure dark theme
+        this.isDarkTheme = true;
         this.applyTheme();
       }
     } catch (error) {
       console.error('Error loading theme preference:', error);
+      // Default to dark theme on error
+      this.isDarkTheme = true;
+      this.applyTheme();
     }
   }
   
@@ -40,13 +51,18 @@ class ThemeSwitcher {
     
     // Update toggle appearance
     this.updateToggle();
+    
+    // Dispatch event for other components
+    document.dispatchEvent(new CustomEvent('theme:changed', { detail: { isDark: this.isDarkTheme } }));
   }
   
   applyTheme() {
     if (this.isDarkTheme) {
       document.body.classList.remove('light-theme');
+      document.documentElement.setAttribute('data-theme', 'dark');
     } else {
       document.body.classList.add('light-theme');
+      document.documentElement.setAttribute('data-theme', 'light');
     }
   }
   
@@ -58,6 +74,13 @@ class ThemeSwitcher {
     
     // Reset animation classes
     thumb.classList.remove('animate-toggle-on', 'animate-toggle-off');
+    
+    // Update position explicitly
+    if (this.isDarkTheme) {
+      thumb.style.left = '3px';
+    } else {
+      thumb.style.left = 'calc(100% - 19px - 3px)';
+    }
     
     // Add animation class based on current state
     if (this.isDarkTheme) {
@@ -76,6 +99,9 @@ class ThemeSwitcher {
         </svg>
       `;
     }
+    
+    // Update aria attribute
+    this.toggle.setAttribute('aria-checked', this.isDarkTheme ? 'true' : 'false');
     
     // Update theme text
     const themeText = this.container.querySelector('.theme-text');
@@ -103,6 +129,13 @@ class ThemeSwitcher {
     // Create toggle thumb
     const toggleThumb = document.createElement('div');
     toggleThumb.className = 'toggle-thumb';
+    
+    // Set position based on current theme
+    if (this.isDarkTheme) {
+      toggleThumb.style.left = '3px';
+    } else {
+      toggleThumb.style.left = 'calc(100% - 19px - 3px)';
+    }
     
     // Add icon based on current theme
     toggleThumb.innerHTML = this.isDarkTheme 
@@ -137,6 +170,16 @@ class ThemeSwitcher {
     this.toggle = toggle;
     
     return container;
+  }
+  
+  // Force theme to dark regardless of saved preferences
+  forceDarkTheme() {
+    this.isDarkTheme = true;
+    this.applyTheme();
+    this.saveThemePreference();
+    if (this.toggle) {
+      this.updateToggle();
+    }
   }
 }
 

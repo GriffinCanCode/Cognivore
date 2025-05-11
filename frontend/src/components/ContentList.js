@@ -136,6 +136,8 @@ class ContentList {
   }
   
   getSourceColor(sourceType) {
+    if (!sourceType) return '#95a5a6';
+    
     switch (sourceType.toLowerCase()) {
       case 'pdf': return '#e74c3c';
       case 'url': return '#3498db';

@@ -2,7 +2,7 @@
 import App from './components/App.js';
 // Import public CSS directly instead of from src
 // This will be handled by Webpack copy plugin
-// import './styles/main.css';
+import '../public/styles/main.css';
 
 // Use DOMContentLoaded to ensure DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,9 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   
-  // Initialize and render the app
-  const app = new App(appContainer);
-  app.render();
+  // Initialize the app with the new initialization method
+  const app = new App();
+  app.init();
   
-  console.log('Application initialized successfully');
+  // Make app available globally for debugging
+  window.app = app;
+  
+  console.log('Knowledge Store application initialized');
 }); 

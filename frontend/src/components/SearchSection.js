@@ -326,6 +326,8 @@ class SearchSection {
   }
   
   getSourceColor(sourceType) {
+    if (!sourceType) return '#777777';
+    
     switch (sourceType.toLowerCase()) {
       case 'pdf': return '#e63946';
       case 'url': return '#4d74ff';

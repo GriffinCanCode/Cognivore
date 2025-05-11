@@ -2,10 +2,7 @@
 class Header {
   constructor() {
     this.navItems = [
-      { label: 'Dashboard', action: () => this.navigateTo('dashboard') },
-      { label: 'Knowledge Base', action: () => this.navigateTo('knowledge') },
-      { label: 'Upload', action: () => this.navigateTo('upload') },
-      { label: 'Settings', action: () => this.navigateTo('settings') }
+      { label: 'Knowledge Assistant', action: () => this.navigateTo('chat') }
     ];
   }
   
@@ -42,26 +39,11 @@ class Header {
     const subtitle = document.createElement('p');
     subtitle.textContent = "Your Personal Knowledge Management System";
     
-    const navContainer = document.createElement('div');
-    navContainer.className = 'nav-container';
-    
-    // Create navigation buttons
-    this.navItems.forEach(item => {
-      const button = document.createElement('button');
-      button.className = 'nav-button';
-      button.textContent = item.label;
-      button.dataset.section = item.label.toLowerCase().replace(' ', '-');
-      button.addEventListener('click', item.action);
-      
-      navContainer.appendChild(button);
-    });
-    
     header.appendChild(title);
     header.appendChild(subtitle);
-    header.appendChild(navContainer);
     
-    // Set dashboard as active by default
-    setTimeout(() => this.updateActiveButton('dashboard'), 0);
+    // Set chat as active by default
+    setTimeout(() => this.updateActiveButton('chat'), 0);
     
     return header;
   }

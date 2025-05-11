@@ -235,6 +235,8 @@ async function viewItem(itemId, preloadedData = null) {
 
 // Helper to get color based on source type
 function getSourceColor(sourceType) {
+  if (!sourceType) return '#95a5a6';
+  
   switch (sourceType.toLowerCase()) {
     case 'pdf': return '#e74c3c';
     case 'url': return '#3498db';

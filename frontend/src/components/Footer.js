@@ -13,35 +13,53 @@ class Footer {
   
   render() {
     const footer = document.createElement('footer');
-    footer.classList.add('fade-in');
+    footer.classList.add('app-footer');
     
-    // Create version element
-    const versionEl = document.createElement('p');
+    // Create compact footer content
+    const footerContent = document.createElement('div');
+    footerContent.className = 'footer-content';
+    
+    // Version and copyright in one line
+    const infoContainer = document.createElement('div');
+    infoContainer.className = 'footer-info';
+    
+    const versionEl = document.createElement('span');
     versionEl.className = 'footer-version';
     versionEl.textContent = `Knowledge Store v${this.version}`;
     
-    // Create links
+    const copyrightEl = document.createElement('span');
+    copyrightEl.className = 'footer-copyright';
+    copyrightEl.textContent = `© ${this.currentYear} Knowledge Store`;
+    
+    infoContainer.appendChild(versionEl);
+    infoContainer.appendChild(document.createTextNode(' • '));
+    infoContainer.appendChild(copyrightEl);
+    
+    // Create links in one row
     const linksContainer = document.createElement('div');
     linksContainer.className = 'footer-links';
     
-    this.links.forEach(link => {
+    this.links.forEach((link, index) => {
       const linkEl = document.createElement('a');
       linkEl.className = 'footer-link';
       linkEl.href = link.url;
       linkEl.textContent = link.label;
       
       linksContainer.appendChild(linkEl);
+      
+      // Add separator between links except the last one
+      if (index < this.links.length - 1) {
+        const separator = document.createElement('span');
+        separator.className = 'footer-separator';
+        separator.textContent = '•';
+        linksContainer.appendChild(separator);
+      }
     });
     
-    // Create copyright info
-    const copyrightEl = document.createElement('p');
-    copyrightEl.className = 'footer-copyright';
-    copyrightEl.textContent = `© ${this.currentYear} Knowledge Store. All rights reserved.`;
-    
     // Add all elements to footer
-    footer.appendChild(versionEl);
-    footer.appendChild(linksContainer);
-    footer.appendChild(copyrightEl);
+    footerContent.appendChild(infoContainer);
+    footerContent.appendChild(linksContainer);
+    footer.appendChild(footerContent);
     
     return footer;
   }

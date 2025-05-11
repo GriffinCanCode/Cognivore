@@ -6,10 +6,14 @@
   "scripts": {
     "start": "electron frontend/src/main.js",
     "dev": "cross-env NODE_ENV=development electron frontend/src/main.js",
-    "backend": "cd backend && npm run dev",
+    "backend": "cd backend && node server.js",
+    "backend:dev": "cd backend && npm run dev",
     "frontend": "cd frontend && npm run start",
+    "dev:all": "concurrently \"npm run backend\" \"npm run dev\"",
+    "start:all": "concurrently \"npm run backend\" \"npm run start\"",
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "test": "cd backend && npm test"
+    "test": "cd backend && npm test",
+    "postinstall": "npm install concurrently --save-dev"
   },
   "keywords": [
     "knowledge",
@@ -27,6 +31,7 @@
   "devDependencies": {
     "@babel/core": "^7.27.1",
     "@babel/preset-env": "^7.27.2",
-    "babel-jest": "^29.7.0"
+    "babel-jest": "^29.7.0",
+    "concurrently": "^8.2.2"
   }
 }
