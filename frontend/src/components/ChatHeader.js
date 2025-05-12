@@ -10,6 +10,7 @@ class ChatHeader {
     this.title = title;
     this.container = null;
     this.onMenuToggle = null;
+    this.onNewChat = null;
   }
 
   /**
@@ -24,6 +25,22 @@ class ChatHeader {
       const menuButton = this.container.querySelector('.mobile-menu-toggle');
       if (menuButton) {
         menuButton.addEventListener('click', this.onMenuToggle);
+      }
+    }
+  }
+
+  /**
+   * Set the new chat callback
+   * @param {Function} callback - Function to call when new chat button is clicked
+   */
+  setNewChatCallback(callback) {
+    this.onNewChat = callback;
+    
+    // Add handler to existing button if already rendered
+    if (this.container) {
+      const newChatButton = this.container.querySelector('.new-chat-button');
+      if (newChatButton) {
+        newChatButton.addEventListener('click', this.onNewChat);
       }
     }
   }
@@ -89,6 +106,11 @@ class ChatHeader {
       </svg>
       <span>New Chat</span>
     `;
+    
+    // Add click handler for new chat button if callback exists
+    if (this.onNewChat) {
+      newChatButton.addEventListener('click', this.onNewChat);
+    }
     
     actions.appendChild(newChatButton);
     

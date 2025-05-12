@@ -387,6 +387,103 @@ function setupEssentialIpcHandlers() {
     };
   });
 
+  // Add IPC handlers for Anthology story chapters
+  ipcMain.handle('get-story-chapters', async () => {
+    try {
+      // Try multiple possible paths for the @story directory
+      const possiblePaths = [
+        path.join(app.getAppPath(), 'backend', '@story'),
+        path.join(__dirname, '..', '..', 'backend', '@story'),
+        path.join(process.cwd(), 'backend', '@story'),
+        path.resolve(path.join('backend', '@story'))
+      ];
+      
+      let storyPath = null;
+      let files = [];
+      
+      // Try each path until we find one that works
+      for (const testPath of possiblePaths) {
+        try {
+          console.log('Trying path:', testPath);
+          await fs.promises.access(testPath);
+          storyPath = testPath;
+          files = await fs.promises.readdir(testPath);
+          console.log('Successfully found and accessed story directory at:', storyPath);
+          break;
+        } catch (e) {
+          console.log('Path not accessible:', testPath);
+          // Continue to the next path
+        }
+      }
+      
+      if (!storyPath) {
+        console.error('Could not find a valid path to the @story directory');
+        return [];
+      }
+      
+      const jsonFiles = files.filter(file => file.endsWith('.json'));
+      // Parse titles from filenames
+      const chapters = jsonFiles.map(fileName => {
+        return {
+          id: fileName.split('.')[0],
+          fileName: fileName,
+          // Example: '01_The_Primordial_Realm' -> 'Chapter 1: The Primordial Realm'
+          title: `Chapter ${parseInt(fileName.substring(0,2))}: ${fileName.replace('.json', '').replace(/_/g, ' ').substring(3)}`
+        };
+      });
+      console.log(`Found ${chapters.length} story chapters`);
+      return chapters;
+    } catch (error) {
+      console.error('Failed to get story chapters:', error);
+      return []; // Return empty array on error
+    }
+  });
+
+  // IPC handler for getting specific story chapter content
+  ipcMain.handle('get-story-chapter-content', async (event, fileName) => {
+    try {
+      if (!fileName || typeof fileName !== 'string' || !fileName.endsWith('.json')) {
+          throw new Error('Invalid or missing fileName parameter.');
+      }
+      
+      // Try multiple possible paths for the @story directory
+      const possiblePaths = [
+        path.join(app.getAppPath(), 'backend', '@story'),
+        path.join(__dirname, '..', '..', 'backend', '@story'),
+        path.join(process.cwd(), 'backend', '@story'),
+        path.resolve(path.join('backend', '@story'))
+      ];
+      
+      let filePath = null;
+      
+      // Try each path until we find one that works
+      for (const basePath of possiblePaths) {
+        const testPath = path.join(basePath, fileName);
+        try {
+          console.log('Trying path for chapter content:', testPath);
+          await fs.promises.access(testPath);
+          filePath = testPath;
+          console.log('Successfully found chapter file at:', filePath);
+          break;
+        } catch (e) {
+          console.log('Chapter file not accessible at:', testPath);
+          // Continue to the next path
+        }
+      }
+      
+      if (!filePath) {
+        console.error(`Could not find a valid path to the chapter file: ${fileName}`);
+        return null;
+      }
+      
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error(`Failed to get story chapter content for ${fileName}:`, error);
+      return null; // Return null or error object on error
+    }
+  });
+
   logger.info('Essential IPC handlers set up directly in main process');
 }
 

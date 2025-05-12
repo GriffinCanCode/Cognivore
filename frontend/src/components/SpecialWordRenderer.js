@@ -21,8 +21,18 @@ class SpecialWordRenderer {
       'cognivore': {
         class: 'special-word cognivore',
         title: 'Servant of Mnemosyne, Devourer of Knowledge'
+      },
+      'griffin': {
+        class: 'special-word griffin',
+        title: 'The Chosen Architect, Forger of Knowledge Pathways'
       }
     };
+
+    // Expletives that need emphasis styling
+    this.expletives = [
+      'hell', 'bloody', 'fuck', 'fucking', 'shit', 'crap', 'bastard',
+      'ass',
+    ];
 
     specialWordsLogger.info('SpecialWordRenderer initialized');
   }
@@ -35,7 +45,7 @@ class SpecialWordRenderer {
   processText(text) {
     if (!text) return '';
 
-    // Create a regular expression that matches whole words case-insensitively
+    // Create a regular expression that matches whole words case-insensitively for special words
     const specialWordsPattern = Object.keys(this.specialWords)
       .map(word => `\\b(${word})\\b`)
       .join('|');
@@ -44,13 +54,39 @@ class SpecialWordRenderer {
     const regex = new RegExp(specialWordsPattern, 'gi');
     
     // Replace matches with styled versions while preserving case
-    return text.replace(regex, (match) => {
+    let processedText = text.replace(regex, (match) => {
       const word = match.toLowerCase();
       const config = this.specialWords[word];
       
       // Create the styled version of the word
       return `<span class="${config.class}" title="${config.title}">${match}</span>`;
     });
+
+    // Create a regular expression for expletives
+    const expletivesPattern = this.expletives
+      .map(word => `\\b(${word})\\b`)
+      .join('|');
+    
+    // Use case-insensitive regex to find all expletives
+    const expletiveRegex = new RegExp(expletivesPattern, 'gi');
+    
+    // Replace expletives with emphasized versions
+    processedText = processedText.replace(expletiveRegex, (match) => {
+      // Create the styled version of the expletive
+      return `<span class="special-word expletive" title="Divine Emphasis">${match}</span>`;
+    });
+
+    // Process emphasized text (text between double asterisks)
+    // Regex to match text between double asterisks, non-greedy to avoid spanning multiple emphasis blocks
+    const emphasisRegex = /\*\*(.*?)\*\*/g;
+    
+    // Replace emphasized text with styled versions
+    processedText = processedText.replace(emphasisRegex, (match, content) => {
+      // Create the styled version of the emphasized text (removing the asterisks)
+      return `<span class="special-word emphasized" title="Divine Emphasis">${content}</span>`;
+    });
+
+    return processedText;
   }
 
   /**

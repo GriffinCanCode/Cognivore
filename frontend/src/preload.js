@@ -374,6 +374,37 @@ try {
   contextBridge.exposeInMainWorld('api', api);
   contextBridge.exposeInMainWorld('server', serverProxy);
   log.info('API exposed to renderer process');
+
+  // Expose protected methods that allow the renderer process to use
+  // the ipcRenderer without exposing the entire object
+  contextBridge.exposeInMainWorld('electronAPI', {
+    // Example: send: (channel, data) => ipcRenderer.send(channel, data),
+    // Example: invoke: (channel, data) => ipcRenderer.invoke(channel, data),
+    // Example: on: (channel, func) => ipcRenderer.on(channel, (event, ...args) => func(...args)),
+
+    // Add new methods for anthology
+    getStoryChapters: () => ipcRenderer.invoke('get-story-chapters'),
+    getStoryChapterContent: (fileName) => ipcRenderer.invoke('get-story-chapter-content', fileName),
+
+    // Make sure to list any other existing exposed functionalities if this file is being appended to.
+    // For example, if there was a getConfig method:
+    // getConfig: () => ipcRenderer.invoke('get-config'),
+
+    // If there was a chat function:
+    // sendChatMessage: (message) => ipcRenderer.invoke('chat-message', message),
+    // onChatMessageResponse: (callback) => ipcRenderer.on('chat-message-response', (_event, ...args) => callback(...args)),
+    
+    // Placeholder for other pre-existing API calls, ensure they are preserved
+    // listItems: (filter) => ipcRenderer.invoke('list-items', filter),
+    // getItem: (id) => ipcRenderer.invoke('get-item', id),
+    // processPdf: (filePath) => ipcRenderer.invoke('process-pdf', filePath),
+    // processUrl: (url) => ipcRenderer.invoke('process-url', url),
+    // processYoutubeUrl: (youtubeUrl) => ipcRenderer.invoke('process-youtube-url', youtubeUrl),
+    // deleteItem: (id) => ipcRenderer.invoke('delete-item', id),
+    // executeTool: (toolName, params) => ipcRenderer.invoke('execute-tool', toolName, params)
+  });
+
+  console.log('Preload script loaded and electronAPI exposed.');
 } catch (error) {
   log.error('Failed to expose API:', error);
 }

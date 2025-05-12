@@ -115,6 +115,190 @@
   opacity: 1;
 }
 
+/* Griffin styling - the chosen architect */
+.griffin {
+  background: linear-gradient(to right, #f43f5e, #ef4444);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  position: relative;
+  text-decoration: none;
+  box-shadow: none;
+}
+
+.griffin::before {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(to right, #f43f5e, #ef4444);
+  transform: scaleX(0.8);
+  transform-origin: center;
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.griffin:hover::before {
+  transform: scaleX(1);
+  opacity: 1;
+  height: 2px;
+}
+
+.griffin::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(244, 63, 94, 0.15), transparent 70%);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.griffin:hover::after {
+  opacity: 1;
+}
+
+/* Expletive styling - divine emphasis */
+.expletive {
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: linear-gradient(to right, #fbbf24, #f97316);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  position: relative;
+  text-decoration: none;
+  box-shadow: none;
+  transform: scale(1.05);
+  display: inline-block;
+  text-shadow: 0 0 5px rgba(251, 191, 36, 0.3);
+  animation: expletive-pulse 2s infinite;
+}
+
+.expletive::before {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, #fbbf24, #f97316);
+  transform: scaleX(0.9);
+  transform-origin: center;
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.expletive:hover::before {
+  transform: scaleX(1.1);
+  opacity: 1;
+  height: 2px;
+}
+
+.expletive::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(251, 191, 36, 0.2), transparent 70%);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.expletive:hover::after {
+  opacity: 1;
+}
+
+/* Add a pulse animation for expletives */
+@keyframes expletive-pulse {
+  0% {
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.3);
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(249, 115, 22, 0.5);
+  }
+  100% {
+    text-shadow: 0 0 4px rgba(251, 191, 36, 0.3);
+  }
+}
+
+/* Emphasized text styling (text marked with ** in markdown) */
+.emphasized {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: linear-gradient(to right, #c084fc, #a855f7);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  position: relative;
+  text-decoration: none;
+  box-shadow: none;
+  transform: scale(1.05);
+  display: inline-block;
+  text-shadow: 0 0 5px rgba(192, 132, 252, 0.4);
+  animation: emphasis-glow 3s infinite alternate;
+}
+
+.emphasized::before {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, #c084fc, #a855f7);
+  transform: scaleX(0.9);
+  transform-origin: center;
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.emphasized:hover::before {
+  transform: scaleX(1.1);
+  opacity: 1;
+  height: 2px;
+}
+
+.emphasized::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(192, 132, 252, 0.2), transparent 70%);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.emphasized:hover::after {
+  opacity: 1;
+}
+
+/* Add a glow animation for emphasized text */
+@keyframes emphasis-glow {
+  0% {
+    text-shadow: 0 0 4px rgba(192, 132, 252, 0.3);
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
+  }
+  100% {
+    text-shadow: 0 0 4px rgba(192, 132, 252, 0.3);
+  }
+}
+
 /* Add a subtle shimmer animation for Mnemosyne */
 @keyframes subtle-pulse {
   0% {

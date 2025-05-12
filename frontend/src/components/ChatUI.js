@@ -4,6 +4,7 @@ import ChatMessages from './ChatMessages.js';
 import ChatInput from './ChatInput.js';
 import SpecialWordRenderer from './SpecialWordRenderer.js';
 import logger from '../utils/logger.js';
+import ChatHeader from './ChatHeader.js';
 
 // Create context-specific logger
 const chatLogger = logger.scope('ChatUI');
@@ -23,6 +24,9 @@ class ChatUI {
     this.chatInput = null;
     this.specialWordRenderer = new SpecialWordRenderer();
     
+    // Reference to the header (but we don't create it)
+    this.chatHeader = null;
+    
     // State
     this.container = null;
     this.messages = [];
@@ -39,6 +43,17 @@ class ChatUI {
     this.handleNewChat = this.handleNewChat.bind(this);
     this.updateUI = this.updateUI.bind(this);
     this.handleErrorResponse = this.handleErrorResponse.bind(this);
+  }
+
+  /**
+   * Set a reference to the header component
+   * @param {ChatHeader} header - The header component to use
+   */
+  setHeaderComponent(header) {
+    if (header) {
+      this.chatHeader = header;
+      this.chatHeader.setNewChatCallback(this.handleNewChat);
+    }
   }
 
   /**
@@ -115,8 +130,10 @@ class ChatUI {
    * Handle new chat button click - can be called from parent
    */
   handleNewChat() {
+    chatLogger.info('Starting new chat, clearing messages');
     this.messages = [];
     this.updateUI();
+    this.notificationService?.info('Started new chat');
   }
 
   /**
@@ -533,6 +550,9 @@ class ChatUI {
       this.chatMessages.cleanup();
       this.chatMessages = null;
     }
+    
+    // Reset chatHeader reference (but don't clean it up, as we don't own it)
+    this.chatHeader = null;
     
     // Clean up the special word renderer
     this.specialWordRenderer = null;

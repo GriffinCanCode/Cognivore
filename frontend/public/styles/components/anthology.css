@@ -1,0 +1,445 @@
+/* frontend/public/styles/components/anthology.css */
+
+.anthology-container {
+  padding: 20px;
+  height: calc(100% - var(--header-height)); /* Adjust if header is present */
+  overflow-y: auto;
+}
+
+.anthology-layout {
+  display: flex;
+  gap: 15px; /* Reduced gap */
+  height: calc(100% - 40px); /* Adjust based on container padding and header */
+}
+
+.anthology-chapter-list-pane {
+  flex: 0 0 250px; /* Fixed width for chapter list */
+  background-color: var(--background-secondary, #1f2937);
+  padding: 15px;
+  border-radius: 8px;
+  overflow-y: auto;
+  height: 100%;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.anthology-chapter-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.anthology-chapter-list li {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+  color: var(--text-primary, #f3f4f6);
+  font-size: 0.9rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.anthology-chapter-list li:hover {
+  background-color: var(--primary-color-hover, #1d4ed8);
+  transform: translateX(5px);
+}
+
+.anthology-chapter-list li.active {
+  background-color: var(--primary-color, #2563eb);
+  color: white;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.anthology-chapter-list li:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: var(--primary-color-light, #60a5fa);
+  transition: width 0.3s ease;
+}
+
+.anthology-chapter-list li:hover:after {
+  width: 100%;
+}
+
+.anthology-chapter-content-pane {
+  flex: 1; /* Takes remaining space */
+  background-color: var(--background-secondary, #1f2937);
+  padding: 20px; /* Reduced padding */
+  border-radius: 8px;
+  overflow-y: auto;
+  height: 100%;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Title with animated underline */
+.title-animated {
+  margin-top: 0;
+  color: var(--text-primary, #f3f4f6);
+  position: relative;
+  padding-bottom: 15px;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  display: inline-block;
+  /* Center title */
+  text-align: center;
+  width: 100%;
+}
+
+.title-animated::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%; /* Center the gradient line */
+  transform: translateX(-50%);
+  width: 80%; /* Width of the gradient line */
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary-color, #2563eb), var(--primary-color-light, #60a5fa), var(--primary-color, #2563eb));
+  background-size: 200% 100%;
+  animation: gradient-move 3s ease infinite;
+}
+
+@keyframes gradient-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Setting section with fade-in */
+.setting-container {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  margin-bottom: 20px; /* Reduced margin */
+  border-left: 3px solid var(--primary-color, #2563eb);
+  opacity: 0;
+  animation: fade-in 0.8s ease forwards;
+  text-align: center; /* Center text */
+  justify-content: center; /* Center content */
+}
+
+.setting-icon {
+  font-size: 1.5rem;
+  margin-right: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Character cards */
+.characters-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center; /* Center the cards */
+  gap: 20px; /* Increased gap for better spacing */
+  margin: 25px 0; /* Increased margins */
+  width: 100%;
+}
+
+.character-card {
+  background-color: rgba(0, 0, 0, 0.25); /* Darker background for better contrast */
+  border-radius: 12px; /* Increased border radius */
+  padding: 20px 15px; /* More vertical padding */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08); /* Slightly brighter border */
+  width: 160px; /* Adjusted width for better proportions */
+  height: 220px; /* Fixed height for consistency */
+  /* Removed justify-content: flex-end to avoid layout issues */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.character-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); /* Enhanced shadow on hover */
+  border-color: var(--primary-color-light, #60a5fa);
+  background-color: rgba(0, 0, 0, 0.35); /* Darker on hover */
+}
+
+.character-card:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center 30%, rgba(60, 100, 200, 0.1), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.character-card:hover:before {
+  opacity: 1;
+}
+
+.character-card.has-description:after {
+  content: '⌄';
+  position: absolute;
+  bottom: 8px; /* Adjusted position */
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1rem;
+  color: var(--primary-color-light, #60a5fa);
+  transition: transform 0.3s ease;
+}
+
+.character-card.expanded:after {
+  transform: translateX(-50%) rotate(180deg);
+}
+
+.character-icon {
+  font-size: 2rem;
+  margin-bottom: 15px;
+  background-color: rgba(0, 0, 0, 0.4); /* Darker background */
+  width: 60px; /* Larger icon area */
+  height: 60px; /* Larger icon area */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.4); /* Enhanced glow */
+  margin-top: 10px; /* Fixed spacing from top */
+  margin-bottom: 15px; /* More space below icon */
+  border: 1px solid rgba(60, 120, 220, 0.3); /* Subtle border */
+}
+
+.character-card h5 {
+  margin: 0 0 8px; /* More bottom margin */
+  color: var(--text-primary, #f3f4f6);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.character-role {
+  margin: 0 0 5px; /* Added bottom margin */
+  font-size: 0.85rem;
+  color: var(--text-tertiary, #9ca3af);
+  font-style: italic;
+  line-height: 1.4;
+  padding: 0 5px; /* Added padding for text */
+  max-width: 100%; /* Ensure text stays within card */
+}
+
+.character-description {
+  margin-top: 12px;
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #d1d5db);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+/* Ensure all character cards have consistent height and vertical centering */
+.characters-grid {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Align to top */
+}
+
+/* Ensure consistent spacing inside cards */
+.character-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.character-card > * {
+  flex-shrink: 0; /* Prevent elements from shrinking */
+}
+
+.character-icon {
+  margin-bottom: auto; /* Push icon to top */
+}
+
+.character-card h5,
+.character-role {
+  margin-top: auto; /* Push text down */
+}
+
+/* Concepts */
+.concepts-container {
+  margin: 15px 0 20px; /* Reduced margins */
+  text-align: center; /* Center concepts container */
+}
+
+.concept-box {
+  margin-bottom: 12px; /* Reduced margin */
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  max-width: 80%; /* Limit width for better centering */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.concept-box:hover {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.concept-box.expanded {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.concept-title {
+  padding: 12px 15px;
+  font-weight: 500;
+  color: var(--text-primary, #f3f4f6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* Center title */
+  position: relative;
+}
+
+.concept-title:after {
+  content: '+';
+  font-size: 1.2rem;
+  transition: transform 0.3s ease;
+  position: absolute;
+  right: 15px;
+}
+
+.concept-box.expanded .concept-title:after {
+  transform: rotate(45deg);
+}
+
+.concept-content {
+  padding: 0 15px 15px;
+  color: var(--text-secondary, #d1d5db);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  text-align: left; /* Keep content left-aligned for readability */
+}
+
+.concept-significance {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  font-style: italic;
+  color: var(--text-tertiary, #9ca3af);
+}
+
+/* Plot points */
+.plot-container {
+  margin: 15px auto; /* Reduced margin and center horizontally */
+  max-width: 90%; /* Limit width for better readability */
+}
+
+.plot-point {
+  display: flex;
+  margin-bottom: 15px; /* Reduced margin */
+  position: relative;
+}
+
+.plot-marker {
+  flex: 0 0 30px;
+  height: 30px;
+  background-color: var(--primary-color, #2563eb);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-right: 15px;
+  position: relative;
+  z-index: 2;
+}
+
+.plot-point:not(:last-child):before {
+  content: '';
+  position: absolute;
+  top: 30px;
+  left: 15px;
+  width: 2px;
+  height: calc(100% - 10px);
+  background-color: rgba(37, 99, 235, 0.3);
+  z-index: 1;
+}
+
+.plot-point p {
+  margin: 0;
+  padding: 5px 0;
+  color: var(--text-secondary, #d1d5db);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+/* Content header styling */
+.content-header {
+  margin-bottom: 15px; /* Reduced margin */
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  text-align: center; /* Center header */
+}
+
+.content-title {
+  margin: 0;
+  color: var(--text-primary, #f3f4f6);
+  font-size: 1.5rem;
+}
+
+/* Scroll styling */
+.anthology-chapter-list-pane::-webkit-scrollbar,
+.anthology-chapter-content-pane::-webkit-scrollbar {
+  width: 6px;
+}
+
+.anthology-chapter-list-pane::-webkit-scrollbar-thumb,
+.anthology-chapter-content-pane::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.anthology-chapter-list-pane::-webkit-scrollbar-thumb:hover,
+.anthology-chapter-content-pane::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.anthology-chapter-content-details h4 {
+  color: var(--primary-color-light, #60a5fa);
+  margin-top: 20px; /* Reduced margin */
+  margin-bottom: 12px; /* Reduced margin */
+  position: relative;
+  display: inline-block;
+  font-size: 1.2rem;
+  text-align: center; /* Center heading */
+  width: 100%; /* Full width for centering */
+}
+
+.anthology-chapter-content-details h4:after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%; /* Center the underline */
+  transform: translateX(-50%);
+  width: 60%; /* Width of the underline */
+  height: 2px;
+  background-color: var(--primary-color-light, #60a5fa);
+  opacity: 0.5;
+}
+
+/* Add to your main styles.css or index.html to link this file */
+/* @import url('./components/anthology.css'); */ 

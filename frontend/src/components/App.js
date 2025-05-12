@@ -59,6 +59,9 @@ class App {
     // Create ChatUI with notification service
     this.chatUI = new ChatUI(notificationService);
     
+    // Connect ChatUI to ChatHeader
+    this.chatUI.setHeaderComponent(this.chatHeader);
+    
     // Create document manager (DocProcessor)
     this.documentManager = new DocProcessor(notificationService);
     

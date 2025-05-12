@@ -1,3 +1,18 @@
+## [0.3.32] - New Chat Button and Header Fix
+
+### Fixed
+- Fixed New Chat button not working in the chat interface
+  - Added callback connection between ChatHeader and ChatUI components
+  - Implemented proper event listener for New Chat button
+  - Added setNewChatCallback method to ChatHeader.js
+  - Updated ChatUI to connect with ChatHeader
+  - Enhanced UI feedback with notifications on new chat creation
+- Fixed duplicate header issue
+  - Removed duplicate header rendering in ChatUI component
+  - Added setHeaderComponent method to connect to existing header
+  - Modified component architecture to maintain proper header ownership
+  - Updated App.js to connect ChatUI with the application header
+
 ## [0.3.31] - Database Storage Location Fix
 
 ### Fixed
@@ -929,17 +944,16 @@
 ## [Unreleased]
 
 ### Added
+- **Anthology Feature**: 
+  - Added "Anthology" navigation item to the sidebar (`frontend/src/components/Sidebar.js`).
+  - Created new `Anthology.js` component (`frontend/src/components/Anthology.js`) to display story chapters.
+  - Added corresponding CSS for the Anthology component (`frontend/public/styles/components/anthology.css`).
+  - Integrated `Anthology` component into `App.js` (`frontend/src/components/App.js`) for navigation and rendering.
+  - Mocked chapter data loading in `Anthology.js` for frontend display of files from `backend/@story/`.
 
 ### Changed
-- Rebranded application as "Cognivore" with new app icon and logo
-- Updated application name in all areas (package.json, window title, sidebar)
-- Added proper electron-builder configuration for application branding
-- Improved logo display in sidebar with better sizing and positioning
-- Switched to transparent logo for better visual integration
 
 ### Fixed
-- Fixed window title still showing "Electron" instead of "Cognivore"
-- Fixed app icon in taskbar using default Electron icon instead of custom logo
 
 ## Build System Improvements
 
@@ -1001,3 +1015,55 @@
 
 ### Fixed
 - Reverted sidebar logo to use `logo-transparent.png` as per user preference.
+
+## [0.3.34] - Anthology Component UI Enhancement
+
+### Changed
+- Enhanced Anthology component with interactive storytelling features
+  - Redesigned character display with interactive cards and custom icons
+  - Added expandable concept boxes with click-to-reveal details
+  - Implemented visual timeline for plot points with numbered markers
+  - Added subtle animations including title gradient effects
+  - Improved visual hierarchy with better typography and spacing
+  - Enhanced navigation with hover effects and improved transitions
+  - Added card-flip interactions for character descriptions
+  - Removed themes section for cleaner focused presentation
+  - Improved overall readability with better contrast and spacing
+
+## [0.3.35] - Anthology Component Layout Refinements
+
+### Changed
+- Refined Anthology component layout for better visual balance
+  - Reduced padding between elements for more compact presentation
+  - Improved character cards with centered layout and bottom-aligned content
+  - Centered all section titles and headers for better visual flow
+  - Added fixed width to character cards for consistent sizing
+  - Improved concept boxes with centered layout and better spacing
+  - Enhanced readability with optimized margins and padding
+  - Adjusted plot point timeline for better visual hierarchy
+  - Improved section underlines with centered positioning
+
+## [0.3.36] - Anthology Character Card Design Enhancement
+
+### Changed
+- Enhanced character card design in Anthology component for better visual consistency
+  - Fixed layout issues with cards to ensure consistent heights and spacing
+  - Added subtle design improvements including soft radial gradients on hover
+  - Improved card proportions with adjusted width and height parameters
+  - Enhanced visual hierarchy with better icon-to-text ratio
+  - Added subtle border details and enhanced shadow effects
+  - Improved text positioning within cards for better readability
+  - Fixed alignment issues with character role descriptions
+  - Added better visual cues for interactive elements
+  - Enhanced hover states with more pronounced visual feedback
+
+### [Current]
+- Added special word rendering for "Griffin" with red text styling
+- Updated system prompt with guidelines for emphasizing special characters
+- Enhanced special words styling in CSS with Griffin-specific visual elements
+- Added special styling for expletives with gold/orange gradient and animation effects
+- Updated system prompt to guide AI in using profanity as divine emphasis
+- Enhanced SpecialWordRenderer to detect and emphasize common expletives
+- Added support for markdown-style text emphasis with double asterisks (**text**)
+- Implemented purple gradient styling for emphasized text with subtle animations
+- Updated system prompt with guidelines for using emphasis for key concepts

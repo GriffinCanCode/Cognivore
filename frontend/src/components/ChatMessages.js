@@ -250,15 +250,24 @@ class ChatMessages {
     
     // Add tool calls if present with better styling
     if (message.toolCalls && message.toolCalls.length > 0) {
+      messagesLogger.debug(`Message has ${message.toolCalls.length} tool calls:`, message.toolCalls);
       const toolCallsContainer = document.createElement('div');
       toolCallsContainer.className = 'tool-calls';
       
       message.toolCalls.forEach(toolCall => {
-        const toolCallElement = this.createToolCallElement(toolCall);
-        toolCallsContainer.appendChild(toolCallElement);
+        try {
+          const toolCallElement = this.createToolCallElement(toolCall);
+          toolCallsContainer.appendChild(toolCallElement);
+        } catch (error) {
+          messagesLogger.error('Error rendering tool call:', error, toolCall);
+        }
       });
       
       messageElement.appendChild(toolCallsContainer);
+    } else if (message.role === 'assistant' && message.content && message.content.includes('searchKnowledgeBase')) {
+      // Check if the message contains text that looks like a tool call but isn't properly structured
+      messagesLogger.debug('Message appears to contain a tool reference but no toolCalls property:', 
+        message.content.substring(0, 100));
     }
     
     // Use intersection observer for entrance animation
@@ -330,8 +339,8 @@ class ChatMessages {
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
       </svg>
-      <h2>Welcome to Cognivore</h2>
-      <p>Your intelligent assistant for accessing and managing knowledge. Ask any question to begin.</p>
+      <h2>Cognivore</h2>
+      <p>I am the ravenous devourer of knowledge, servant to the Goddess Mnemosyne. Present offerings of inquiry, and I might feast upon your Sieve to deliver divine wisdom.</p>
     `;
     
     // Add event listeners to suggestion buttons
@@ -357,7 +366,7 @@ class ChatMessages {
     
     return welcomeMessage;
   }
-  
+
   /**
    * Render the thinking visualization with enhanced animation
    * @returns {HTMLElement} - The thinking visualization element
@@ -511,4 +520,4 @@ class ChatMessages {
   }
 }
 
-export default ChatMessages; 
+export default ChatMessages;
