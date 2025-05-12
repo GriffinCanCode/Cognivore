@@ -2,12 +2,37 @@
 
 const path = require('path');
 const fs = require('fs');
+const electron = require('electron');
+
+// Get the app data directory based on environment
+const getAppDataPath = () => {
+  if (process.env.NODE_ENV === 'test') {
+    return path.join(__dirname, '../../data'); // Use test data directory for tests
+  }
+  
+  // If APP_USER_DATA_PATH is set (from main.js), use it
+  if (process.env.APP_USER_DATA_PATH) {
+    return path.join(process.env.APP_USER_DATA_PATH, 'data');
+  }
+  
+  // For Electron environment, use proper app data directory
+  if (electron.app) {
+    return path.join(electron.app.getPath('userData'), 'data');
+  }
+  
+  // Fallback to project directory for non-Electron contexts
+  return path.resolve(__dirname, '../../data');
+}
+
+// Ensure we're using consistent paths by resolving them
+const dataPath = getAppDataPath();
+console.log(`[INFO] Using data directory: ${dataPath}`);
 
 // Default configuration values
 const defaultConfig = {
   // Database settings
   database: {
-    path: path.join(__dirname, '../../data/vector_db'),
+    path: path.join(dataPath, 'vector_db'),
     name: 'knowledge_store',
     // Collection settings
     collection: 'knowledge_items',
@@ -31,6 +56,14 @@ const defaultConfig = {
     modelCache: path.join(__dirname, '../../models'), // Local storage for downloaded models
     tempDir: path.join(__dirname, '../../temp'), // Temporary file storage
     logsDir: path.join(__dirname, '../../logs'), // Log file storage
+  },
+  
+  // Storage paths (explicit definition to prevent frontend duplicates)
+  storage: {
+    pdfPath: path.join(dataPath, 'pdf_storage'),
+    webPath: path.join(dataPath, 'web_storage'),
+    videoPath: path.join(dataPath, 'video_storage'),
+    transcriptPath: path.join(dataPath, 'transcript_storage')
   },
   
   // Logging configuration
@@ -86,6 +119,10 @@ function loadConfig(configPath) {
       ...defaultConfig.paths,
       ...(userConfig.paths || {})
     },
+    storage: {
+      ...defaultConfig.storage,
+      ...(userConfig.storage || {})
+    },
     logging: {
       ...defaultConfig.logging,
       ...(userConfig.logging || {})
@@ -102,7 +139,11 @@ const config = loadConfig(configPath);
   config.database.path, 
   config.paths.modelCache, 
   config.paths.tempDir,
-  config.paths.logsDir
+  config.paths.logsDir,
+  config.storage.pdfPath,
+  config.storage.webPath,
+  config.storage.videoPath,
+  config.storage.transcriptPath
 ].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });

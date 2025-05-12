@@ -19,6 +19,12 @@ if (!fs.existsSync(resourcesDir)) {
   fs.mkdirSync(resourcesDir, { recursive: true });
 }
 
+// Create pkg scripts directory
+const pkgScriptsDir = path.join(projectRoot, 'scripts', 'pkg');
+if (!fs.existsSync(pkgScriptsDir)) {
+  fs.mkdirSync(pkgScriptsDir, { recursive: true });
+}
+
 // Function to run shell commands with error handling
 function runCommand(command) {
   try {
@@ -29,6 +35,72 @@ function runCommand(command) {
     console.error(error);
     process.exit(1);
   }
+}
+
+// Create macOS entitlements files
+if (process.platform === 'darwin') {
+  // Mac entitlements for hardened runtime
+  const entitlementsContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.inherit</key>
+    <true/>
+  </dict>
+</plist>`;
+
+  const inheritEntitlementsContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+  </dict>
+</plist>`;
+
+  fs.writeFileSync(
+    path.join(resourcesDir, 'entitlements.mac.plist'),
+    entitlementsContent
+  );
+
+  fs.writeFileSync(
+    path.join(resourcesDir, 'entitlements.mac.inherit.plist'),
+    inheritEntitlementsContent
+  );
+}
+
+// Create a PKG postinstall script
+if (process.platform === 'darwin') {
+  const postinstallScript = `#!/bin/sh
+# Ensure the application directory exists
+mkdir -p "/Applications"
+
+# Copy the app bundle to Applications folder
+cp -R "$PWD/Cognivore.app" "/Applications/"
+
+# Set proper permissions
+chmod -R a+rX "/Applications/Cognivore.app"
+
+exit 0
+`;
+
+  fs.writeFileSync(
+    path.join(pkgScriptsDir, 'postinstall'),
+    postinstallScript
+  );
+  
+  // Make the script executable
+  fs.chmodSync(path.join(pkgScriptsDir, 'postinstall'), '755');
 }
 
 // Main build process
@@ -169,6 +241,25 @@ async function build() {
   <string>10.13.0</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>LSUIElement</key>
+  <false/>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>CFBundleVersion</key>
+  <string>0.1.0</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Cognivore Document</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+    </dict>
+  </array>
 </dict>
 </plist>`;
     
@@ -199,8 +290,37 @@ async function build() {
       hardenedRuntime: true,
       gatekeeperAssess: false,
       darkModeSupport: true,
-      target: ["dir"],
-      extraFiles: ["resources/Info.plist"]
+      target: ["dmg", "pkg"],
+      entitlements: "resources/entitlements.mac.plist",
+      entitlementsInherit: "resources/entitlements.mac.inherit.plist",
+      binaries: ["Cognivore.app/Contents/MacOS/Cognivore"],
+      extraResources: ["resources/**/*"],
+      identity: null // Set to null for development, provide identity for distribution
+    },
+    dmg: {
+      sign: false, // Set to true when using signing identity
+      contents: [
+        {
+          x: 130,
+          y: 220
+        },
+        {
+          x: 410,
+          y: 220,
+          type: "link",
+          path: "/Applications"
+        }
+      ],
+      window: {
+        width: 540,
+        height: 380
+      }
+    },
+    pkg: {
+      allowCurrentUserHome: true,
+      allowAnywhere: true,
+      installLocation: "/Applications",
+      scripts: "scripts/pkg" // Optional, only needed if you have custom install scripts
     }
   };
   
@@ -210,9 +330,18 @@ async function build() {
   );
   
   // Skip electron-builder for now as it's problematic
-  console.log('Build completed successfully! Skipping electron-builder.');
-  console.log('The app can be run using: cd dist && electron .');
-  console.log('To build with electron-builder, run: npx electron-builder build --config=electron-builder.json');
+  console.log('Build completed successfully!');
+  console.log('\nTo run the development build:');
+  console.log('  cd dist && electron .');
+  console.log('\nTo create installable packages:');
+  console.log('  npm run make');
+  console.log('  # or');
+  console.log('  npx electron-builder build --mac --config=electron-builder.json');
+  console.log('\nTo create only DMG:');
+  console.log('  npx electron-builder build --mac dmg --config=electron-builder.json');
+  console.log('\nTo create only PKG:');
+  console.log('  npx electron-builder build --mac pkg --config=electron-builder.json');
+  console.log('\nNote: For proper installation to Applications folder, PKG format is recommended.');
 }
 
 // Run the build

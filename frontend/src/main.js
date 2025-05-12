@@ -44,8 +44,8 @@ if (process.platform === 'darwin') {
       // First empty item fixes the menu bar name issue on macOS
       { label: '' },
       {
-        // Use HTML formatting to make the Cognivore label bold
-        label: '<b>Cognivore</b>',
+        // Application menu
+        label: 'Cognivore',
         submenu: [
           { role: 'about' },
           { type: 'separator' },
@@ -145,6 +145,9 @@ function initializeIPC() {
       }
     }
     
+    // Ensure environment variable is set for later use
+    process.env.APP_USER_DATA_PATH = app.getPath('userData');
+    
     // Dynamically require the IPC handlers
     logger.info(`Loading IPC handlers from: ${backendPath}`);
     const handlers = require(backendPath);
@@ -175,6 +178,9 @@ async function initializeBackendServer() {
       logger.info(`Backend server appears to be already running on port ${backendPort}, skipping server initialization`);
       return true;
     }
+    
+    // Ensure environment variable is set for consistent data paths
+    process.env.APP_USER_DATA_PATH = app.getPath('userData');
     
     // Load backend server
     const serverPath = path.join(__dirname, '../../backend/server.js');
@@ -244,8 +250,8 @@ function createMainWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           isDev 
-            ? "default-src 'self'; script-src 'self' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
-            : "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
+            ? "default-src 'self' file:; script-src 'self' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
+            : "default-src 'self' file:; script-src 'self' file: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
         ]
       }
     });
@@ -260,11 +266,98 @@ function createMainWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // In production, determine the correct path based on whether we're in an asar package
-    const indexPath = isAsar ? path.join(path.dirname(path.dirname(__dirname)), 'dist', 'index.html') 
-                            : path.join(__dirname, '../dist/index.html');
+    let indexPath;
+
+    // Try multiple possible locations for the index.html file
+    const possiblePaths = [
+      path.join(__dirname, '../dist/index.html'),
+      path.join(app.getAppPath(), 'dist/index.html'),
+      path.join(app.getPath('userData'), 'index.html'),
+      path.join(path.dirname(app.getAppPath()), 'app/dist/index.html'),
+      path.join(app.getPath('exe'), '../Resources/app/dist/index.html'),
+      path.join(app.getPath('exe'), '../Resources/app.asar/dist/index.html')
+    ];
+
+    // For macOS, add additional paths specific to the .app bundle structure
+    if (process.platform === 'darwin') {
+      possiblePaths.push(
+        path.join(app.getPath('exe'), '../../Resources/app/dist/index.html'),
+        path.join(app.getPath('exe'), '../../Resources/app.asar/dist/index.html'),
+        path.join(app.getPath('exe'), '../../Resources/app/dist/index.html'),
+        path.join(app.getPath('exe'), '../../Resources/app.asar.unpacked/dist/index.html')
+      );
+    }
+
+    // Log all the paths we're checking
+    console.log('Checking these paths for index.html:');
+    possiblePaths.forEach((p, i) => console.log(`Path ${i + 1}: ${p}`));
+
+    // Try each path until we find one that exists
+    for (const candidate of possiblePaths) {
+      try {
+        if (fs.existsSync(candidate)) {
+          indexPath = candidate;
+          console.log(`Found index.html at: ${indexPath}`);
+          break;
+        }
+      } catch (err) {
+        console.log(`Error checking path ${candidate}: ${err.message}`);
+      }
+    }
+
+    // If still not found, try to find it in the extraResources location
+    if (!indexPath) {
+      try {
+        const resourcesPath = process.resourcesPath;
+        const extraResourcesPath = path.join(resourcesPath, 'app_dist/index.html');
+        console.log(`Trying extraResources path: ${extraResourcesPath}`);
+        
+        if (fs.existsSync(extraResourcesPath)) {
+          indexPath = extraResourcesPath;
+          console.log(`Found index.html in extraResources: ${indexPath}`);
+        } else {
+          console.log(`extraResources path does not exist: ${extraResourcesPath}`);
+          // Last resort - use a default path
+          indexPath = path.join(app.getAppPath(), 'dist/index.html');
+          console.log(`Using default path: ${indexPath}`);
+        }
+      } catch (err) {
+        console.error(`Error checking extraResources: ${err.message}`);
+        indexPath = path.join(app.getAppPath(), 'dist/index.html');
+      }
+    }
     
     console.log('Loading index from:', indexPath);
-    mainWindow.loadFile(indexPath);
+    
+    // First try to load the file directly
+    mainWindow.loadFile(indexPath).catch(err => {
+      console.error('Error loading index.html via loadFile:', err);
+      
+      // Then try using the file:// protocol
+      const fileUrl = `file://${indexPath}`;
+      console.log('Trying fallback file URL:', fileUrl);
+      
+      mainWindow.loadURL(fileUrl).catch(urlErr => {
+        console.error('Error with fallback file URL:', urlErr);
+        
+        // If both fail, try loading from app/dist in the resources directory
+        const resourcesUrl = `file://${path.join(process.resourcesPath, 'app_dist/index.html')}`;
+        console.log('Trying resources URL:', resourcesUrl);
+        
+        mainWindow.loadURL(resourcesUrl).catch(resourcesErr => {
+          console.error('Error with resources URL:', resourcesErr);
+          
+          // Last resort: show an error page
+          mainWindow.loadURL(`data:text/html,<html><body>
+            <h2>Error Loading Application</h2>
+            <p>The application could not load its main page.</p>
+            <p>Error: ${resourcesErr.message}</p>
+            <p>Last tried path: ${resourcesUrl}</p>
+            <pre>Please contact support.</pre>
+          </body></html>`);
+        });
+      });
+    });
   }
 
   // Window closed event
@@ -316,35 +409,85 @@ app.whenReady().then(async () => {
   logger.info('Application is ready');
   
   try {
+    // Set the user data path for consistent storage locations
+    process.env.APP_USER_DATA_PATH = app.getPath('userData');
+    logger.info(`Using user data path: ${process.env.APP_USER_DATA_PATH}`);
+    
     // Step 1: Set up essential IPC handlers in main process first
     // These are the primary handlers that the UI depends on
     setupEssentialIpcHandlers();
     
-    // Step 2: Initialize database
-    logger.info('Initializing database...');
-    const configPath = path.join(__dirname, '../../backend/src/config');
-    const databasePath = path.join(__dirname, '../../backend/src/services/database');
-    
-    // Import necessary modules
-    const config = require(configPath);
-    const { initializeDatabase } = require(databasePath);
-    
-    // Initialize the database
-    await initializeDatabase();
-    logger.info('Database initialized successfully');
+    try {
+      // Step 2: Initialize database
+      logger.info('Initializing database...');
+      let configPath, databasePath, config, initializeDatabase;
+      
+      try {
+        configPath = path.join(__dirname, '../../backend/src/config');
+        config = require(configPath);
+      } catch (err) {
+        logger.error(`Failed to load config from ${configPath}:`, err);
+        // Create a minimal config object for fallback
+        config = {
+          database: { path: path.join(app.getPath('userData'), 'data', 'vector_db') }
+        };
+      }
+      
+      try {
+        databasePath = path.join(__dirname, '../../backend/src/services/database');
+        const dbModule = require(databasePath);
+        initializeDatabase = dbModule.initializeDatabase;
+      } catch (err) {
+        logger.error(`Failed to load database module from ${databasePath}:`, err);
+        // Create a dummy initialization function
+        initializeDatabase = async () => {
+          logger.info('Using dummy database initialization');
+          return true;
+        };
+      }
+      
+      // Initialize the database with error handling
+      try {
+        await initializeDatabase();
+        logger.info('Database initialized successfully');
+      } catch (dbErr) {
+        logger.error('Database initialization failed:', dbErr);
+        // Continue anyway since we don't want this to prevent the UI from loading
+      }
+    } catch (setupErr) {
+      logger.error('Error during database setup:', setupErr);
+      // Continue despite database errors
+    }
     
     // Step 3: Initialize the backend server with HTTP endpoints
     // The server.js will add fallback IPC handlers only if the channels aren't already registered
-    backendServer = await initializeBackendServer();
+    try {
+      backendServer = await initializeBackendServer();
+    } catch (serverErr) {
+      logger.error('Backend server initialization failed:', serverErr);
+      // Continue anyway to show UI
+    }
     
     // Step 4: Initialize domain-specific IPC handlers from ipcHandlers.js
     // These handle operations like PDF processing, listing items, etc.
-    initializeIPC();
+    try {
+      initializeIPC();
+    } catch (ipcErr) {
+      logger.error('IPC initialization failed:', ipcErr);
+      // Continue anyway to show UI
+    }
     
     // Step 5: Create the main window after all backend initialization is complete
+    // This should only happen inside the whenReady promise
     createMainWindow();
   } catch (error) {
     logger.error('Error during application initialization:', error);
+    // Even if initialization fails, try to create the window to show error to user
+    try {
+      createMainWindow();
+    } catch (windowErr) {
+      logger.error('Failed to create window after initialization error:', windowErr);
+    }
   }
 
   // On macOS it's common to re-create a window when the dock icon is clicked

@@ -1,3 +1,15 @@
+## [0.3.31] - Database Storage Location Fix
+
+### Fixed
+- Fixed database creating duplicate storage in the frontend directory
+  - Updated database path configuration to use proper application data directory
+  - Added explicit storage path configuration in config/index.js
+  - Created consistent data directory structure with absolute paths
+  - Modified main.js to properly pass user data path to backend
+  - Added environment variable APP_USER_DATA_PATH for consistent paths
+  - Enhanced database.js to use explicit storage paths without fallbacks
+  - Unified storage location to userData directory for proper persistence
+
 ## [0.3.30] - Sieve Component UI Refinements
 
 ### Changed
@@ -977,3 +989,15 @@
   - Added app bundle touching to force macOS to refresh bundle cache
   - Implemented explicit app.dock.setName call in app.whenReady handler
   - Added automated scripts to fix both dock icon and menu names before launch
+
+## Checked sidebar image usage; `logo-transparent.png` is correctly implemented in `Sidebar.js`.
+
+## [0.3.32] - Sidebar Logo Fix
+
+### Fixed
+- Corrected sidebar logo to use `logo-png.png` to resolve broken image issue.
+
+## [0.3.33] - Sidebar Logo Reverted to Transparent
+
+### Fixed
+- Reverted sidebar logo to use `logo-transparent.png` as per user preference.

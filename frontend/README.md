@@ -61,7 +61,10 @@ This will start the Electron app with devtools enabled.
 
 ```bash
 # Build for production
-npm run build
+cd frontend && npm run build && cd ..
+
+# Build for macOS
+npx electron-builder build --mac dmg --config=electron-builder.json
 ```
 
 This will create optimized files in the `dist` directory.

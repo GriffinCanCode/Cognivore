@@ -13,6 +13,7 @@ import Mnemosyne from './Mnemosyne.js';
 import Sieve from './Sieve.js';
 import DocProcessor from '../services/DocProcessorService.js';
 import logger from '../utils/logger.js';
+import Anthology from './Anthology.js';
 
 // Create context-specific logger
 const appLogger = logger.scope('App');
@@ -34,6 +35,7 @@ class App {
     this.documentManager = null; // Document processor
     this.mnemosyne = null; // Mnemosyne component
     this.sieve = null; // Sieve component
+    this.anthology = null; // Anthology component
     
     // Bind methods
     this.handleNavigation = this.handleNavigation.bind(this);
@@ -74,6 +76,9 @@ class App {
     
     // Create content viewer
     this.contentViewer = new ContentViewer();
+    
+    // Create Anthology component
+    this.anthology = new Anthology(notificationService);
     
     // Create search section
     this.searchSection = new SearchSection(notificationService);
@@ -349,6 +354,18 @@ class App {
         mainContent.appendChild(this.contentViewer.render());
         break;
         
+      case 'anthology':
+        // Render Anthology component
+        appLogger.info('Rendering Anthology component');
+        const anthologyElement = this.anthology.render();
+        mainContent.appendChild(anthologyElement);
+        
+        // Initialize Anthology
+        setTimeout(() => {
+          this.anthology.initialize();
+        }, 100);
+        break;
+        
       case 'search':
         // Render search view
         mainContent.appendChild(this.searchSection.render());
@@ -400,6 +417,7 @@ class App {
     if (this.mnemosyne) { /* no cleanup needed */ }
     if (this.sieve) this.sieve.cleanup();
     if (this.contentViewer) { /* no cleanup needed */ }
+    if (this.anthology) this.anthology.cleanup();
     if (this.searchSection) { /* no cleanup needed */ }
     if (this.header) { /* no cleanup needed */ }
     
@@ -442,6 +460,7 @@ class App {
     this.searchSection = null;
     this.header = null;
     this.documentManager = null;
+    this.anthology = null;
     
     appLogger.info('App cleanup complete');
   }

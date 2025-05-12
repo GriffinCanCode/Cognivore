@@ -33,10 +33,10 @@ let monitoredDb;
 // Ensure storage directories exist
 const ensureStorageDirectories = () => {
   const storagePaths = [
-    config.storage?.pdfPath || path.join(config.database.path, 'pdf_storage'),
-    config.storage?.webPath || path.join(config.database.path, 'web_storage'),
-    config.storage?.videoPath || path.join(config.database.path, 'video_storage'),
-    config.storage?.transcriptPath || path.join(config.database.path, 'transcript_storage')
+    config.storage.pdfPath,
+    config.storage.webPath,
+    config.storage.videoPath,
+    config.storage.transcriptPath
   ];
   
   storagePaths.forEach(dirPath => {
@@ -174,13 +174,13 @@ async function storeFile(sourcePath, sourceType, identifier) {
     let targetDir;
     switch (sourceType) {
       case 'pdf':
-        targetDir = config.storage?.pdfPath || path.join(config.database.path, 'pdf_storage');
+        targetDir = config.storage.pdfPath;
         break;
       case 'url':
-        targetDir = config.storage?.webPath || path.join(config.database.path, 'web_storage');
+        targetDir = config.storage.webPath;
         break;
       case 'youtube':
-        targetDir = config.storage?.videoPath || path.join(config.database.path, 'video_storage');
+        targetDir = config.storage.videoPath;
         break;
       default:
         targetDir = path.join(config.database.path, 'misc_storage');
@@ -238,7 +238,7 @@ async function storeFile(sourcePath, sourceType, identifier) {
  */
 async function storeYouTubeThumbnail(thumbnailUrl, identifier) {
   try {
-    const targetDir = config.storage?.videoPath || path.join(config.database.path, 'video_storage');
+    const targetDir = config.storage.videoPath;
     
     // Ensure directory exists
     if (!fs.existsSync(targetDir)) {
@@ -278,8 +278,7 @@ async function storeYouTubeThumbnail(thumbnailUrl, identifier) {
  */
 async function storeTranscript(transcript, identifier) {
   try {
-    const targetDir = config.storage?.transcriptPath || 
-                     path.join(config.database.path, 'transcript_storage');
+    const targetDir = config.storage.transcriptPath;
     
     // Ensure directory exists
     if (!fs.existsSync(targetDir)) {

@@ -1,0 +1,83 @@
+{
+  "appId": "com.cognivore.app",
+  "productName": "Cognivore",
+  "files": [
+    "frontend/dist/**/*",
+    "frontend/src/**/*",
+    "frontend/node_modules/**/*",
+    "frontend/package.json",
+    "frontend/main.js",
+    "backend/**/*",
+    "!frontend/dist/electron-build/**/*"
+  ],
+  "extraMetadata": {
+    "main": "frontend/src/main.js"
+  },
+  "directories": {
+    "buildResources": "frontend/resources",
+    "output": "frontend/dist/electron-build"
+  },
+  "asar": true,
+  "asarUnpack": [
+    "node_modules/sharp/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "frontend/dist",
+      "to": "app_dist",
+      "filter": ["**/*", "!electron-build/**/*"]
+    },
+    {
+      "from": "app-icon.png",
+      "to": "app-icon.png"
+    },
+    {
+      "from": "logo-png.png",
+      "to": "logo-png.png"
+    },
+    {
+      "from": "logo-transparent.png",
+      "to": "logo-transparent.png"
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.productivity",
+    "icon": "frontend/resources/icon.png",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "darkModeSupport": true,
+    "target": ["dmg", "pkg", "dir"],
+    "entitlements": "frontend/resources/entitlements.mac.plist",
+    "entitlementsInherit": "frontend/resources/entitlements.mac.inherit.plist",
+    "binaries": ["Cognivore.app/Contents/MacOS/Cognivore"],
+    "identity": null,
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
+  },
+  "dmg": {
+    "sign": false,
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ],
+    "window": {
+      "width": 540,
+      "height": 380
+    },
+    "title": "${productName} ${version}"
+  },
+  "pkg": {
+    "allowCurrentUserHome": true,
+    "allowAnywhere": true,
+    "installLocation": "/Applications",
+    "scripts": "frontend/scripts/pkg",
+    "artifactName": "${productName}-${version}-${arch}.pkg"
+  }
+} 

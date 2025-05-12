@@ -18,7 +18,8 @@
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "test": "cd backend && npm test",
     "postinstall": "npm install concurrently --save-dev",
-    "fix-mac-name": "cd frontend && node scripts/fix-mac-name.js"
+    "fix-mac-name": "cd frontend && node scripts/fix-mac-name.js",
+    "build": "cd frontend && npm run build"
   },
   "keywords": [
     "knowledge",
@@ -32,7 +33,6 @@
   "dependencies": {
     "all": "^0.0.0",
     "cross-env": "^7.0.3",
-    "electron": "^27.0.0",
     "express": "^5.1.0",
     "google-auth-library": "^9.15.1"
   },
@@ -40,6 +40,7 @@
     "@babel/core": "^7.27.1",
     "@babel/preset-env": "^7.27.2",
     "babel-jest": "^29.7.0",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "electron": "^27.0.0"
   }
 }

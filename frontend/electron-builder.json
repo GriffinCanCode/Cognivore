@@ -19,10 +19,42 @@
     "gatekeeperAssess": false,
     "darkModeSupport": true,
     "target": [
-      "dir"
+      "dmg",
+      "pkg"
     ],
-    "extraFiles": [
-      "resources/Info.plist"
-    ]
+    "entitlements": "resources/entitlements.mac.plist",
+    "entitlementsInherit": "resources/entitlements.mac.inherit.plist",
+    "binaries": [
+      "Cognivore.app/Contents/MacOS/Cognivore"
+    ],
+    "extraResources": [
+      "resources/**/*"
+    ],
+    "identity": null
+  },
+  "dmg": {
+    "sign": false,
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ],
+    "window": {
+      "width": 540,
+      "height": 380
+    }
+  },
+  "pkg": {
+    "allowCurrentUserHome": true,
+    "allowAnywhere": true,
+    "installLocation": "/Applications",
+    "scripts": "scripts/pkg"
   }
 }

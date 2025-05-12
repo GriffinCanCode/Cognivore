@@ -1,0 +1,11 @@
+#!/bin/sh
+# Ensure the application directory exists
+mkdir -p "/Applications"
+
+# Copy the app bundle to Applications folder
+cp -R "$PWD/Cognivore.app" "/Applications/"
+
+# Set proper permissions
+chmod -R a+rX "/Applications/Cognivore.app"
+
+exit 0
