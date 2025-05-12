@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background -->
+  <circle cx="50" cy="50" r="45" fill="#0a1a2f" />
+  
+  <!-- Human silhouette (abstract, stylized) -->
+  <path d="M50,25 Q60,25 60,35 T50,60 Q40,60 40,35 T50,25" 
+        fill="none" stroke="#4a9dff" stroke-width="1.8" opacity="0.7">
+    <animate attributeName="d" 
+             dur="10s" 
+             repeatCount="indefinite" 
+             values="
+             M50,25 Q60,25 60,35 T50,60 Q40,60 40,35 T50,25;
+             M50,28 Q58,28 58,38 T50,58 Q42,58 42,38 T50,28;
+             M50,25 Q60,25 60,35 T50,60 Q40,60 40,35 T50,25"
+             />
+  </path>
+  
+  <!-- Illusory seeking patterns -->
+  <g>
+    <path d="M20,30 Q35,45 50,35 T80,30" 
+          fill="none" stroke="#81c3ff" stroke-width="1.2" opacity="0.6">
+      <animate attributeName="d" 
+               dur="7s" 
+               repeatCount="indefinite" 
+               values="
+               M20,30 Q35,45 50,35 T80,30;
+               M20,35 Q35,50 50,40 T80,35;
+               M20,30 Q35,45 50,35 T80,30"
+               />
+    </path>
+    <path d="M25,70 Q40,55 50,65 T75,70" 
+          fill="none" stroke="#81c3ff" stroke-width="1.2" opacity="0.6">
+      <animate attributeName="d" 
+               dur="8s" 
+               repeatCount="indefinite" 
+               values="
+               M25,70 Q40,55 50,65 T75,70;
+               M25,65 Q40,50 50,60 T75,65;
+               M25,70 Q40,55 50,65 T75,70"
+               />
+    </path>
+  </g>
+  
+  <!-- Seeker's gaze -->
+  <circle cx="50" cy="40" r="8" fill="url(#gazeGradient)">
+    <animate attributeName="r" 
+             dur="6s" 
+             repeatCount="indefinite" 
+             values="8;9;8" />
+  </circle>
+  
+  <!-- Illusory particles -->
+  <g>
+    <circle cx="35" cy="25" r="1" fill="#ffffff">
+      <animate attributeName="opacity" 
+               dur="4s" 
+               repeatCount="indefinite" 
+               values="0.1;0.5;0.1" />
+    </circle>
+    <circle cx="65" cy="25" r="1" fill="#ffffff">
+      <animate attributeName="opacity" 
+               dur="3.5s" 
+               repeatCount="indefinite" 
+               values="0.1;0.5;0.1" />
+    </circle>
+    <circle cx="50" cy="75" r="1.2" fill="#ffffff">
+      <animate attributeName="opacity" 
+               dur="5s" 
+               repeatCount="indefinite" 
+               values="0.1;0.6;0.1" />
+    </circle>
+  </g>
+  
+  <!-- Maze-like pattern (seeking through illusions) -->
+  <path d="M25,50 L35,50 L35,60 L45,60 L45,40 L55,40 L55,60 L65,60 L65,50 L75,50" 
+        fill="none" stroke="#4a9dff" stroke-width="0.8" opacity="0.4" stroke-dasharray="1,1">
+    <animate attributeName="opacity" 
+             dur="8s" 
+             repeatCount="indefinite" 
+             values="0.2;0.5;0.2" />
+  </path>
+  
+  <!-- Gradients -->
+  <defs>
+    <radialGradient id="gazeGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" style="stop-color:#00a5ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#003366;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+</svg> 

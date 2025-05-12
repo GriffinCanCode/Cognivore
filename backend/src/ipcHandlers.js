@@ -6,6 +6,8 @@
 const { ipcMain } = require('electron');
 const { createContextLogger } = require('./utils/logger');
 const logger = createContextLogger('IPC');
+const fs = require('fs');
+const path = require('path');
 
 // Import services
 const { processPDF } = require('./services/pdfProcessor');
@@ -16,6 +18,77 @@ const { semanticSearch } = require('./services/search');
 const llmService = require('./services/llm');
 const toolsService = require('./services/tools');
 const config = require('./config');
+
+// Function to find the story directory
+function findStoryDirectory() {
+  // Get the app path for packaged applications
+  const app = require('electron').app;
+  const appPath = app ? app.getAppPath() : null;
+  const appResourcesPath = app ? app.getPath('exe').replace(/[^\/]*$/, '') : null;
+  const userDataPath = app ? app.getPath('userData') : null;
+
+  logger.info(`Looking for story directory with appPath: ${appPath}`);
+  logger.info(`Looking for story directory with resources path: ${appResourcesPath}`);
+  logger.info(`Looking for story directory with userData path: ${userDataPath}`);
+
+  const possiblePaths = [
+    // User data path (prioritized as it contains the copied files)
+    userDataPath ? path.join(userDataPath, '@story') : null,
+    
+    // Development paths
+    path.join(__dirname, '..', '@story'),
+    path.join(__dirname, '@story'),
+    path.join(process.cwd(), '@story'),
+    path.join(process.cwd(), 'backend', '@story'),
+    path.join(process.cwd(), 'dist', '@story'),
+    path.join(process.cwd(), 'dist', 'backend', '@story'),
+    
+    // Packaged application paths
+    appPath ? path.join(appPath, '@story') : null,
+    appPath ? path.join(appPath, 'backend', '@story') : null, 
+    appPath ? path.join(appPath, 'dist', '@story') : null,
+    appPath ? path.join(appPath, 'dist', 'backend', '@story') : null,
+    appPath ? path.join(appPath, 'resources', '@story') : null,
+    
+    // Resource paths in macOS app bundle
+    appResourcesPath ? path.join(appResourcesPath, '@story') : null,
+    appResourcesPath ? path.join(appResourcesPath, 'backend', '@story') : null,
+    appResourcesPath ? path.join(appResourcesPath, 'resources', '@story') : null,
+    appResourcesPath ? path.join(appResourcesPath, 'app.asar', '@story') : null,
+    appResourcesPath ? path.join(appResourcesPath, 'app.asar.unpacked', '@story') : null,
+    
+    // Additional paths for resources in packaged app
+    process.resourcesPath ? path.join(process.resourcesPath, '@story') : null,
+    process.resourcesPath ? path.join(process.resourcesPath, 'app.asar.unpacked', '@story') : null
+  ].filter(Boolean); // Filter out null paths
+
+  // Log the paths we're checking
+  logger.info(`Checking ${possiblePaths.length} possible story directory paths`);
+
+  for (const dirPath of possiblePaths) {
+    // Log individual path check
+    logger.debug(`Checking story directory path: ${dirPath}`);
+    
+    try {
+      if (fs.existsSync(dirPath)) {
+        const files = fs.readdirSync(dirPath);
+        const jsonFiles = files.filter(f => f.endsWith('.json'));
+        
+        if (jsonFiles.length > 0) {
+          logger.info(`Found story directory at: ${dirPath} with ${jsonFiles.length} JSON files`);
+          return dirPath;
+        } else {
+          logger.debug(`Directory exists but contains no JSON files: ${dirPath}`);
+        }
+      }
+    } catch (err) {
+      logger.debug(`Error checking path ${dirPath}: ${err.message}`);
+    }
+  }
+
+  logger.error('Story directory not found in any of the expected locations');
+  return null;
+}
 
 /**
  * Initialize all IPC handlers
@@ -153,6 +226,70 @@ function initializeIpcHandlers() {
     }
   });
 
+  // List all files
+  safelyRegisterHandler('list-all-files', async (event, params = {}) => {
+    try {
+      logger.info('List all files request received', params);
+      
+      // Execute the listAllFiles tool
+      const result = await toolsService.listAllFiles(params);
+      
+      logger.debug(`List all files completed with ${result.totalItems} items`);
+      return { success: true, ...result };
+    } catch (error) {
+      logger.error('Error listing all files:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // List files by type
+  safelyRegisterHandler('list-files-by-type', async (event, params) => {
+    try {
+      logger.info(`List files by type request received: ${params.fileType}`);
+      
+      // Execute the listFilesByType tool
+      const result = await toolsService.listFilesByType(params);
+      
+      logger.debug(`List files by type completed with ${result.totalItems} items`);
+      return { success: true, ...result };
+    } catch (error) {
+      logger.error('Error listing files by type:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // List files with content
+  safelyRegisterHandler('list-files-with-content', async (event, params) => {
+    try {
+      logger.info(`List files with content request received: ${params.contentQuery}`);
+      
+      // Execute the listFilesWithContent tool
+      const result = await toolsService.listFilesWithContent(params);
+      
+      logger.debug(`List files with content completed with ${result.totalItems} items`);
+      return { success: true, ...result };
+    } catch (error) {
+      logger.error('Error listing files with content:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // List recent files
+  safelyRegisterHandler('list-recent-files', async (event, params = {}) => {
+    try {
+      logger.info(`List recent files request received: ${params.days} days`);
+      
+      // Execute the listRecentFiles tool
+      const result = await toolsService.listRecentFiles(params);
+      
+      logger.debug(`List recent files completed with ${result.totalItems} items`);
+      return { success: true, ...result };
+    } catch (error) {
+      logger.error('Error listing recent files:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Get available tools
   safelyRegisterHandler('get-available-tools', async (event) => {
     try {
@@ -270,6 +407,83 @@ function initializeIpcHandlers() {
     } catch (error) {
       logger.error('Error performing advanced semantic search:', error);
       return { success: false, error: error.message };
+    }
+  });
+
+  // Get story chapters
+  safelyRegisterHandler('get-story-chapters', async () => {
+    try {
+      logger.info('Fetching story chapters');
+      const storyDir = findStoryDirectory();
+      
+      if (!storyDir) {
+        logger.error('Story directory not found');
+        return [];
+      }
+      
+      const files = fs.readdirSync(storyDir);
+      const chapters = files
+        .filter(file => file.endsWith('.json'))
+        .map((file, index) => {
+          try {
+            // Try to read the file to get the title from the JSON
+            const content = fs.readFileSync(path.join(storyDir, file), 'utf8');
+            const chapterData = JSON.parse(content);
+            
+            return {
+              id: chapterData.chapter || index + 1,
+              fileName: file,
+              title: chapterData.title || file.replace('.json', '').replace(/^\d+_/, '').replace(/_/g, ' ')
+            };
+          } catch (err) {
+            // If reading fails, use the filename as title
+            logger.error(`Error reading chapter file ${file}:`, err);
+            return {
+              id: index + 1,
+              fileName: file,
+              title: file.replace('.json', '').replace(/^\d+_/, '').replace(/_/g, ' ')
+            };
+          }
+        })
+        .sort((a, b) => {
+          // Sort by chapter number first
+          return a.id - b.id;
+        });
+      
+      logger.info(`Found ${chapters.length} story chapters`);
+      return chapters;
+    } catch (error) {
+      logger.error('Error fetching story chapters:', error);
+      return [];
+    }
+  });
+
+  // Get story chapter content
+  safelyRegisterHandler('get-story-chapter-content', async (event, fileName) => {
+    try {
+      logger.info(`Fetching content for story chapter: ${fileName}`);
+      const storyDir = findStoryDirectory();
+      
+      if (!storyDir) {
+        logger.error('Story directory not found');
+        return null;
+      }
+      
+      const filePath = path.join(storyDir, fileName);
+      
+      if (!fs.existsSync(filePath)) {
+        logger.error(`Chapter file not found: ${filePath}`);
+        return null;
+      }
+      
+      const content = fs.readFileSync(filePath, 'utf8');
+      const chapterData = JSON.parse(content);
+      
+      logger.debug(`Successfully loaded chapter content for ${fileName}`);
+      return chapterData;
+    } catch (error) {
+      logger.error(`Error fetching content for story chapter ${fileName}:`, error);
+      return null;
     }
   });
 

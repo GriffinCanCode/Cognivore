@@ -172,7 +172,43 @@ async function chat(params) {
     
     // Process response
     const responseText = response.text();
-    const toolCalls = response.functionCalls || [];
+    
+    // Improved tool call extraction
+    let toolCalls = [];
+    
+    // Try to extract function calls from candidates if they exist
+    if (response.candidates && response.candidates.length > 0) {
+      const candidate = response.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        // Look through all parts for function calls
+        toolCalls = candidate.content.parts.flatMap(part => {
+          if (part.functionCall) {
+            return [{
+              id: `call-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+              name: part.functionCall.name,
+              args: part.functionCall.args
+            }];
+          }
+          return [];
+        });
+      }
+    }
+    
+    // If no tool calls found, check the older response format (functionCalls)
+    if (toolCalls.length === 0 && response.functionCalls && response.functionCalls.length > 0) {
+      toolCalls = response.functionCalls.map(call => ({
+        id: call.id || `call-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        name: call.name,
+        args: call.args || {}
+      }));
+    }
+    
+    // Log for debugging
+    if (toolCalls.length > 0) {
+      logger.info(`Found ${toolCalls.length} tool calls in response`);
+    } else if (responseText.includes('searchKnowledgeBase') || responseText.includes('getItemContent')) {
+      logger.warn('Response text contains tool references but no tool calls were properly extracted');
+    }
     
     // Monitor memory after API call
     const memAfter = memoryManager.monitorMemory();
@@ -182,7 +218,7 @@ async function chat(params) {
     return {
       content: responseText,
       toolCalls: toolCalls.map(call => ({
-        toolCallId: call.id || `call-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        toolCallId: call.id,
         toolName: call.name,
         parameters: call.args
       })),

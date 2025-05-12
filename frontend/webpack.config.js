@@ -64,6 +64,13 @@ module.exports = {
           globOptions: {
             ignore: ['**/*.spec.js']
           }
+        },
+        {
+          from: 'public/images/characters',
+          to: 'images/characters',
+          globOptions: {
+            ignore: ['**/*.spec.js']
+          }
         }
       ]
     })

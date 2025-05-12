@@ -169,9 +169,10 @@ class ChatMessages {
   createMessageElement(message) {
     const isUser = message.role === 'user';
     const isError = message.isError;
+    const isTool = message.role === 'tool';
     
     const messageElement = document.createElement('div');
-    messageElement.className = `message ${isUser ? 'user-message' : 'assistant-message'} ${isError ? 'error-message' : ''}`;
+    messageElement.className = `message ${isUser ? 'user-message' : 'assistant-message'} ${isError ? 'error-message' : ''} ${isTool ? 'tool-message' : ''}`;
     messageElement.setAttribute('data-message-role', message.role);
     
     // Add fade-in animation
@@ -191,6 +192,13 @@ class ChatMessages {
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
             <line x1="12" y1="9" x2="12" y2="13"></line>
             <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        `;
+      } else if (isTool) {
+        // Tool response icon
+        avatarElement.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
           </svg>
         `;
       } else {
@@ -221,9 +229,35 @@ class ChatMessages {
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
     
-    // Format message content with markdown-like syntax
-    const formattedContent = this.formatMessageContent(message.content);
-    messageContent.innerHTML = formattedContent;
+    // Special handling for tool responses
+    if (isTool) {
+      const toolHeader = document.createElement('div');
+      toolHeader.className = 'tool-header';
+      toolHeader.innerHTML = `<span class="tool-label">Tool Response: ${message.toolName || 'Unknown Tool'}</span>`;
+      messageContent.appendChild(toolHeader);
+      
+      // Try to prettify the JSON content for tool responses
+      let formattedToolContent;
+      try {
+        // Check if content is a JSON string
+        if (typeof message.content === 'string' && (message.content.startsWith('{') || message.content.startsWith('['))) {
+          const jsonData = JSON.parse(message.content);
+          formattedToolContent = `<pre class="tool-result">${this.formatToolResult(jsonData)}</pre>`;
+        } else {
+          // For non-JSON content use a simple format
+          formattedToolContent = `<pre class="tool-result">${this.escapeHtml(message.content)}</pre>`;
+        }
+      } catch (error) {
+        // If JSON parsing fails, just display the raw content
+        formattedToolContent = `<pre class="tool-result">${this.escapeHtml(message.content)}</pre>`;
+      }
+      
+      messageContent.innerHTML += formattedToolContent;
+    } else {
+      // Format message content with markdown-like syntax
+      const formattedContent = this.formatMessageContent(message.content);
+      messageContent.innerHTML = formattedContent;
+    }
     
     messageElement.appendChild(messageContent);
     
@@ -264,10 +298,50 @@ class ChatMessages {
       });
       
       messageElement.appendChild(toolCallsContainer);
-    } else if (message.role === 'assistant' && message.content && message.content.includes('searchKnowledgeBase')) {
+    } else if (message.role === 'assistant' && message.content) {
       // Check if the message contains text that looks like a tool call but isn't properly structured
-      messagesLogger.debug('Message appears to contain a tool reference but no toolCalls property:', 
-        message.content.substring(0, 100));
+      const toolCallRegex = /(search[kK]nowledge[bB]ase|getItem[cC]ontent|summarize[cC]ontent|list[aA]ll[fF]iles|list[fF]iles[bB]y[tT]ype)\s*\(/;
+      const matches = message.content.match(toolCallRegex);
+      
+      if (matches) {
+        // Found text that looks like a tool call - extract and display it properly
+        messagesLogger.debug('Message appears to contain a tool reference but no toolCalls property:', 
+          message.content.substring(0, 100));
+        
+        try {
+          // Create a container for the extracted tool call
+          const toolCallsContainer = document.createElement('div');
+          toolCallsContainer.className = 'tool-calls';
+          
+          // Create a replacement tool call element
+          const toolCallElement = document.createElement('div');
+          toolCallElement.className = 'tool-call';
+          
+          // Add header with warning
+          const toolCallHeader = document.createElement('div');
+          toolCallHeader.className = 'tool-call-header';
+          toolCallHeader.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+            </svg>
+            <span>Tool: ${matches[1]}</span>
+          `;
+          
+          toolCallElement.appendChild(toolCallHeader);
+          
+          // Add note about improper tool call
+          const noteElement = document.createElement('div');
+          noteElement.className = 'tool-call-args';
+          noteElement.innerHTML = `<div style="color: #ff9800; font-style: italic;">Tool call detected in text. Please refresh or try again to get proper tool execution.</div>`;
+          toolCallElement.appendChild(noteElement);
+          
+          // Add to container and message
+          toolCallsContainer.appendChild(toolCallElement);
+          messageElement.appendChild(toolCallsContainer);
+        } catch (error) {
+          messagesLogger.error('Error handling text-based tool call:', error);
+        }
+      }
     }
     
     // Use intersection observer for entrance animation
@@ -517,6 +591,122 @@ class ChatMessages {
       }
       this.container = clone;
     }
+  }
+
+  /**
+   * Format a tool result for better display
+   * @param {Object|Array} result - The tool result to format
+   * @returns {string} - Formatted HTML string
+   */
+  formatToolResult(result) {
+    if (!result) return 'No result';
+    
+    // Check for specific data structures we want to format differently
+    if (Array.isArray(result)) {
+      // For arrays of items, use a special format
+      if (result.length > 0 && result[0] && typeof result[0] === 'object') {
+        return this.formatResultItems(result);
+      }
+    }
+    
+    // If it's a file listing result
+    if (result.items && Array.isArray(result.items)) {
+      return this.formatResultItems(result.items, result.totalItems);
+    }
+    
+    // Default formatting with JSON syntax highlighting
+    return this.syntaxHighlightJson(result);
+  }
+  
+  /**
+   * Format a list of result items
+   * @param {Array} items - The items to format
+   * @param {number} totalItems - Optional total count
+   * @returns {string} - Formatted HTML string
+   */
+  formatResultItems(items, totalItems) {
+    if (!items || items.length === 0) return 'No items found';
+    
+    let html = '';
+    
+    // Add header with count if provided
+    if (totalItems !== undefined) {
+      html += `<div class="result-header">Found ${items.length} of ${totalItems} items</div>`;
+    } else {
+      html += `<div class="result-header">Found ${items.length} items</div>`;
+    }
+    
+    // Create item list
+    html += '<div class="result-items">';
+    
+    items.forEach((item, index) => {
+      html += `<div class="result-item">`;
+      
+      // Add item number
+      html += `<div class="item-number">${index + 1}</div>`;
+      
+      // Add item content
+      html += `<div class="item-content">`;
+      
+      // Add title if available
+      if (item.title) {
+        html += `<div class="item-title">${this.escapeHtml(item.title)}</div>`;
+      } else if (item.id) {
+        html += `<div class="item-title">Item ${item.id}</div>`;
+      }
+      
+      // Add other fields in a condensed format
+      html += `<div class="item-details">`;
+      Object.entries(item).forEach(([key, value]) => {
+        // Skip title as it's already displayed
+        if (key === 'title') return;
+        
+        // Format value based on type
+        let formattedValue;
+        if (typeof value === 'object' && value !== null) {
+          formattedValue = JSON.stringify(value).slice(0, 100);
+          if (JSON.stringify(value).length > 100) formattedValue += '...';
+        } else if (typeof value === 'string') {
+          formattedValue = value.length > 100 ? value.slice(0, 100) + '...' : value;
+        } else {
+          formattedValue = String(value);
+        }
+        
+        html += `<div class="item-field"><span class="field-name">${key}:</span> ${this.escapeHtml(formattedValue)}</div>`;
+      });
+      html += `</div>`;
+      
+      html += `</div>`; // Close item-content
+      html += `</div>`; // Close result-item
+    });
+    
+    html += '</div>'; // Close result-items
+    return html;
+  }
+  
+  /**
+   * Syntax highlight JSON for better readability
+   * @param {Object|Array} json - The JSON to highlight
+   * @returns {string} - Highlighted HTML string
+   */
+  syntaxHighlightJson(json) {
+    const jsonStr = JSON.stringify(json, null, 2);
+    return this.escapeHtml(jsonStr)
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'json-key';
+          } else {
+            cls = 'json-string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return `<span class="${cls}">${match}</span>`;
+      });
   }
 }
 

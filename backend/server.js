@@ -192,13 +192,41 @@ const llmController = {
       const responseText = response.text();
       
       // Check if there are any tool calls
-      const toolCalls = response.candidates?.[0]?.content?.parts?.flatMap(part => 
-        part.functionCall ? [{
+      let toolCalls = [];
+      
+      // Try to extract function calls from candidates if they exist
+      if (response.candidates && response.candidates.length > 0) {
+        const candidate = response.candidates[0];
+        if (candidate.content && candidate.content.parts) {
+          // Look through all parts for function calls
+          toolCalls = candidate.content.parts.flatMap(part => {
+            if (part.functionCall) {
+              return [{
+                id: Date.now().toString(),
+                name: part.functionCall.name,
+                args: part.functionCall.args
+              }];
+            }
+            return [];
+          });
+        }
+      }
+      
+      // If no tool calls found, check older response format (functionCalls)
+      if (toolCalls.length === 0 && response.functionCalls && response.functionCalls.length > 0) {
+        toolCalls = response.functionCalls.map(call => ({
           id: Date.now().toString(),
-          name: part.functionCall.name,
-          args: part.functionCall.args
-        }] : []
-      ) || [];
+          name: call.name,
+          args: call.args || {}
+        }));
+      }
+      
+      // Log for debugging
+      if (toolCalls.length > 0) {
+        console.log(`Found ${toolCalls.length} tool calls in response`, toolCalls);
+      } else if (responseText.includes('searchKnowledgeBase') || responseText.includes('getItemContent')) {
+        console.warn('Response text contains tool references but no tool calls were properly extracted');
+      }
       
       // Return the response
       return res.json({
@@ -237,6 +265,22 @@ const llmController = {
           
         case 'summarizeContent':
           toolResponse = await llmController.summarize(parameters.content, parameters.length);
+          break;
+          
+        case 'listAllFiles':
+          toolResponse = await knowledgeController.listItems(parameters.limit, parameters.sortBy, parameters.sortDirection);
+          break;
+          
+        case 'listFilesByType':
+          toolResponse = await knowledgeController.listItemsByType(parameters.fileType, parameters.limit, parameters.sortBy, parameters.sortDirection);
+          break;
+          
+        case 'listFilesWithContent':
+          toolResponse = await knowledgeController.listItemsWithContent(parameters.contentQuery, parameters.fileType, parameters.limit);
+          break;
+          
+        case 'listRecentFiles':
+          toolResponse = await knowledgeController.listRecentItems(parameters.days, parameters.fileType, parameters.limit);
           break;
           
         default:
@@ -340,6 +384,107 @@ const knowledgeController = {
       sourceType: 'text',
       dateAdded: new Date().toISOString()
     };
+  },
+
+  async listItems(limit = 20, sortBy = 'created_at', sortDirection = 'desc') {
+    try {
+      // Get the database service
+      const database = require('./src/services/database');
+      
+      // List all items with the given parameters
+      const items = await database.listItems(limit, sortBy, sortDirection);
+      
+      return {
+        success: true,
+        items: items || []
+      };
+    } catch (error) {
+      console.error('Error listing items:', error);
+      return {
+        success: false,
+        error: error.message,
+        items: []
+      };
+    }
+  },
+  
+  async listItemsByType(fileType, limit = 20, sortBy = 'created_at', sortDirection = 'desc') {
+    try {
+      // Get the database service
+      const database = require('./src/services/database');
+      
+      // List items by type with the given parameters
+      const items = await database.listItemsByType(fileType, limit, sortBy, sortDirection);
+      
+      return {
+        success: true,
+        items: items || [],
+        fileType
+      };
+    } catch (error) {
+      console.error(`Error listing items by type ${fileType}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        items: []
+      };
+    }
+  },
+  
+  async listItemsWithContent(contentQuery, fileType = null, limit = 10) {
+    try {
+      // Get the database service
+      const database = require('./src/services/database');
+      
+      // List items containing the given content query
+      const items = await database.searchItems(contentQuery, fileType, limit);
+      
+      return {
+        success: true,
+        items: items || [],
+        query: contentQuery
+      };
+    } catch (error) {
+      console.error(`Error listing items with content "${contentQuery}":`, error);
+      return {
+        success: false,
+        error: error.message,
+        items: []
+      };
+    }
+  },
+  
+  async listRecentItems(days = 7, fileType = null, limit = 10) {
+    try {
+      // Get the database service
+      const database = require('./src/services/database');
+      
+      // Calculate the date range (last X days)
+      const today = new Date();
+      const startDate = new Date();
+      startDate.setDate(today.getDate() - days);
+      
+      // List items created in the last X days
+      const items = await database.listItemsByDate(
+        startDate.toISOString(), 
+        today.toISOString(), 
+        fileType, 
+        limit
+      );
+      
+      return {
+        success: true,
+        items: items || [],
+        days
+      };
+    } catch (error) {
+      console.error(`Error listing recent items (last ${days} days):`, error);
+      return {
+        success: false,
+        error: error.message,
+        items: []
+      };
+    }
   }
 };
 
@@ -433,13 +578,41 @@ function setupIpcHandlers() {
     const responseText = response.text();
     
     // Check if there are any tool calls
-    const toolCalls = response.candidates?.[0]?.content?.parts?.flatMap(part => 
-      part.functionCall ? [{
+    let toolCalls = [];
+    
+    // Try to extract function calls from candidates if they exist
+    if (response.candidates && response.candidates.length > 0) {
+      const candidate = response.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        // Look through all parts for function calls
+        toolCalls = candidate.content.parts.flatMap(part => {
+          if (part.functionCall) {
+            return [{
+              id: Date.now().toString(),
+              name: part.functionCall.name,
+              args: part.functionCall.args
+            }];
+          }
+          return [];
+        });
+      }
+    }
+    
+    // If no tool calls found, check older response format (functionCalls)
+    if (toolCalls.length === 0 && response.functionCalls && response.functionCalls.length > 0) {
+      toolCalls = response.functionCalls.map(call => ({
         id: Date.now().toString(),
-        name: part.functionCall.name,
-        args: part.functionCall.args
-      }] : []
-    ) || [];
+        name: call.name,
+        args: call.args || {}
+      }));
+    }
+    
+    // Log for debugging
+    if (toolCalls.length > 0) {
+      console.log(`Found ${toolCalls.length} tool calls in response`, toolCalls);
+    } else if (responseText.includes('searchKnowledgeBase') || responseText.includes('getItemContent')) {
+      console.warn('Response text contains tool references but no tool calls were properly extracted');
+    }
     
     // Return the response
     return {
@@ -467,6 +640,22 @@ function setupIpcHandlers() {
         
       case 'summarizeContent':
         toolResponse = await llmController.summarize(parameters.content, parameters.length);
+        break;
+        
+      case 'listAllFiles':
+        toolResponse = await knowledgeController.listItems(parameters.limit, parameters.sortBy, parameters.sortDirection);
+        break;
+        
+      case 'listFilesByType':
+        toolResponse = await knowledgeController.listItemsByType(parameters.fileType, parameters.limit, parameters.sortBy, parameters.sortDirection);
+        break;
+        
+      case 'listFilesWithContent':
+        toolResponse = await knowledgeController.listItemsWithContent(parameters.contentQuery, parameters.fileType, parameters.limit);
+        break;
+        
+      case 'listRecentFiles':
+        toolResponse = await knowledgeController.listRecentItems(parameters.days, parameters.fileType, parameters.limit);
         break;
         
       default:

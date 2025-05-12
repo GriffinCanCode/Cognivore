@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background -->
+  <circle cx="50" cy="50" r="45" fill="#1a1405" />
+  
+  <!-- Architectural framework (abstract, golden) -->
+  <g>
+    <!-- Main framework structure -->
+    <path d="M30,30 L70,30 L70,70 L30,70 Z" 
+          fill="none" stroke="#d4af37" stroke-width="1.2" opacity="0.7" />
+    
+    <!-- Diagonal supports -->
+    <path d="M30,30 L70,70 M70,30 L30,70" 
+          fill="none" stroke="#d4af37" stroke-width="1" opacity="0.5" />
+    
+    <!-- Golden section proportions -->
+    <path d="M30,30 L70,30 L70,48 L48,48 L48,70 L30,70 Z" 
+          fill="none" stroke="#ffd700" stroke-width="0.8" opacity="0.3" />
+  </g>
+  
+  <!-- Animated blueprint lines -->
+  <g>
+    <path d="M20,40 L80,40" 
+          fill="none" stroke="#ffd700" stroke-width="0.6" stroke-dasharray="2,2" opacity="0.5">
+      <animate attributeName="y1" 
+               dur="10s" 
+               repeatCount="indefinite" 
+               values="40;45;40" />
+      <animate attributeName="y2" 
+               dur="10s" 
+               repeatCount="indefinite" 
+               values="40;45;40" />
+    </path>
+    <path d="M20,60 L80,60" 
+          fill="none" stroke="#ffd700" stroke-width="0.6" stroke-dasharray="2,2" opacity="0.5">
+      <animate attributeName="y1" 
+               dur="12s" 
+               repeatCount="indefinite" 
+               values="60;55;60" />
+      <animate attributeName="y2" 
+               dur="12s" 
+               repeatCount="indefinite" 
+               values="60;55;60" />
+    </path>
+    <path d="M40,20 L40,80" 
+          fill="none" stroke="#ffd700" stroke-width="0.6" stroke-dasharray="2,2" opacity="0.5">
+      <animate attributeName="x1" 
+               dur="11s" 
+               repeatCount="indefinite" 
+               values="40;45;40" />
+      <animate attributeName="x2" 
+               dur="11s" 
+               repeatCount="indefinite" 
+               values="40;45;40" />
+    </path>
+    <path d="M60,20 L60,80" 
+          fill="none" stroke="#ffd700" stroke-width="0.6" stroke-dasharray="2,2" opacity="0.5">
+      <animate attributeName="x1" 
+               dur="13s" 
+               repeatCount="indefinite" 
+               values="60;55;60" />
+      <animate attributeName="x2" 
+               dur="13s" 
+               repeatCount="indefinite" 
+               values="60;55;60" />
+    </path>
+  </g>
+  
+  <!-- Creative nexus (architect's vision) -->
+  <circle cx="50" cy="50" r="10" fill="url(#architectGradient)">
+    <animate attributeName="r" 
+             dur="7s" 
+             repeatCount="indefinite" 
+             values="10;12;10" />
+  </circle>
+  
+  <!-- Golden particles (creation sparks) -->
+  <g>
+    <circle cx="35" cy="35" r="1" fill="#ffd700">
+      <animate attributeName="opacity" 
+               dur="4s" 
+               repeatCount="indefinite" 
+               values="0.2;0.7;0.2" />
+    </circle>
+    <circle cx="65" cy="35" r="1" fill="#ffd700">
+      <animate attributeName="opacity" 
+               dur="5s" 
+               repeatCount="indefinite" 
+               values="0.2;0.7;0.2" />
+    </circle>
+    <circle cx="35" cy="65" r="1" fill="#ffd700">
+      <animate attributeName="opacity" 
+               dur="3.5s" 
+               repeatCount="indefinite" 
+               values="0.2;0.7;0.2" />
+    </circle>
+    <circle cx="65" cy="65" r="1" fill="#ffd700">
+      <animate attributeName="opacity" 
+               dur="4.5s" 
+               repeatCount="indefinite" 
+               values="0.2;0.7;0.2" />
+    </circle>
+  </g>
+  
+  <!-- Angular wings (griffin symbolism, abstract) -->
+  <path d="M50,30 L30,15 L45,40 M50,30 L70,15 L55,40" 
+        fill="none" stroke="#d4af37" stroke-width="1.5" opacity="0.6">
+    <animate attributeName="d" 
+             dur="9s" 
+             repeatCount="indefinite" 
+             values="
+             M50,30 L30,15 L45,40 M50,30 L70,15 L55,40;
+             M50,32 L32,17 L47,42 M50,32 L68,17 L53,42;
+             M50,30 L30,15 L45,40 M50,30 L70,15 L55,40"
+             />
+  </path>
+  
+  <!-- Gradients -->
+  <defs>
+    <radialGradient id="architectGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#b8860b;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+</svg> 

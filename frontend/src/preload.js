@@ -69,6 +69,50 @@ const api = {
       log.error('Error searching:', error);
       throw error;
     }
+  },
+  
+  // List all files tool
+  listAllFiles: async (params = {}) => {
+    try {
+      log.info('Listing all files', params);
+      return await ipcRenderer.invoke('list-all-files', params);
+    } catch (error) {
+      log.error('Error listing all files:', error);
+      throw error;
+    }
+  },
+  
+  // List files by type tool
+  listFilesByType: async (params) => {
+    try {
+      log.info(`Listing files by type: ${params.fileType}`);
+      return await ipcRenderer.invoke('list-files-by-type', params);
+    } catch (error) {
+      log.error('Error listing files by type:', error);
+      throw error;
+    }
+  },
+  
+  // List files with content tool
+  listFilesWithContent: async (params) => {
+    try {
+      log.info(`Listing files with content: ${params.contentQuery}`);
+      return await ipcRenderer.invoke('list-files-with-content', params);
+    } catch (error) {
+      log.error('Error listing files with content:', error);
+      throw error;
+    }
+  },
+  
+  // List recent files tool
+  listRecentFiles: async (params = {}) => {
+    try {
+      log.info(`Listing recent files: ${params.days} days`);
+      return await ipcRenderer.invoke('list-recent-files', params);
+    } catch (error) {
+      log.error('Error listing recent files:', error);
+      throw error;
+    }
   }
 };
 
@@ -373,7 +417,7 @@ const serverProxy = {
 try {
   contextBridge.exposeInMainWorld('api', api);
   contextBridge.exposeInMainWorld('server', serverProxy);
-  log.info('API exposed to renderer process');
+  log.info('Preload script loaded successfully, API exposed to renderer');
 
   // Expose protected methods that allow the renderer process to use
   // the ipcRenderer without exposing the entire object

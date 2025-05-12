@@ -1,0 +1,154 @@
+/* Add these styles for tool messages and tool results */
+
+/* Tool message styling */
+.tool-message {
+  background-color: rgba(20, 81, 143, 0.1);
+  border: 1px solid rgba(20, 81, 143, 0.2);
+  border-left: 3px solid #2673ce;
+}
+
+.tool-header {
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.tool-label {
+  color: #2673ce;
+  font-size: 14px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.tool-result {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* JSON syntax highlighting */
+.json-string {
+  color: #92d4ff;
+}
+
+.json-number {
+  color: #b5cea8;
+}
+
+.json-boolean {
+  color: #569cd6;
+}
+
+.json-null {
+  color: #569cd6;
+}
+
+.json-key {
+  color: #9cdcfe;
+}
+
+/* Result items formatting */
+.result-header {
+  color: #e0e0e0;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.result-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-item {
+  display: flex;
+  padding: 8px;
+  border-radius: 6px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.item-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #2673ce;
+  color: white;
+  font-weight: bold;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.item-content {
+  flex: 1;
+}
+
+.item-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #e0e0e0;
+}
+
+.item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.item-field {
+  font-size: 13px;
+  color: #b0b0b0;
+}
+
+.field-name {
+  color: #9cdcfe;
+  margin-right: 4px;
+}
+
+/* Tool call styling enhancements */
+.tool-calls {
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 10px;
+}
+
+.tool-call {
+  background-color: rgba(26, 54, 93, 0.4);
+  border-radius: 8px;
+  border: 1px solid rgba(38, 115, 206, 0.3);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  color: #2673ce;
+  font-weight: 500;
+}
+
+.tool-call-header svg {
+  margin-right: 6px;
+}
+
+.tool-call-args {
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.tool-call-args pre {
+  margin: 0;
+  white-space: pre-wrap;
+} 

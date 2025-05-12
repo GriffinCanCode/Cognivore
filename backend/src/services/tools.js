@@ -31,6 +31,12 @@ class ToolsService {
       this.registerTool('recommendRelatedContent', this.recommendRelatedContent.bind(this));
       this.registerTool('summarizeContent', this.summarizeContent.bind(this));
       
+      // Register file listing tools
+      this.registerTool('listAllFiles', this.listAllFiles.bind(this));
+      this.registerTool('listFilesByType', this.listFilesByType.bind(this));
+      this.registerTool('listFilesWithContent', this.listFilesWithContent.bind(this));
+      this.registerTool('listRecentFiles', this.listRecentFiles.bind(this));
+      
       // Check if our tool implementations match the shared definitions
       this.validateToolImplementations();
       
@@ -506,6 +512,254 @@ class ToolsService {
     // Fallback to truncating at word boundary
     const lastSpace = truncated.lastIndexOf(' ');
     return truncated.substring(0, lastSpace) + '...';
+  }
+
+  /**
+   * List all files in the knowledge base
+   * @param {Object} params - Parameters for listing files
+   * @returns {Promise<Object>} - List of files
+   */
+  async listAllFiles(params = {}) {
+    try {
+      const { limit = 20, sortBy = 'created_at', sortDirection = 'desc' } = params;
+      
+      this.logger.info(`Listing all files, limit: ${limit}, sort: ${sortBy} ${sortDirection}`);
+      
+      // Get all items from database
+      const items = await database.listItems();
+      
+      // Sort items based on parameters
+      const sortedItems = this.sortItems(items, sortBy, sortDirection);
+      
+      // Limit results
+      const limitedItems = sortedItems.slice(0, Math.min(parseInt(limit) || 20, 100));
+      
+      // Format for response
+      const formattedItems = limitedItems.map(item => this.formatItemForListing(item));
+      
+      return {
+        totalItems: items.length,
+        items: formattedItems,
+        listType: 'all'
+      };
+    } catch (error) {
+      this.logger.error('List all files failed', { error: error.message });
+      throw error;
+    }
+  }
+  
+  /**
+   * List files of a specific type
+   * @param {Object} params - Parameters for listing files by type
+   * @returns {Promise<Object>} - List of files of the specified type
+   */
+  async listFilesByType(params) {
+    try {
+      const { fileType, limit = 20, sortBy = 'created_at', sortDirection = 'desc' } = params;
+      
+      if (!fileType) {
+        throw new Error('File type is required');
+      }
+      
+      this.logger.info(`Listing files of type: ${fileType}, limit: ${limit}`);
+      
+      // Get all items from database
+      const items = await database.listItems();
+      
+      // Filter by file type
+      const filteredItems = items.filter(item => {
+        // Match based on source_type field
+        return item.source_type && item.source_type.toLowerCase() === fileType.toLowerCase();
+      });
+      
+      // Sort items based on parameters
+      const sortedItems = this.sortItems(filteredItems, sortBy, sortDirection);
+      
+      // Limit results
+      const limitedItems = sortedItems.slice(0, Math.min(parseInt(limit) || 20, 100));
+      
+      // Format for response
+      const formattedItems = limitedItems.map(item => this.formatItemForListing(item));
+      
+      return {
+        totalItems: filteredItems.length,
+        items: formattedItems,
+        listType: 'byType',
+        fileType
+      };
+    } catch (error) {
+      this.logger.error('List files by type failed', { error: error.message });
+      throw error;
+    }
+  }
+  
+  /**
+   * List files containing specific content
+   * @param {Object} params - Parameters for content search
+   * @returns {Promise<Object>} - List of files containing the content
+   */
+  async listFilesWithContent(params) {
+    try {
+      const { contentQuery, fileType, limit = 10 } = params;
+      
+      if (!contentQuery) {
+        throw new Error('Content query is required');
+      }
+      
+      this.logger.info(`Listing files with content: "${contentQuery}", fileType: ${fileType || 'any'}`);
+      
+      // Perform semantic search based on the content query
+      const embeddingResult = await llmService.generateEmbeddings(contentQuery);
+      
+      if (!embeddingResult || !embeddingResult.embedding) {
+        throw new Error('Failed to generate embeddings for content query');
+      }
+      
+      // Prepare search options
+      const searchOptions = {
+        limit: Math.min(parseInt(limit) || 10, 50),
+        includeContent: false,
+        includeSummary: true,
+        deduplicate: true
+      };
+      
+      // Apply file type filter if provided
+      if (fileType) {
+        searchOptions.sourceTypeFilter = fileType;
+      }
+      
+      // Perform semantic search
+      const results = await database.semanticSearch(contentQuery, embeddingResult.embedding, searchOptions);
+      
+      // Format results
+      const formattedItems = results.map(item => this.formatItemForListing(item));
+      
+      return {
+        totalItems: results.length,
+        items: formattedItems,
+        listType: 'withContent',
+        contentQuery,
+        fileType: fileType || 'any'
+      };
+    } catch (error) {
+      this.logger.error('List files with content failed', { error: error.message });
+      throw error;
+    }
+  }
+  
+  /**
+   * List recently added files
+   * @param {Object} params - Parameters for listing recent files
+   * @returns {Promise<Object>} - List of recent files
+   */
+  async listRecentFiles(params = {}) {
+    try {
+      const { days = 7, fileType, limit = 10 } = params;
+      
+      this.logger.info(`Listing recent files from last ${days} days, fileType: ${fileType || 'any'}`);
+      
+      // Get all items from database
+      const items = await database.listItems();
+      
+      // Calculate cutoff date for recent items
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - Math.min(parseInt(days) || 7, 365));
+      
+      // Filter recent items
+      let filteredItems = items.filter(item => {
+        const itemDate = new Date(item.created_at);
+        return itemDate >= cutoffDate;
+      });
+      
+      // Apply file type filter if provided
+      if (fileType) {
+        filteredItems = filteredItems.filter(item => {
+          return item.source_type && item.source_type.toLowerCase() === fileType.toLowerCase();
+        });
+      }
+      
+      // Sort by date (newest first)
+      const sortedItems = this.sortItems(filteredItems, 'created_at', 'desc');
+      
+      // Limit results
+      const limitedItems = sortedItems.slice(0, Math.min(parseInt(limit) || 10, 100));
+      
+      // Format for response
+      const formattedItems = limitedItems.map(item => this.formatItemForListing(item));
+      
+      return {
+        totalItems: filteredItems.length,
+        items: formattedItems,
+        listType: 'recent',
+        days: parseInt(days) || 7,
+        fileType: fileType || 'any'
+      };
+    } catch (error) {
+      this.logger.error('List recent files failed', { error: error.message });
+      throw error;
+    }
+  }
+  
+  /**
+   * Sort items based on provided parameters
+   * @param {Array} items - Items to sort
+   * @param {string} sortBy - Field to sort by
+   * @param {string} sortDirection - Sort direction ('asc' or 'desc')
+   * @returns {Array} - Sorted items
+   * @private
+   */
+  sortItems(items, sortBy = 'created_at', sortDirection = 'desc') {
+    if (!Array.isArray(items) || items.length === 0) {
+      return [];
+    }
+    
+    // Create a copy to avoid modifying original array
+    const result = [...items];
+    
+    // Sort by the specified field
+    result.sort((a, b) => {
+      // Handle special case for dates
+      if (sortBy === 'created_at') {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        
+        return sortDirection.toLowerCase() === 'asc' 
+          ? dateA - dateB 
+          : dateB - dateA;
+      }
+      
+      // Handle the general case
+      const valueA = a[sortBy] || '';
+      const valueB = b[sortBy] || '';
+      
+      // String comparison for most fields
+      if (sortDirection.toLowerCase() === 'asc') {
+        return String(valueA).localeCompare(String(valueB));
+      } else {
+        return String(valueB).localeCompare(String(valueA));
+      }
+    });
+    
+    return result;
+  }
+  
+  /**
+   * Format an item for listing display
+   * @param {Object} item - Database item
+   * @returns {Object} - Formatted item for display
+   * @private
+   */
+  formatItemForListing(item) {
+    // Extract relevant fields and format for display
+    return {
+      id: item.id,
+      title: item.title || 'Untitled',
+      sourceType: item.source_type || 'unknown',
+      sourceIdentifier: item.source_identifier || '',
+      thumbnailUrl: item.thumbnail_url || null,
+      preview: item.preview || '',
+      createdAt: item.created_at || new Date().toISOString()
+    };
   }
 }
 

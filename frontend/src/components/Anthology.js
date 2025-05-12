@@ -127,7 +127,7 @@ class Anthology {
     // Setting with a fade-in effect
     if (chapterData.setting) {
         const settingDiv = document.createElement('div');
-        settingDiv.className = 'setting-container fade-in';
+        settingDiv.className = 'setting-container';
         
         const settingIcon = document.createElement('span');
         settingIcon.className = 'setting-icon';
@@ -154,52 +154,37 @@ class Anthology {
             const charCard = document.createElement('div');
             charCard.className = 'character-card';
             
-            // Character icon based on name (could be more sophisticated)
+            // Character icon with custom angelic abstract image
             const charIcon = document.createElement('div');
             charIcon.className = 'character-icon';
             
-            // Simple icon mapping (could be expanded)
-            const iconMap = {
-                'Cognivore': '🧠',
-                'Human': '👤',
-                'Griffin': '🦅',
-                'Mnemosyne': '✨'
+            // Custom abstract angelic images for each character
+            const characterImages = {
+                'Cognivore': 'abstract-cognivore.svg',
+                'Human': 'abstract-human.svg',
+                'Griffin': 'abstract-griffin.svg',
+                'Mnemosyne': 'abstract-mnemosyne.svg',
             };
             
-            charIcon.textContent = iconMap[char.name] || '👁️';
+            // Set background image instead of text content
+            const imagePath = characterImages[char.name] || 'abstract-default.svg';
+            
+            // Try to load from both possible paths - direct path and assets path
+            charIcon.style.backgroundImage = `url('images/characters/${imagePath}'), url('assets/characters/${imagePath}')`;
+            charIcon.style.backgroundSize = 'cover';
+            charIcon.style.backgroundPosition = 'center';
             
             const charName = document.createElement('h5');
             charName.textContent = char.name;
             
             const charRole = document.createElement('p');
             charRole.className = 'character-role';
-            charRole.textContent = char.role;
+            // Only use title, with fallback to 'Unknown' if not present
+            charRole.textContent = char.title || 'Unknown';
             
             charCard.appendChild(charIcon);
             charCard.appendChild(charName);
             charCard.appendChild(charRole);
-            
-            if (char.description) {
-                const charDesc = document.createElement('p');
-                charDesc.className = 'character-description';
-                charDesc.textContent = char.description;
-                
-                // Hide description by default, show on click
-                charDesc.style.display = 'none';
-                
-                charCard.addEventListener('click', () => {
-                    if (charDesc.style.display === 'none') {
-                        charDesc.style.display = 'block';
-                        charCard.classList.add('expanded');
-                    } else {
-                        charDesc.style.display = 'none';
-                        charCard.classList.remove('expanded');
-                    }
-                });
-                
-                charCard.appendChild(charDesc);
-                charCard.classList.add('has-description');
-            }
             
             charsGrid.appendChild(charCard);
         });
@@ -258,10 +243,39 @@ class Anthology {
         contentDiv.appendChild(conceptsContainer);
     }
 
-    // Plot points with visual markers
+    // Helper function to highlight special phrases in text
+    const highlightSpecialPhrases = (text) => {
+        const phrases = [
+            'Empyrean Athenaeum',
+            'Mnemosyne',
+            'the Watcher of the Hunt',
+            'Watcher of the Hunt',
+            'Cognivore',
+            'Griffin'
+        ];
+        
+        let highlightedText = text;
+        
+        phrases.forEach(phrase => {
+            // Use regular expression with word boundaries to match whole phrases only
+            const regex = new RegExp(`\\b${phrase}\\b`, 'g');
+            highlightedText = highlightedText.replace(regex, `<span class="anthology-highlight ${phrase.toLowerCase().replace(/\s+/g, '-')}">${phrase}</span>`);
+        });
+        
+        // Handle markdown-style formatting
+        // Process bold text (replace **text** with <strong>text</strong>)
+        highlightedText = highlightedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        
+        // Process italic text (replace *text* with <em>text</em>)
+        highlightedText = highlightedText.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        
+        return highlightedText;
+    };
+
+    // Plot points with visual markers and highlighted phrases
     if (chapterData.plot_points && chapterData.plot_points.length > 0) {
         const plotHeader = document.createElement('h4');
-        plotHeader.textContent = 'Plot Points';
+        plotHeader.textContent = 'Verses';
         contentDiv.appendChild(plotHeader);
         
         const plotContainer = document.createElement('div');
@@ -276,7 +290,8 @@ class Anthology {
             plotMarker.textContent = (index + 1).toString();
             
             const plotText = document.createElement('p');
-            plotText.textContent = point;
+            // Use the helper function to highlight special phrases
+            plotText.innerHTML = highlightSpecialPhrases(point);
             
             plotPoint.appendChild(plotMarker);
             plotPoint.appendChild(plotText);

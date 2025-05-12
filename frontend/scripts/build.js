@@ -116,6 +116,7 @@ async function build() {
   // Make sure the required directories exist in dist
   fs.mkdirSync(path.join(distDir, 'src'), { recursive: true });
   fs.mkdirSync(path.join(distDir, 'src', 'utils'), { recursive: true });
+  fs.mkdirSync(path.join(distDir, '@story'), { recursive: true }); // Create story directory
   
   // Copy the main.js and preload.js files
   fs.copyFileSync(
@@ -269,6 +270,76 @@ async function build() {
     );
   }
   
+  // Copy story files from backend
+  console.log('Copying story files...');
+  // Try multiple potential story directory locations
+  const storyDirPaths = [
+    path.join(rootDir, 'backend', '@story'),
+    path.join(rootDir, '@story'),
+    path.join(projectRoot, '../backend', '@story')
+  ];
+
+  // Find the first directory that exists
+  let storyDir = null;
+  for (const dirPath of storyDirPaths) {
+    if (fs.existsSync(dirPath)) {
+      storyDir = dirPath;
+      console.log(`Found story directory at: ${storyDir}`);
+      break;
+    }
+  }
+
+  if (storyDir) {
+    // Create story directory destinations
+    const distStoryDir = path.join(distDir, '@story');
+    const distBackendStoryDir = path.join(distDir, 'backend', '@story');
+    
+    fs.mkdirSync(distStoryDir, { recursive: true });
+    fs.mkdirSync(distBackendStoryDir, { recursive: true });
+    
+    // Also create these directories in the project root for electron-builder to find
+    // This is to work around the parent directory issue in electron-builder
+    const projectStoryDir = path.join(projectRoot, '@story');
+    const projectBackendStoryDir = path.join(projectRoot, 'backend', '@story');
+    
+    fs.mkdirSync(projectStoryDir, { recursive: true });
+    fs.mkdirSync(projectBackendStoryDir, { recursive: true });
+    
+    const storyFiles = fs.readdirSync(storyDir);
+    let copiedFiles = 0;
+    
+    storyFiles.forEach(file => {
+      if (file.endsWith('.json')) {
+        // Copy to all locations for compatibility
+        fs.copyFileSync(
+          path.join(storyDir, file),
+          path.join(distStoryDir, file)
+        );
+        
+        fs.copyFileSync(
+          path.join(storyDir, file),
+          path.join(distBackendStoryDir, file)
+        );
+        
+        fs.copyFileSync(
+          path.join(storyDir, file),
+          path.join(projectStoryDir, file)
+        );
+        
+        fs.copyFileSync(
+          path.join(storyDir, file),
+          path.join(projectBackendStoryDir, file)
+        );
+        
+        copiedFiles++;
+      }
+    });
+    
+    console.log(`Copied ${copiedFiles} story files to multiple locations for compatibility`);
+  } else {
+    console.warn('Story directory not found in any of the expected locations');
+  }
+  
   // Create electron-builder.json config file
   const electronBuilderConfig = {
     appId: "com.cognivore.app",
@@ -279,6 +350,10 @@ async function build() {
       "node_modules/**/*",
       "package.json",
       "main.js"
+    ],
+    extraResources: [
+      { "from": "../backend/@story", "to": "app/@story" },
+      { "from": "../backend/@story", "to": "app/backend/@story" }
     ],
     directories: {
       buildResources: "resources",

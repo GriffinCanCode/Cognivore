@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background -->
+  <circle cx="50" cy="50" r="45" fill="#1a1405">
+    <animate attributeName="opacity" 
+             dur="22s" 
+             repeatCount="indefinite" 
+             values="1;0.92;1" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="r" 
+             dur="32s" 
+             repeatCount="indefinite" 
+             values="45;47.5;43;45" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+  
+  <!-- Subtle background pulses -->
+  <circle cx="50" cy="50" r="35" fill="none" stroke="#d4af37" stroke-width="0.7" opacity="0.25">
+    <animate attributeName="r" 
+             dur="12s" 
+             repeatCount="indefinite" 
+             values="35;42;35" 
+             calcMode="spline"
+             keySplines="0.5 0 0.5 1; 0.5 0 0.5 1" />
+    <animate attributeName="stroke-width" 
+             dur="17s" 
+             repeatCount="indefinite" 
+             values="0.7;1.1;0.7" 
+             calcMode="spline"
+             keySplines="0.5 0 0.5 1; 0.5 0 0.5 1" />
+  </circle>
+  
+  <!-- Adding expanding/contracting background elements -->
+  <circle cx="50" cy="50" r="30" fill="none" stroke="#5c4309" stroke-width="0.5" opacity="0.18" stroke-dasharray="1,4">
+    <animate attributeName="r" 
+             dur="26s" 
+             repeatCount="indefinite" 
+             values="30;38;27;30" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="stroke-dasharray" 
+             dur="23s" 
+             repeatCount="indefinite" 
+             values="1,4;1,2;1,7;1,4" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="18s" 
+             repeatCount="indefinite" 
+             values="0.18;0.3;0.15;0.18" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+  
+  <!-- Dynamic golden particles -->
+  <g>
+    <circle cx="30" cy="35" r="1.5" fill="url(#goldenGlow1)" opacity="0.3">
+      <animate attributeName="r" 
+               dur="20s" 
+               repeatCount="indefinite" 
+               values="1.5;3.2;1.2;1.5" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="opacity" 
+               dur="18s" 
+               repeatCount="indefinite" 
+               values="0.3;0.45;0.25;0.3" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </circle>
+    
+    <circle cx="65" cy="40" r="1.2" fill="url(#goldenGlow2)" opacity="0.25">
+      <animate attributeName="r" 
+               dur="24s" 
+               repeatCount="indefinite" 
+               values="1.2;2.5;0.9;1.2" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="opacity" 
+               dur="22s" 
+               repeatCount="indefinite" 
+               values="0.25;0.4;0.2;0.25" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </circle>
+    
+    <circle cx="40" cy="65" r="1.7" fill="url(#goldenGlow1)" opacity="0.28">
+      <animate attributeName="r" 
+               dur="21s" 
+               repeatCount="indefinite" 
+               values="1.7;3.5;1.3;1.7" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="opacity" 
+               dur="19s" 
+               repeatCount="indefinite" 
+               values="0.28;0.42;0.22;0.28" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </circle>
+  </g>
+  
+  <!-- Dynamic knowledge current -->
+  <path d="M25,25 Q50,45 75,25" 
+        fill="none" stroke="#8b7514" stroke-width="0.5" opacity="0.2" stroke-dasharray="1,3">
+    <animate attributeName="d" 
+             dur="35s" 
+             repeatCount="indefinite" 
+             values="
+             M25,25 Q50,45 75,25;
+             M20,30 Q45,52 80,30;
+             M30,20 Q55,38 70,20;
+             M25,25 Q50,45 75,25"
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="25s" 
+             repeatCount="indefinite" 
+             values="0.2;0.35;0.15;0.2" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="stroke-width" 
+             dur="20s" 
+             repeatCount="indefinite" 
+             values="0.5;0.8;0.4;0.5" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </path>
+  
+  <!-- Abstract floating head - geometric forms -->
+  <g id="floating-head">
+    <!-- Abstract head outline -->
+    <path d="M40,35 Q50,25 60,35 Q65,45 60,55 Q50,65 40,55 Q35,45 40,35" 
+          fill="none" stroke="#ffd700" stroke-width="1.8" opacity="0.85">
+      <animate attributeName="d" 
+               dur="20s" 
+               repeatCount="indefinite" 
+               values="
+               M40,35 Q50,25 60,35 Q65,45 60,55 Q50,65 40,55 Q35,45 40,35;
+               M42,33 Q50,22 58,33 Q63,45 58,57 Q50,67 42,57 Q37,45 42,33;
+               M40,35 Q50,25 60,35 Q65,45 60,55 Q50,65 40,55 Q35,45 40,35"
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="stroke-width" 
+               dur="15s" 
+               repeatCount="indefinite" 
+               values="1.8;2.2;1.8" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="transform" 
+               attributeType="XML" 
+               type="translate" 
+               values="0,0; 0,1.5; 0,-1.5; 0,0" 
+               dur="18s" 
+               repeatCount="indefinite" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </path>
+    
+    <!-- Abstract facial features - vague eye shapes -->
+    <path d="M42,40 Q45,38 48,40" 
+          fill="none" stroke="#ffd700" stroke-width="0.7" opacity="0.7">
+      <animate attributeName="d" 
+               dur="15s" 
+               repeatCount="indefinite" 
+               values="
+               M42,40 Q45,38 48,40;
+               M42,39 Q45,37 48,39;
+               M42,40 Q45,38 48,40"
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="transform" 
+               attributeType="XML" 
+               type="translate" 
+               values="0,0; 0.5,0; 0,0" 
+               dur="12s" 
+               repeatCount="indefinite" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="opacity" 
+               dur="10s" 
+               repeatCount="indefinite" 
+               values="0.7;0.9;0.7" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </path>
+    
+    <path d="M52,40 Q55,38 58,40" 
+          fill="none" stroke="#ffd700" stroke-width="0.7" opacity="0.7">
+      <animate attributeName="d" 
+               dur="15s" 
+               repeatCount="indefinite" 
+               values="
+               M52,40 Q55,38 58,40;
+               M52,39 Q55,37 58,39;
+               M52,40 Q55,38 58,40"
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="transform" 
+               attributeType="XML" 
+               type="translate" 
+               values="0,0; -0.5,0; 0,0" 
+               dur="13s" 
+               repeatCount="indefinite" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="opacity" 
+               dur="11s" 
+               repeatCount="indefinite" 
+               values="0.7;0.9;0.7" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </path>
+    
+    <!-- Knowledge currents flowing around the head -->
+    <path d="M30,40 Q40,30 50,42 Q60,30 70,40" 
+          fill="none" stroke="#ffd700" stroke-width="0.8" opacity="0.55" stroke-dasharray="1,2">
+      <animate attributeName="d" 
+               dur="18s" 
+               repeatCount="indefinite" 
+               values="
+               M30,40 Q40,30 50,42 Q60,30 70,40;
+               M30,42 Q40,32 50,46 Q60,32 70,42;
+               M30,40 Q40,30 50,42 Q60,30 70,40"
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="stroke-width" 
+               dur="12s" 
+               repeatCount="indefinite" 
+               values="0.8;1.2;0.8" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="stroke-dasharray" 
+               dur="20s" 
+               repeatCount="indefinite" 
+               values="1,2; 2,1; 1,2" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </path>
+    
+    <path d="M30,60 Q40,70 50,58 Q60,70 70,60" 
+          fill="none" stroke="#ffd700" stroke-width="0.6" opacity="0.4" stroke-dasharray="1,2">
+      <animate attributeName="d" 
+               dur="16s" 
+               repeatCount="indefinite" 
+               values="
+               M30,60 Q40,70 50,58 Q60,70 70,60;
+               M30,58 Q40,68 50,56 Q60,68 70,58;
+               M30,60 Q40,70 50,58 Q60,70 70,60"
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="stroke-width" 
+               dur="14s" 
+               repeatCount="indefinite" 
+               values="0.6;0.9;0.6" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="stroke-dasharray" 
+               dur="22s" 
+               repeatCount="indefinite" 
+               values="1,2; 2,1; 1,2" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </path>
+  </g>
+  
+  <!-- Additional knowledge streams -->
+  <path d="M25,50 Q35,45 45,55 Q55,45 65,50 Q75,55 85,50" 
+        fill="none" stroke="#ffd700" stroke-width="0.4" opacity="0.3" stroke-dasharray="1,3">
+    <animate attributeName="d" 
+             dur="28s" 
+             repeatCount="indefinite" 
+             values="
+             M25,50 Q35,45 45,55 Q55,45 65,50 Q75,55 85,50;
+             M25,48 Q35,43 45,53 Q55,43 65,48 Q75,53 85,48;
+             M25,50 Q35,45 45,55 Q55,45 65,50 Q75,55 85,50"
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="15s" 
+             repeatCount="indefinite" 
+             values="0.3;0.5;0.3" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="stroke-dasharray" 
+             dur="24s" 
+             repeatCount="indefinite" 
+             values="1,3; 2,2; 1,3" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </path>
+  
+  <!-- Floating concept particles -->
+  <g>
+    <circle cx="35" cy="30" r="1" fill="#ffd700">
+      <animate attributeName="opacity" 
+               dur="7s" 
+               repeatCount="indefinite" 
+               values="0.2;0.7;0.2" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="cy" 
+               dur="25s" 
+               repeatCount="indefinite" 
+               values="30;33;30" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="r" 
+               dur="15s" 
+               repeatCount="indefinite" 
+               values="1;1.3;1" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </circle>
+    
+    <circle cx="65" cy="30" r="1" fill="#ffd700">
+      <animate attributeName="opacity" 
+               dur="8s" 
+               repeatCount="indefinite" 
+               values="0.2;0.7;0.2" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="cy" 
+               dur="20s" 
+               repeatCount="indefinite" 
+               values="30;27;30" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="r" 
+               dur="12s" 
+               repeatCount="indefinite" 
+               values="1;1.2;1" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </circle>
+    
+    <circle cx="50" cy="25" r="1" fill="#ffd700">
+      <animate attributeName="opacity" 
+               dur="6s" 
+               repeatCount="indefinite" 
+               values="0.2;0.8;0.2" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="cy" 
+               dur="22s" 
+               repeatCount="indefinite" 
+               values="25;23;25" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="r" 
+               dur="14s" 
+               repeatCount="indefinite" 
+               values="1;1.4;1" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </circle>
+    
+    <!-- Additional particle -->
+    <circle cx="45" cy="65" r="0.8" fill="#ffd700" opacity="0.3">
+      <animate attributeName="opacity" 
+               dur="9s" 
+               repeatCount="indefinite" 
+               values="0.3;0.6;0.3" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="cy" 
+               dur="18s" 
+               repeatCount="indefinite" 
+               values="65;63;65" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="cx" 
+               dur="20s" 
+               repeatCount="indefinite" 
+               values="45;46;45" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </circle>
+  </g>
+  
+  <!-- Ethereal glow -->
+  <circle cx="50" cy="45" r="15" fill="url(#headGlow)" opacity="0.7">
+    <animate attributeName="r" 
+             dur="10s" 
+             repeatCount="indefinite" 
+             values="15;18;15" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="8s" 
+             repeatCount="indefinite" 
+             values="0.7;0.5;0.7" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="cx" 
+             dur="20s" 
+             repeatCount="indefinite" 
+             values="50;52;48;50" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="cy" 
+             dur="18s" 
+             repeatCount="indefinite" 
+             values="45;43;47;45" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+  
+  <!-- Gradients -->
+  <defs>
+    <radialGradient id="headGlow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#ffd700;stop-opacity:0" />
+      <animate attributeName="fx" 
+               dur="15s" 
+               repeatCount="indefinite" 
+               values="50%;45%;55%;50%" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+      <animate attributeName="fy" 
+               dur="17s" 
+               repeatCount="indefinite" 
+               values="50%;45%;55%;50%" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </radialGradient>
+    
+    <!-- Dynamic golden glow gradients -->
+    <radialGradient id="goldenGlow1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#ffd700;stop-opacity:0" />
+      <animate attributeName="fx" 
+               dur="15s" 
+               repeatCount="indefinite" 
+               values="50%;40%;60%;50%" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </radialGradient>
+    
+    <radialGradient id="goldenGlow2" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" style="stop-color:#d4af37;stop-opacity:0.85" />
+      <stop offset="100%" style="stop-color:#d4af37;stop-opacity:0" />
+      <animate attributeName="fy" 
+               dur="14s" 
+               repeatCount="indefinite" 
+               values="50%;40%;60%;50%" 
+               calcMode="spline"
+               keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    </radialGradient>
+  </defs>
+</svg> 

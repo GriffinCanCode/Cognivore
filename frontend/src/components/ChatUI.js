@@ -222,6 +222,12 @@ class ChatUI {
       chatLogger.debug('Adding assistant message to UI');
       this.messages.push(assistantMessage);
       this.notificationService?.success('Received response');
+      
+      // Handle tool calls if present in the response
+      if (response.toolCalls && response.toolCalls.length > 0) {
+        chatLogger.info(`Response contains ${response.toolCalls.length} tool calls, executing them...`);
+        this.executeToolCalls(response.toolCalls);
+      }
     } catch (err) {
       chatLogger.error('Error sending message:', err);
       this.handleErrorResponse(err);
@@ -253,6 +259,84 @@ class ChatUI {
         chatLogger.debug('Re-enabling chat input');
         this.chatInput.setDisabled(false);
       }
+    }
+  }
+  
+  /**
+   * Execute tool calls returned by the LLM
+   * @param {Array} toolCalls - Array of tool calls to execute
+   */
+  async executeToolCalls(toolCalls) {
+    if (!toolCalls || toolCalls.length === 0) {
+      chatLogger.debug('No tool calls to execute');
+      return;
+    }
+    
+    chatLogger.info(`Executing ${toolCalls.length} tool calls...`);
+    
+    // Set loading state to show we're processing tool calls
+    this.isLoading = true;
+    if (this.chatInput) {
+      this.chatInput.setDisabled(true, 'Executing tool call...');
+    }
+    
+    this.updateUI();
+    
+    try {
+      for (const toolCall of toolCalls) {
+        chatLogger.info(`Executing tool: ${toolCall.name}`);
+        
+        try {
+          // Execute the tool call
+          const toolResult = await this.llmService.executeToolCall(
+            toolCall.id,
+            toolCall.name,
+            toolCall.args
+          );
+          
+          chatLogger.debug(`Tool call executed successfully:`, toolResult);
+          
+          // Create a 'tool' message to represent the tool's response
+          const toolMessage = {
+            role: 'tool',
+            content: JSON.stringify(toolResult.response, null, 2),
+            timestamp: new Date().toISOString(),
+            toolCallId: toolCall.id,
+            toolName: toolCall.name
+          };
+          
+          // Add the tool message to the chat history
+          this.messages.push(toolMessage);
+          
+          // Update UI with the new message
+          this.updateUI();
+        } catch (toolError) {
+          chatLogger.error(`Error executing tool call ${toolCall.name}:`, toolError);
+          
+          // Add error message for the failed tool call
+          const errorMessage = {
+            role: 'tool',
+            content: `Error executing tool: ${toolError.message}`,
+            timestamp: new Date().toISOString(),
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+            isError: true
+          };
+          
+          this.messages.push(errorMessage);
+          this.updateUI();
+        }
+      }
+    } catch (error) {
+      chatLogger.error('Error executing tool calls:', error);
+      this.notificationService?.error('Failed to execute tool: ' + error.message);
+    } finally {
+      // Reset loading state
+      this.isLoading = false;
+      if (this.chatInput) {
+        this.chatInput.setDisabled(false);
+      }
+      this.updateUI();
     }
   }
   

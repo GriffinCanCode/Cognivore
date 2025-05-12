@@ -5,6 +5,9 @@ files:
   - src/**/*
   - node_modules/**/*
   - package.json
+  - ../backend/@story/**/*
+  - @story/**/*
+  - backend/@story/**/*
 buildResources: resources
 output: dist/electron-build
 asar: true

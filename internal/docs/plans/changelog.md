@@ -952,8 +952,19 @@
   - Mocked chapter data loading in `Anthology.js` for frontend display of files from `backend/@story/`.
 
 ### Changed
+- Standardized character titles and roles across all story chapters
+- Removed Griffin from chapters 1-2, introduced him in chapter 3 as "the creator of the sieve"
+- Made Griffin's role consistent as "the Watcher of the Hunt" across chapters 3-6
+- Updated story plot points to reflect Griffin's absence in early chapters and introduction in chapter 3
+- Updated Anthology component to exclusively use "title" property for character descriptions
+- Changed Mnemosyne's "role" property to "title" in chapter 2 JSON file
 
 ### Fixed
+- Fixed Anthology component to correctly detect character titles
+  - Updated character card rendering to check for both "title" and "role" properties
+  - Added fallback to "Unknown" when neither property is present
+  - Ensures consistent display across all story files regardless of property naming
+- Fixed Anthology component to exclusively use "title" property instead of falling back to "role"
 
 ## Build System Improvements
 
@@ -1067,3 +1078,116 @@
 - Added support for markdown-style text emphasis with double asterisks (**text**)
 - Implemented purple gradient styling for emphasized text with subtle animations
 - Updated system prompt with guidelines for using emphasis for key concepts
+
+## Added
+
+- New file listing tools for better knowledge base navigation
+  - `listAllFiles`: List all files in the knowledge base
+  - `listFilesByType`: List files of a specific type
+  - `listFilesWithContent`: List files containing specific content
+  - `listRecentFiles`: List recently added files
+- Updated system prompt to include new file listing tools
+
+## Fixed
+
+- Fixed issue where LLM tool calls were rendered as plain text instead of interactive tool UI elements
+- Improved tool call extraction from Gemini API responses to handle different response formats
+- Added fallback detection for tool calls that appear in message text but aren't properly structured as tool calls
+- Implemented backend functionality for file listing tools: listAllFiles, listFilesByType, listFilesWithContent, and listRecentFiles
+- Added proper IPC handlers and preload API methods for file listing tools
+- Fixed issue where tool calls would only display the tool name without executing the actual commands
+- Fixed tool call execution flow to properly invoke tools and display results in the chat UI
+- Enhanced tool response display with JSON formatting and syntax highlighting
+- Improved UI for displaying lists of items returned by tools
+
+## [0.3.37] - RAG System Workflow Fix
+
+### Fixed
+- Fixed RAG (Retrieval-Augmented Generation) system workflow to properly answer questions about knowledge base content
+  - Updated system prompt with explicit RAG workflow guidance
+  - Added clear instructions to use searchKnowledgeBase first followed by getItemContent
+  - Prevented listing tools (listFilesByType, listAllFiles) from being used for content questions
+  - Improved tool selection logic to prioritize content retrieval over listing
+  - Enhanced RAG workflow to ensure proper content retrieval and use in responses
+  - Fixed issue where questions about content would only list files without retrieving content
+
+## [0.3.38] - Story Files Build Fix
+
+### Fixed
+- Fixed story files not being included in the build
+  - Updated `electron-builder.yml` to include `../backend/@story/**/*` in files section
+  - Updated `electron-builder.json` to include `../backend/@story/**/*` in files section
+  - Enhanced `build.js` to create `@story` directory in the dist folder and copy all story files
+  - Ensured story files are accessible on application boot
+  - Added proper file discovery and copy process to the build script
+
+## [0.3.39] - Anthology Story Loading Fix
+
+### Fixed
+- Fixed Anthology component not loading story chapters
+  - Added missing IPC handlers for `get-story-chapters` and `get-story-chapter-content`
+  - Implemented robust story directory discovery algorithm to find files in multiple possible locations
+  - Enhanced JSON parsing with fallback to filename for titles
+  - Added proper sorting by chapter number from story JSON data
+  - Implemented detailed logging for story loading process to aid debugging
+  - Fixed issue where loaded story files would result in an empty array
+
+## [0.3.40] - Packaged Application Story File Access Fix
+
+### Fixed
+- Fixed story files not being accessible in packaged DMG applications
+  - Enhanced story file discovery to check multiple paths in packaged applications
+  - Added automatic copying of story files to userData directory on first application launch
+  - Implemented proper resource bundling with story files in extraResources section
+  - Added robust path checking with better error handling and logging
+  - Improved detection of story JSON files with content validation
+  - Prioritized userData directory when searching for story files
+
+## UI Enhancements
+- Enhanced character cards in Anthology view with more responsive and interactive SVG icons
+- Added subtle hover effects and animations to improve user experience
+- Fixed SVG sizing and display issues in character cards
+- Updated Anthology color scheme to match the navy dark theme of the main application
+- Enhanced card backgrounds and borders with more subtle, cohesive styling
+- Improved character card sizing consistency with fixed dimensions for better content display
+- Added scrollable description areas to handle varying content lengths without breaking layout
+
+## [0.3.41] - Character SVG Icon Animations
+
+### Added
+- Added subtle animations to all character SVG icons
+  - Implemented smooth, subtle animations for abstract-cognivore.svg
+  - Implemented subtle animations for abstract-human.svg
+  - Created a more abstract floating human head design with animations for abstract-griffin.svg
+  - Added cosmic animations to abstract-mnemosyne.svg
+  - Enhanced abstract-default.svg with subtle pulse animations
+  - Used consistent animation techniques with calcMode splines for smooth transitions
+  - Added gradient animations and particle effects across all character icons
+  - Implemented slow, subtle movement to create living, breathing illustrations
+  - Added proper filter effects for subtle glow animations
+
+## [0.3.42] - Enhanced Character Icon Animation Effects
+
+### Changed
+- Enhanced character SVG animations with more dynamic, subtle movement
+  - Added additional floating motion to abstract-mnemosyne.svg:
+    - Enhanced constellation pattern with subtle translation and morphing
+    - Added floating movement to divine essence and star elements
+    - Improved radiant symbol with combined rotation and translation
+    - Added animated stroke-dasharray to pulse ring for ethereal effect
+    - Created new celestial currents with gentle wave animations
+  - Enhanced abstract-griffin.svg with more dynamic elements:
+    - Added subtle oscillating movement to floating head and facial features
+    - Enhanced knowledge streams with animated stroke-width and dash patterns
+    - Added new knowledge current with fluid wave animation
+    - Improved particles with size variations and subtle position shifts
+    - Added gentle ethereal glow movement with position animation
+  - All enhancements maintain the subtle, non-distracting nature of the animations
+  - Used extended animation durations (15-30s) for smooth, barely perceptible movement
+  - Implemented calcMode spline transitions for natural, organic motion
+
+## Updates
+
+- Enhanced Anthology component with special styling for key phrases in plot points section
+  - Added subtle animations and custom colors for "Empyraen Athenaeum", "Mnemosyne", "the Watcher of the Hunt", "Cognivore", and "Griffin"
+  - Implemented gradual reveal animations and hover effects for highlighted text

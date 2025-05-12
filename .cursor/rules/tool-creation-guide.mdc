@@ -1,0 +1,284 @@
+---
+description: All new tools and tool edit
+globs: 
+alwaysApply: false
+---
+# Tool Creation Guide
+
+This guide provides a step-by-step process for adding new tools to the Knowledge Store project. Following these steps ensures proper integration with all system components.
+
+## Step 1: Define the Tool in sharedToolDefinitions.js
+
+Add the tool definition to `frontend/src/services/tools/sharedToolDefinitions.js`:
+
+```javascript
+// Add to getToolDefinitions() function
+const getToolDefinitions = () => {
+  return {
+    // Existing tools...
+    
+    // New tool
+    newToolName: {
+      name: 'newToolName',
+      description: 'Concise description of what the tool does',
+      version: '1.0.0',
+      location: 'backend', // Use 'backend', 'frontend', or 'both'
+      parameters: {
+        type: 'object',
+        properties: {
+          param1: {
+            type: 'string', // Use appropriate type: string, integer, boolean, array, object
+            description: 'Description of parameter 1'
+          },
+          param2: {
+            type: 'integer',
+            description: 'Description of parameter 2'
+          },
+          // Add more parameters as needed
+        },
+        required: ['param1'] // List required parameters
+      }
+    }
+  };
+};
+```
+
+## Step 2: Implement the Backend Tool Function
+
+Add the tool implementation to `backend/src/services/tools.js`:
+
+```javascript
+/**
+ * Implementation of newToolName 
+ * @param {Object} params - Parameters for the tool
+ * @returns {Promise<Object>} - Tool result
+ */
+async newToolName(params) {
+  try {
+    // Extract parameters
+    const { param1, param2 = defaultValue } = params;
+    
+    // Validate required parameters
+    if (!param1) {
+      throw new Error('param1 is required');
+    }
+    
+    this.logger.info(`Executing newToolName with param1: ${param1}`);
+    
+    // Implement tool functionality
+    // ...
+    
+    // Use existing services as needed (database, llmService, etc.)
+    const results = await database.someMethod(param1);
+    
+    // Format and return results
+    return {
+      // Return appropriate response structure
+      success: true,
+      data: results,
+      // Add relevant metadata
+    };
+  } catch (error) {
+    this.logger.error(`newToolName failed: ${error.message}`, { error });
+    throw error;
+  }
+}
+```
+
+## Step 3: Register the Tool in the ToolsService
+
+Add the tool registration in the `initialize()` method in `backend/src/services/tools.js`:
+
+```javascript
+async initialize() {
+  this.logger.info('Loading available tools');
+  try {
+    // Existing tool registrations...
+    
+    // Register the new tool
+    this.registerTool('newToolName', this.newToolName.bind(this));
+    
+    // Check if our tool implementations match the shared definitions
+    this.validateToolImplementations();
+    
+    this.logger.info('Tools loaded successfully');
+    return true;
+  } catch (error) {
+    this.logger.error('Failed to initialize tools service', { error: error.message });
+    return false;
+  }
+}
+```
+
+## Step 4: Update the System Prompt
+
+Add the tool to the system prompt in `frontend/src/services/systemPrompt.js`:
+
+1. Add to the tool description list:
+
+```javascript
+## Available Tools
+
+${toolDescriptions || `
+- searchKnowledgeBase: Search the knowledge base for relevant information
+// ... existing tools
+- newToolName: Concise description of what the tool does
+`}
+```
+
+2. Add to the guidelines section:
+
+```javascript
+## Guidelines
+
+// ... existing guidelines
+- Use the newToolName tool when [explain when to use this tool]
+```
+
+## Step 5: Frontend Implementation (if needed)
+
+If your tool has frontend components (when location is 'frontend' or 'both'):
+
+1. Create a new tool module in `frontend/src/services/tools/newToolName/index.js`:
+
+```javascript
+/**
+ * NewToolName - Tool for [purpose]
+ */
+const NewToolName = {
+  name: 'newToolName',
+  description: 'Concise description of what the tool does',
+  version: '1.0.0',
+  
+  /**
+   * Execute the tool
+   * @param {Object} params - Tool parameters
+   * @param {ApiService} apiService - API service for backend communication
+   * @returns {Promise<Object>} - Tool result
+   */
+  async execute(params, apiService) {
+    // Implement frontend functionality or call backend
+    // ...
+    
+    return {
+      // Return result structure
+    };
+  }
+};
+
+export default NewToolName;
+```
+
+2. Register the tool in `frontend/src/services/tools/index.js`:
+
+```javascript
+import NewToolName from './newToolName';
+
+// In the initialization section:
+toolRegistry.registerTool('newToolName', NewToolName);
+```
+
+## Step 6: Update Changelog
+
+Add an entry to `internal/docs/plans/changelog.md`:
+
+```markdown
+## Added
+
+- New tool: `newToolName` for [purpose]
+  - Provides [key functionality]
+  - [Any other relevant details]
+```
+
+## Step 7: Update server.js execute-tool-call Handler
+
+Update the tool call handler in `backend/server.js` to include your new tool:
+
+```javascript
+// Execute tool call - handler for the IPC channel
+safelyRegisterHandler('execute-tool-call', async (event, args) => {
+  const { toolCallId, toolName, parameters } = args;
+  
+  // Execute the appropriate tool based on toolName
+  let toolResponse;
+  
+  switch (toolName) {
+    case 'searchKnowledgeBase':
+      toolResponse = await knowledgeController.search(parameters.query, parameters.filters);
+      break;
+      
+    // ... existing tool cases
+    
+    case 'newToolName':
+      toolResponse = await knowledgeController.newToolMethod(parameters.param1, parameters.param2);
+      break;
+      
+    default:
+      throw new Error(`Unknown tool: ${toolName}`);
+  }
+  
+  return {
+    toolCallId,
+    toolName,
+    response: toolResponse
+  };
+});
+```
+
+## Step 8: Add IPC Handler for Direct Tool Access
+
+Add a dedicated IPC handler in `backend/src/ipcHandlers.js` to allow direct access to your tool:
+
+```javascript
+// New tool IPC handler
+safelyRegisterHandler('new-tool-name', async (event, params = {}) => {
+  try {
+    logger.info('New tool request received', params);
+    
+    // Execute the new tool
+    const result = await toolsService.newToolName(params);
+    
+    logger.debug(`New tool execution completed`);
+    return { success: true, ...result };
+  } catch (error) {
+    logger.error('Error executing new tool:', error);
+    return { success: false, error: error.message };
+  }
+});
+```
+
+Also, add the corresponding API method in `frontend/src/preload.js`:
+
+```javascript
+// New tool API
+newToolName: async (params = {}) => {
+  try {
+    log.info('Executing new tool', params);
+    return await ipcRenderer.invoke('new-tool-name', params);
+  } catch (error) {
+    log.error('Error executing new tool:', error);
+    throw error;
+  }
+}
+```
+
+## Common Patterns and Practices
+
+1. **Error Handling**: Always wrap tool implementation in try/catch blocks
+2. **Parameter Validation**: Validate all required parameters 
+3. **Logging**: Use the logger with appropriate levels (info, debug, error)
+4. **Documentation**: Add JSDoc comments to all methods
+5. **Response Format**: Maintain consistent response structure
+6. **Memory Awareness**: Use memory-optimized methods for large operations
+
+## Final Checklist
+
+- [ ] Tool definition added to sharedToolDefinitions.js
+- [ ] Backend tool function implemented in tools.js
+- [ ] Tool registered in ToolsService initialize method
+- [ ] System prompt updated in systemPrompt.js
+- [ ] Frontend implementation added (if needed)
+- [ ] Changelog updated
+- [ ] Update server.js execute-tool-call handler with your new tool
+- [ ] Add dedicated IPC handler for direct tool access (if needed)
+- [ ] Tests written and passing

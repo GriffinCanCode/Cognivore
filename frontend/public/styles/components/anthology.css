@@ -4,6 +4,7 @@
   padding: 20px;
   height: calc(100% - var(--header-height)); /* Adjust if header is present */
   overflow-y: auto;
+  background-color: var(--background-primary, #111827); /* Darker navy background matching the app */
 }
 
 .anthology-layout {
@@ -14,13 +15,13 @@
 
 .anthology-chapter-list-pane {
   flex: 0 0 250px; /* Fixed width for chapter list */
-  background-color: var(--background-secondary, #1f2937);
+  background-color: var(--background-secondary, #101624); /* Darker navy background like sidebar */
   padding: 15px;
   border-radius: 8px;
   overflow-y: auto;
   height: 100%;
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.05));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .anthology-chapter-list {
@@ -70,13 +71,13 @@
 
 .anthology-chapter-content-pane {
   flex: 1; /* Takes remaining space */
-  background-color: var(--background-secondary, #1f2937);
+  background-color: var(--background-secondary, #151d2e); /* Slightly lighter navy matching message pane */
   padding: 20px; /* Reduced padding */
   border-radius: 8px;
   overflow-y: auto;
   height: 100%;
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.05));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Title with animated underline */
@@ -117,12 +118,11 @@
   display: flex;
   align-items: center;
   padding: 15px;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.25);
   border-radius: 8px;
   margin-bottom: 20px; /* Reduced margin */
   border-left: 3px solid var(--primary-color, #2563eb);
-  opacity: 0;
-  animation: fade-in 0.8s ease forwards;
+  opacity: 1; /* Changed from 0 to 1 to make it visible immediately */
   text-align: center; /* Center text */
   justify-content: center; /* Center content */
 }
@@ -135,6 +135,7 @@
   justify-content: center;
 }
 
+/* Keep the keyframes definition in case other elements use it */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -145,35 +146,38 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center; /* Center the cards */
-  gap: 20px; /* Increased gap for better spacing */
+  gap: 25px; /* Increased gap for better spacing */
   margin: 25px 0; /* Increased margins */
   width: 100%;
 }
 
 .character-card {
-  background-color: rgba(0, 0, 0, 0.25); /* Darker background for better contrast */
+  background-color: rgba(15, 23, 42, 0.7); /* Darker navy that matches the chat box */
   border-radius: 12px; /* Increased border radius */
-  padding: 20px 15px; /* More vertical padding */
+  padding: 20px; /* Even padding all around */
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  transition: all 0.3s ease;
-  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); /* More fluid animation */
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08); /* Slightly brighter border */
-  width: 160px; /* Adjusted width for better proportions */
-  height: 220px; /* Fixed height for consistency */
-  /* Removed justify-content: flex-end to avoid layout issues */
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05); /* Darker, more subtle border */
+  width: 240px; /* Increased width for better content fit */
+  height: 240px; /* Increased height for better content fit */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.15);
+  /* Ensure consistent card sizing */
+  min-width: 240px;
+  min-height: 240px;
+  max-width: 240px;
+  max-height: 240px;
 }
 
 .character-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); /* Enhanced shadow on hover */
-  border-color: var(--primary-color-light, #60a5fa);
-  background-color: rgba(0, 0, 0, 0.35); /* Darker on hover */
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.2); /* Enhanced shadow on hover */
+  border-color: var(--primary-color-light, #3b82f6);
+  background-color: rgba(17, 24, 39, 0.85); /* Darker on hover matching app background */
 }
 
 .character-card:before {
@@ -183,98 +187,178 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at center 30%, rgba(60, 100, 200, 0.1), transparent 70%);
+  background: radial-gradient(circle at center 30%, rgba(59, 130, 246, 0.1), transparent 70%);
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.4s ease;
 }
 
 .character-card:hover:before {
   opacity: 1;
 }
 
-.character-card.has-description:after {
-  content: '⌄';
-  position: absolute;
-  bottom: 8px; /* Adjusted position */
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 1rem;
-  color: var(--primary-color-light, #60a5fa);
-  transition: transform 0.3s ease;
-}
-
-.character-card.expanded:after {
-  transform: translateX(-50%) rotate(180deg);
+/* Ensure character card content has proper layout */
+.character-card > * {
+  flex-shrink: 0; /* Prevent content from shrinking */
 }
 
 .character-icon {
   font-size: 2rem;
   margin-bottom: 15px;
   background-color: rgba(0, 0, 0, 0.4); /* Darker background */
-  width: 60px; /* Larger icon area */
-  height: 60px; /* Larger icon area */
+  width: 96px; /* Larger icon area */
+  height: 96px; /* Larger icon area */
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 15px rgba(37, 99, 235, 0.4); /* Enhanced glow */
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.6); /* Enhanced glow effect */
   margin-top: 10px; /* Fixed spacing from top */
   margin-bottom: 15px; /* More space below icon */
-  border: 1px solid rgba(60, 120, 220, 0.3); /* Subtle border */
+  border: 1px solid rgba(100, 150, 255, 0.2); /* More subtle border for angelic effect */
+  position: relative;
+  overflow: hidden;
+  background-size: 85% !important; /* Ensure SVG fits better within circle */
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Springy animation */
+  /* Fixed size for icon */
+  min-width: 96px;
+  min-height: 96px;
+  max-width: 96px;
+  max-height: 96px;
+  flex-shrink: 0;
+}
+
+.character-card:hover .character-icon {
+  transform: scale(1.1);
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.8); /* Intensified glow on hover */
+  border-width: 2px;
+}
+
+/* SVG-specific enhancements for better fitting and display */
+.character-icon[style*=".svg"] {
+  background-size: 85% !important; /* Better sizing for SVGs */
+}
+
+/* Add glow effects for different character types with SVG-specific enhancements */
+.character-icon[style*="abstract-cognivore.svg"] {
+  box-shadow: 0 0 25px rgba(140, 25, 230, 0.6); /* Purple glow for Cognivore */
+  border-color: rgba(140, 25, 230, 0.2);
+}
+
+.character-card:hover .character-icon[style*="abstract-cognivore.svg"] {
+  box-shadow: 0 0 35px rgba(140, 25, 230, 0.8);
+  transform: scale(1.12);
+}
+
+.character-icon[style*="abstract-human.svg"] {
+  box-shadow: 0 0 25px rgba(30, 150, 255, 0.6); /* Blue glow for Human */
+  border-color: rgba(30, 150, 255, 0.2);
+}
+
+.character-card:hover .character-icon[style*="abstract-human.svg"] {
+  box-shadow: 0 0 35px rgba(30, 150, 255, 0.8);
+  transform: scale(1.12);
+}
+
+.character-icon[style*="abstract-griffin.svg"] {
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.6); /* Golden glow for Griffin */
+  border-color: rgba(255, 215, 0, 0.2);
+}
+
+.character-card:hover .character-icon[style*="abstract-griffin.svg"] {
+  box-shadow: 0 0 35px rgba(255, 215, 0, 0.8);
+  transform: scale(1.12);
+}
+
+.character-icon[style*="abstract-mnemosyne.svg"] {
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.8); /* Bright white glow for Mnemosyne */
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.character-card:hover .character-icon[style*="abstract-mnemosyne.svg"] {
+  box-shadow: 0 0 35px rgba(255, 255, 255, 0.9);
+  transform: scale(1.12);
+}
+
+/* Add subtle pulse animation for all character icons */
+@keyframes subtle-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.character-icon::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.character-card:hover .character-icon::after {
+  opacity: 1;
+  animation: subtle-pulse 2s infinite ease-in-out;
 }
 
 .character-card h5 {
-  margin: 0 0 8px; /* More bottom margin */
+  margin: 0 0 10px; /* Increased bottom margin */
   color: var(--text-primary, #f3f4f6);
-  font-size: 1.15rem;
+  font-size: 1.2rem; /* Slightly larger */
   font-weight: 500;
+  transition: color 0.3s ease;
+  width: 100%; /* Full width */
+  padding: 0 5px; /* Add padding */
+  white-space: nowrap; /* Keep title on one line */
+  overflow: hidden; /* Hide overflow */
+  text-overflow: ellipsis; /* Add ellipsis if needed */
+}
+
+.character-card:hover h5 {
+  color: var(--primary-color-light, #60a5fa); /* Highlight color on hover */
 }
 
 .character-role {
-  margin: 0 0 5px; /* Added bottom margin */
-  font-size: 0.85rem;
+  margin: 0;
+  font-size: 0.9rem; /* Slightly larger */
   color: var(--text-tertiary, #9ca3af);
   font-style: italic;
-  line-height: 1.4;
-  padding: 0 5px; /* Added padding for text */
+  line-height: 1.5;
+  padding: 0 10px; /* Added padding for text */
   max-width: 100%; /* Ensure text stays within card */
+  transition: color 0.3s ease;
+  height: 75px; /* Fixed height for description */
+  overflow-y: auto; /* Allow scrolling if content is too long */
+  /* Hide scrollbar but keep functionality */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
-.character-description {
-  margin-top: 12px;
-  text-align: left;
-  font-size: 0.9rem;
-  color: var(--text-secondary, #d1d5db);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 12px;
-  max-height: 100px;
-  overflow-y: auto;
+.character-role::-webkit-scrollbar {
+  width: 4px;
 }
 
-/* Ensure all character cards have consistent height and vertical centering */
-.characters-grid {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start; /* Align to top */
+.character-role::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Ensure consistent spacing inside cards */
-.character-card {
-  display: flex;
-  flex-direction: column;
+.character-role::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
 }
 
-.character-card > * {
-  flex-shrink: 0; /* Prevent elements from shrinking */
+.character-card:hover .character-role {
+  color: var(--text-secondary, #d1d5db); /* Brighter on hover */
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
-.character-icon {
-  margin-bottom: auto; /* Push icon to top */
-}
-
-.character-card h5,
-.character-role {
-  margin-top: auto; /* Push text down */
+.character-card:hover .character-role::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Concepts */
@@ -286,16 +370,17 @@
 .concept-box {
   margin-bottom: 12px; /* Reduced margin */
   border-radius: 8px;
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: rgba(15, 23, 42, 0.7); /* Matching card background color */
   overflow: hidden;
   transition: all 0.3s ease;
   max-width: 80%; /* Limit width for better centering */
   margin-left: auto;
   margin-right: auto;
+  border: 1px solid rgba(255, 255, 255, 0.05); /* Darker, more subtle border */
 }
 
 .concept-box:hover {
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: rgba(17, 24, 39, 0.85); /* Darker on hover matching app background */
 }
 
 .concept-box.expanded {
@@ -341,7 +426,7 @@
   color: var(--text-tertiary, #9ca3af);
 }
 
-/* Plot points */
+/* Verses (formerly Plot points) */
 .plot-container {
   margin: 15px auto; /* Reduced margin and center horizontally */
   max-width: 90%; /* Limit width for better readability */
@@ -387,11 +472,48 @@
   font-size: 0.95rem;
 }
 
+/* New styles for markdown formatting in plot points */
+.plot-point p strong {
+  font-weight: 600;
+  color: var(--text-primary, #f3f4f6);
+  position: relative;
+  display: inline-block;
+}
+
+.plot-point p strong::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background-color: var(--primary-color-light, #60a5fa);
+  opacity: 0.4;
+}
+
+.plot-point p em {
+  font-style: italic;
+  color: var(--text-primary, #f3f4f6);
+  opacity: 0.9;
+}
+
+/* Add a subtle pulse animation for emphasized text */
+@keyframes subtle-emphasis-pulse {
+  0% { opacity: 0.9; }
+  50% { opacity: 1; }
+  100% { opacity: 0.9; }
+}
+
+.plot-point p em:hover,
+.plot-point p strong:hover {
+  animation: subtle-emphasis-pulse 2s infinite ease-in-out;
+}
+
 /* Content header styling */
 .content-header {
   margin-bottom: 15px; /* Reduced margin */
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.05));
   text-align: center; /* Center header */
 }
 
@@ -439,6 +561,81 @@
   height: 2px;
   background-color: var(--primary-color-light, #60a5fa);
   opacity: 0.5;
+}
+
+/* Special phrase highlighting in plot points */
+.anthology-highlight {
+  display: inline;
+  font-weight: 500;
+  position: relative;
+  transition: all 0.8s ease;
+  text-decoration: none !important;
+  border-bottom: none !important;
+}
+
+/* Completely remove underline styling */
+.anthology-highlight::after,
+.anthology-highlight::before {
+  display: none !important;
+  content: none !important;
+  border: none !important;
+  text-decoration: none !important;
+}
+
+/* Individual phrase styling - focusing on colors only */
+.anthology-highlight.empyrean-athenaeum {
+  color: #8a9af4; /* Ethereal blue */
+  text-decoration: none !important;
+}
+
+.anthology-highlight.mnemosyne {
+  color: #f7f7ff; /* Bright white with blue tint */
+  text-decoration: none !important;
+}
+
+.anthology-highlight.the-watcher-of-the-hunt {
+  color: #ffd700; /* Gold */
+  text-decoration: none !important;
+}
+
+.anthology-highlight.cognivore {
+  color: #b388ff; /* Purple */
+  text-decoration: none !important;
+}
+
+.anthology-highlight.griffin {
+  color: #ffd700; /* Gold for Griffin */
+  text-decoration: none !important;
+}
+
+/* Removing glow-pulse animation */
+@keyframes glow-pulse {
+  0% { opacity: 0.4; }
+  100% { opacity: 0.4; }
+}
+
+/* Removing mnemosyne-pulse animation */
+@keyframes mnemosyne-pulse {
+  0% { box-shadow: none; opacity: 0.4; }
+  100% { box-shadow: none; opacity: 0.4; }
+}
+
+/* Removing cognivore-subtle-shift animation */
+@keyframes cognivore-subtle-shift {
+  0% { letter-spacing: normal; }
+  100% { letter-spacing: normal; }
+}
+
+/* Removing griffin-line-animation */
+@keyframes griffin-line-animation {
+  0% { height: 1px; }
+  100% { height: 1px; }
+}
+
+/* Simplified reveal without animation */
+.plot-point p .anthology-highlight {
+  opacity: 1;
+  animation: none;
 }
 
 /* Add to your main styles.css or index.html to link this file */

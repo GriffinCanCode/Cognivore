@@ -8,6 +8,16 @@
     "package.json",
     "main.js"
   ],
+  "extraResources": [
+    {
+      "from": "../backend/@story",
+      "to": "app/@story"
+    },
+    {
+      "from": "../backend/@story",
+      "to": "app/backend/@story"
+    }
+  ],
   "directories": {
     "buildResources": "resources",
     "output": "dist/electron-build"

@@ -1,11 +1,13 @@
 // IMPORTANT: Load name setter before anything else
 require('./electron-app-name-setter');
 
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const logger = require('./utils/logger');
 const net = require('net');
+const url = require('url');
+const { createContextLogger } = require('./utils/logger');
 
 // Check if we're in development mode
 const isDev = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
@@ -487,6 +489,67 @@ function setupEssentialIpcHandlers() {
   logger.info('Essential IPC handlers set up directly in main process');
 }
 
+// Copy story files from resources to userData directory on first run
+function copyStoryFilesToUserData() {
+  try {
+    const userDataPath = app.getPath('userData');
+    const userDataStoryDir = path.join(userDataPath, '@story');
+    
+    // Check if story directory exists in userData
+    if (!fs.existsSync(userDataStoryDir)) {
+      logger.info('Creating @story directory in userData');
+      fs.mkdirSync(userDataStoryDir, { recursive: true });
+      
+      // Check possible resource paths for story files
+      const possibleResourcePaths = [
+        path.join(app.getAppPath(), '@story'),
+        path.join(app.getAppPath(), 'backend', '@story'),
+        path.join(process.resourcesPath, '@story'),
+        path.join(__dirname, '..', '@story'),
+        path.join(__dirname, '..', 'backend', '@story'),
+        path.join(process.cwd(), '@story'),
+        path.join(process.cwd(), 'backend', '@story')
+      ];
+      
+      for (const resourcePath of possibleResourcePaths) {
+        try {
+          if (fs.existsSync(resourcePath)) {
+            logger.info(`Found story files at: ${resourcePath}`);
+            
+            // Copy JSON files to userData
+            const files = fs.readdirSync(resourcePath);
+            let copiedCount = 0;
+            
+            for (const file of files) {
+              if (file.endsWith('.json')) {
+                const sourcePath = path.join(resourcePath, file);
+                const destPath = path.join(userDataStoryDir, file);
+                
+                fs.copyFileSync(sourcePath, destPath);
+                copiedCount++;
+              }
+            }
+            
+            logger.info(`Copied ${copiedCount} story files to userData directory`);
+            return true;
+          }
+        } catch (err) {
+          logger.debug(`Error checking path ${resourcePath}: ${err.message}`);
+        }
+      }
+      
+      logger.error('No story files found to copy');
+      return false;
+    } else {
+      logger.info('Story directory already exists in userData');
+      return true;
+    }
+  } catch (err) {
+    logger.error(`Error copying story files: ${err.message}`);
+    return false;
+  }
+}
+
 // When Electron has finished initialization and is ready
 app.whenReady().then(async () => {
   // Set dock icon for macOS
@@ -577,6 +640,9 @@ app.whenReady().then(async () => {
     // Step 5: Create the main window after all backend initialization is complete
     // This should only happen inside the whenReady promise
     createMainWindow();
+
+    // Copy story files to userData directory
+    copyStoryFilesToUserData();
   } catch (error) {
     logger.error('Error during application initialization:', error);
     // Even if initialization fails, try to create the window to show error to user

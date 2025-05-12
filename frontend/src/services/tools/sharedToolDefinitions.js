@@ -107,6 +107,114 @@ const getToolDefinitions = () => {
           }
         }
       }
+    },
+    
+    // New file listing tools
+    listAllFiles: {
+      name: 'listAllFiles',
+      description: 'List all files in the knowledge base',
+      version: '1.0.0',
+      location: 'backend',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of files to return (default: 20)'
+          },
+          sortBy: {
+            type: 'string',
+            description: 'Sort files by this field (created_at, title)',
+            enum: ['created_at', 'title']
+          },
+          sortDirection: {
+            type: 'string',
+            description: 'Sort direction (asc, desc)',
+            enum: ['asc', 'desc']
+          }
+        }
+      }
+    },
+    
+    listFilesByType: {
+      name: 'listFilesByType',
+      description: 'List files of a specific type in the knowledge base',
+      version: '1.0.0',
+      location: 'backend',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileType: {
+            type: 'string',
+            description: 'Type of files to list (pdf, url, youtube, text, etc.)',
+            enum: ['pdf', 'url', 'youtube', 'text', 'document']
+          },
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of files to return (default: 20)'
+          },
+          sortBy: {
+            type: 'string',
+            description: 'Sort files by this field (created_at, title)',
+            enum: ['created_at', 'title']
+          },
+          sortDirection: {
+            type: 'string',
+            description: 'Sort direction (asc, desc)',
+            enum: ['asc', 'desc']
+          }
+        },
+        required: ['fileType']
+      }
+    },
+    
+    listFilesWithContent: {
+      name: 'listFilesWithContent',
+      description: 'List files containing specific content or keywords',
+      version: '1.0.0',
+      location: 'backend',
+      parameters: {
+        type: 'object',
+        properties: {
+          contentQuery: {
+            type: 'string',
+            description: 'Content or keywords to search for in files'
+          },
+          fileType: {
+            type: 'string',
+            description: 'Optional type of files to filter by (pdf, url, youtube, text, etc.)'
+          },
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of files to return (default: 10)'
+          }
+        },
+        required: ['contentQuery']
+      }
+    },
+    
+    listRecentFiles: {
+      name: 'listRecentFiles',
+      description: 'List recently added files in the knowledge base',
+      version: '1.0.0',
+      location: 'backend',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: {
+            type: 'integer',
+            description: 'Number of days to look back (default: 7)'
+          },
+          fileType: {
+            type: 'string',
+            description: 'Optional type of files to filter by (pdf, url, youtube, text, etc.)'
+          },
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of files to return (default: 10)'
+          }
+        }
+      }
     }
   };
 };
