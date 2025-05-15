@@ -1964,3 +1964,143 @@
   - Increased dimension tolerance from 5px to 10px to reduce unnecessary updates
   - Implemented style application caching to prevent redundant operations
   - Enhanced timeout handling with better coordination between loading phases
+
+## Changelog
+
+### 2023-08-25
+- Added cross-platform messaging system for seamless communication between frontend and backend
+- Implemented basic UI components for chat interface
+
+### 2023-09-01
+- Added backend memory management system for efficient context retrieval
+- Improved search functionality with better ranking algorithm
+
+### 2023-09-15
+- Integrated vector database for knowledge storage and retrieval
+- Added support for document uploads and processing
+
+### 2023-09-30
+- Implemented browser component for web research
+- Added ability to save web content to knowledge base
+
+### 2023-10-15
+- Improved chat UI with better message threading
+- Added support for code highlighting in chat messages
+
+### 2023-11-01
+- Implemented advanced memory management with forgetting mechanisms
+- Added support for user-defined memory importance
+
+### 2023-11-15
+- Added support for image generation and processing
+- Improved overall UI/UX with better responsiveness
+
+### 2023-12-01
+- Implemented user authentication and profile management
+- Added support for multiple agent personalities
+
+### 2023-12-15
+- Improved search with hybrid retrieval (vector + keyword)
+- Added support for audio input and output
+
+### 2024-01-15
+- Implemented collaborative features for team usage
+- Added export/import functionality for knowledge bases
+
+### 2024-02-01
+- Improved browser component with better rendering fidelity
+- Added support for PDF annotation and extraction
+
+### 2024-02-15
+- Implemented fine-tuning interface for personalized models
+- Added support for plugin system
+
+### 2024-03-01
+- Improved memory management with hierarchical storage
+- Added support for custom knowledge base organization
+
+### 2024-03-15
+- Implemented advanced reasoning capabilities
+- Added support for multi-modal inputs in chat
+
+### 2024-04-01
+- Fixed critical performance issues in memory retrieval
+- Improved UI responsiveness for large knowledge bases
+
+### 2024-04-15
+- Added advanced visualization tools for memory exploration
+- Implemented better error handling throughout the app
+
+### 2024-05-01
+- Enhanced browser component with improved navigation
+- Added support for batch processing of documents
+
+### 2024-05-15
+- Fixed security vulnerabilities in API endpoints
+- Improved cross-platform compatibility
+
+### 2024-06-01
+- Implemented new vector embedding models for better retrieval
+- Enhanced UI with customizable themes
+
+### 2024-06-15
+- Added support for collaborative document editing
+- Improved browser component with better JavaScript handling
+
+### 2024-07-01 
+- Fixed flickering issues in browser component
+  - Added anti-flicker flags to Electron startup
+  - Implemented hardware acceleration optimizations
+  - Added CSS transforms and backface visibility rules to prevent visual glitches
+  - Improved header modification for better iframe compatibility
+  - Enhanced rendering stability with GPU memory buffer support
+
+## [Unreleased]
+
+### Fixed
+- Fixed browser webview rendering flickering issue by preventing unnecessary style reapplications
+- Added style stabilization for browser component to maintain correct dimensions after initial render
+- Implemented style application safety checks to prevent disrupting correctly rendered pages
+
+# Changelog
+
+## [Unreleased]
+
+### Changed
+- Refactored browser component structure to ensure proper separation of concerns:
+  - Moved site-specific settings to `BrowserEnv.js`
+  - Added content processing functions to `ContentUtils.js` (cleanupHtmlForMemory, sanitizeUrlForAnalysis)
+  - Enhanced `ContentExtractor.js` with content extraction methods (extractPageContent, extractMainContent, extractHeadingStructure)
+  - Added bookmark handling methods to `BookmarkManager.js` (handleBookmarkCreation, updateBookmarksPanel)
+  - Added content rendering functions to `ContentRenderer.js` (renderHtml, createSafeIframe, renderContentView)
+  - Removed overlapping logic from Voyager.js
+
+## 2023-11-22
+
+### Added
+- Added code to handle and fix the issue with iframe height and cross-origin isolation
+- Added structured way to test and debug Browser issues 
+- Ensured that browser detection respects security warnings
+
+### Changed
+- Standardized all naming conventions in browser components
+- Refactored browser renderers for more consistent operation
+- Made browser component respect Electron environment properly
+- Improved loading content to show meaningful information
+- Refactored Voyager.js to improve separation of concerns:
+  - Moved site-specific settings to BrowserEnv.js (applySiteSpecificSettings)
+  - Moved content processing to ContentUtils.js (cleanupHtmlForMemory, sanitizeUrlForAnalysis)
+  - Enhanced ContentExtractor.js with extraction methods (extractPageContent, extractMainContent)
+  - Added bookmark management to BookmarkManager.js (handleBookmarkCreation)
+  - Added content rendering to ContentRenderer.js (renderHtml, createSafeIframe)
+  - Added style and UI management to BrowserRenderer.js
+  - Added error page handling to ErrorPageRenderer.js
+  - Added navigation functions to HistoryManager.js
+  - Added loading state handling to EventHandlers.js
+  - Created a React component-based implementation with proper state management
+
+### Fixed
+- Fixed iframe reload issue when refreshing the page
+- Fixed loading animation not showing during initial load
+- Fixed several CSS styling issues with web content
+- Fixed inconsistent naming (sanitizeHTML vs sanitizeHtml)

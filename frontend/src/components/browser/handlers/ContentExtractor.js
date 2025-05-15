@@ -342,8 +342,221 @@ export function updateResearchPanel(browser, content) {
   researchContent.prepend(entryElement);
 }
 
+/**
+ * Extract basic page info (title, description, etc)
+ * @param {Document} doc - DOM document object
+ * @returns {Object} Object with page info
+ */
+export function extractPageInfo(doc) {
+  if (!doc) return {};
+  
+  // Extract basic info
+  const info = {
+    title: doc.title || '',
+    metaDescription: '',
+    canonicalUrl: '',
+    ogImage: '',
+    ogTitle: '',
+    ogDescription: '',
+    faviconUrl: ''
+  };
+  
+  // Get meta description
+  const metaDesc = doc.querySelector('meta[name="description"]');
+  if (metaDesc) info.metaDescription = metaDesc.getAttribute('content') || '';
+  
+  // Get canonical URL
+  const canonical = doc.querySelector('link[rel="canonical"]');
+  if (canonical) info.canonicalUrl = canonical.getAttribute('href') || '';
+  
+  // Get OG image
+  const ogImage = doc.querySelector('meta[property="og:image"]');
+  if (ogImage) info.ogImage = ogImage.getAttribute('content') || '';
+  
+  // Get OG title
+  const ogTitle = doc.querySelector('meta[property="og:title"]');
+  if (ogTitle) info.ogTitle = ogTitle.getAttribute('content') || '';
+  
+  // Get OG description
+  const ogDesc = doc.querySelector('meta[property="og:description"]');
+  if (ogDesc) info.ogDescription = ogDesc.getAttribute('content') || '';
+  
+  // Get favicon URL
+  const favicon = doc.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
+  if (favicon) info.faviconUrl = favicon.getAttribute('href') || '';
+  
+  return info;
+}
+
+/**
+ * Extract all page content including text, links, and structure
+ * @param {Document} doc - DOM document object
+ * @param {string} url - Current page URL
+ * @returns {Object} Extracted content
+ */
+export function extractFullPageContent(doc, url) {
+  if (!doc) return { text: '', links: [], headings: [] };
+  
+  try {
+    // Basic page info
+    const pageInfo = extractPageInfo(doc);
+    
+    // Get all text content
+    let textContent = doc.body ? doc.body.textContent || '' : '';
+    textContent = textContent.replace(/\s+/g, ' ').trim();
+    
+    // Extract all links
+    const linkElements = doc.querySelectorAll('a[href]');
+    const links = Array.from(linkElements).map(link => {
+      const href = link.getAttribute('href') || '';
+      let absoluteUrl = href;
+      
+      // Convert relative URLs to absolute
+      if (href && !href.startsWith('http') && !href.startsWith('#') && !href.startsWith('javascript:')) {
+        try {
+          absoluteUrl = new URL(href, url).href;
+        } catch (err) {
+          // Keep original if URL construction fails
+          console.warn('Error converting relative URL:', err);
+        }
+      }
+      
+      return {
+        text: link.textContent.trim(),
+        url: absoluteUrl,
+        title: link.getAttribute('title') || ''
+      };
+    }).filter(link => link.url && link.url.startsWith('http'));
+    
+    // Extract heading structure
+    const headings = extractHeadingStructure(doc);
+    
+    return {
+      pageInfo,
+      text: textContent,
+      links,
+      headings,
+      mainContent: extractMainContent(doc)
+    };
+  } catch (err) {
+    console.warn('Error extracting page content:', err);
+    return { 
+      text: doc.body ? doc.body.textContent : '',
+      links: [],
+      headings: []
+    };
+  }
+}
+
+/**
+ * Extract meaningful main content from the page
+ * Uses heuristics to find the main content area
+ * @param {Document} doc - DOM document object
+ * @returns {string} Main content text
+ */
+export function extractMainContent(doc) {
+  if (!doc || !doc.body) return '';
+  
+  try {
+    // Possible content containers
+    const contentSelectors = [
+      'article',
+      '[role="main"]',
+      'main',
+      '.main-content',
+      '.content',
+      '#content',
+      '.post-content',
+      '.entry-content',
+      '.article-content'
+    ];
+    
+    // Try to find a good content container
+    let contentElement = null;
+    
+    for (const selector of contentSelectors) {
+      const elements = doc.querySelectorAll(selector);
+      
+      if (elements.length === 1) {
+        // Perfect - unique match
+        contentElement = elements[0];
+        break;
+      } else if (elements.length > 1) {
+        // Multiple matches - find the one with most text
+        let bestElement = null;
+        let maxLength = 0;
+        
+        for (const el of elements) {
+          const text = el.textContent || '';
+          if (text.length > maxLength) {
+            maxLength = text.length;
+            bestElement = el;
+          }
+        }
+        
+        if (bestElement && maxLength > 500) {
+          contentElement = bestElement;
+          break;
+        }
+      }
+    }
+    
+    // If we found a content element, use it
+    if (contentElement) {
+      const content = contentElement.textContent || '';
+      return content.replace(/\s+/g, ' ').trim();
+    }
+    
+    // Fallback: look for the element with the most paragraph text
+    const paragraphs = doc.querySelectorAll('p');
+    if (paragraphs.length > 5) {
+      return Array.from(paragraphs)
+        .map(p => p.textContent)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    
+    // Final fallback
+    return doc.body.textContent.replace(/\s+/g, ' ').trim();
+  } catch (err) {
+    console.warn('Error extracting main content:', err);
+    return doc.body.textContent || '';
+  }
+}
+
+/**
+ * Extract heading structure from the document
+ * @param {Document} doc - DOM document object
+ * @returns {Array} Array of headings with their level and text
+ */
+export function extractHeadingStructure(doc) {
+  if (!doc) return [];
+  
+  try {
+    const headingElements = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    
+    return Array.from(headingElements).map(heading => {
+      // Get heading level
+      const level = parseInt(heading.tagName.substring(1), 10);
+      
+      return {
+        level,
+        text: heading.textContent.trim()
+      };
+    });
+  } catch (err) {
+    console.warn('Error extracting heading structure:', err);
+    return [];
+  }
+}
+
 export default {
   extractPageContent,
   savePageToVectorDB,
-  updateResearchPanel
+  updateResearchPanel,
+  extractPageInfo,
+  extractFullPageContent,
+  extractMainContent,
+  extractHeadingStructure
 }; 

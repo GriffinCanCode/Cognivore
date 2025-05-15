@@ -749,6 +749,172 @@ export function updateLoadingProgress(browser, percent) {
   }
 }
 
+/**
+ * Check if the page is actually loaded even if events didn't fire
+ * This is a fallback for when navigation events don't fire properly
+ * @param {Object} browser - Browser instance
+ */
+export function checkIfPageIsLoaded(browser) {
+  if (!browser.webview) return;
+  
+  console.log('Checking if page is actually loaded despite missing events');
+  
+  // For Electron webview
+  if (browser.webview.tagName.toLowerCase() === 'webview') {
+    try {
+      // Try to use executeJavaScript to check readyState
+      if (typeof browser.webview.executeJavaScript === 'function') {
+        browser.webview.executeJavaScript(`
+          {
+            // Apply crucial styling first to ensure proper display while checking
+            document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
+            if (document.body) { 
+              document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
+              
+              // Add a style tag with !important rules to ensure they're applied
+              if (!document.getElementById('cognivore-essential-fix')) {
+                const style = document.createElement('style');
+                style.id = 'cognivore-essential-fix';
+                style.textContent = 'html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; overflow-y: auto !important; }';
+                document.head.appendChild(style);
+              }
+            }
+            
+            // Return true if page appears to be loaded
+            document.readyState === 'complete' || document.readyState === 'interactive';
+          }
+        `)
+        .then((isReady) => {
+          if (isReady) {
+            console.log('Page appears to be loaded based on readyState check');
+            
+            // Apply comprehensive styling immediately
+            if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+              browser.webview.applyAllCriticalStyles(true);
+            } else {
+              // Apply full styling immediately as fallback
+              browser.webview.executeJavaScript(`
+                // Apply comprehensive styles
+                document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
+                document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
+                
+                // Force fix in case default styles haven't been applied yet
+                const style = document.createElement('style');
+                style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; overflow-y: auto !important; }";
+                document.head.appendChild(style);
+                
+                // Apply Google-specific fixes if on Google
+                if (window.location.hostname.includes('google.com')) {
+                  const mainElements = document.querySelectorAll('#main, #cnt, #rcnt, #center_col, #rso');
+                  mainElements.forEach(el => {
+                    if (el) {
+                      el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important;";
+                    }
+                  });
+                  
+                  // Fix any search results container
+                  const searchContainer = document.querySelector('#center_col, #rso, #search');
+                  if (searchContainer) {
+                    searchContainer.style.cssText += "width: 100% !important; max-width: 900px !important; margin: 0 auto !important;";
+                  }
+                }
+                
+                true;
+              `).catch(() => {});
+            }
+            
+            // Update state and hide loading immediately
+            browser.isLoading = false;
+            updateLoadingState(browser, false);
+            
+            // Mark webview as ready to show
+            if (typeof browser.webview.readyToShow === 'undefined') {
+              browser.webview.readyToShow = true;
+            } else {
+              browser.webview.readyToShow = true;
+            }
+            
+            // Make webview visible with crucial styling
+            browser.webview.style.visibility = 'visible';
+            browser.webview.style.opacity = '1';
+            
+            // Hide loading content without delay
+            if (typeof browser.hideLoadingContent === 'function') {
+              browser.hideLoadingContent();
+            }
+          }
+        }).catch(err => {
+          console.warn('Error checking readyState:', err);
+        });
+      }
+      
+      // Get the current URL to check if navigation happened as a fallback
+      if (typeof browser.webview.getURL === 'function') {
+        const currentURL = browser.webview.getURL();
+        
+        // If URL changed, consider it loaded
+        if (currentURL && currentURL !== 'about:blank' && currentURL !== browser.currentUrl) {
+          console.log('Page appears to be loaded based on URL change:', currentURL);
+          browser.currentUrl = currentURL;
+          browser.isLoading = false;
+          updateLoadingState(browser, false);
+          
+          // Mark as ready
+          if (typeof browser.webview.readyToShow === 'undefined') {
+            browser.webview.readyToShow = true;
+          } else {
+            browser.webview.readyToShow = true;
+          }
+          
+          // Apply immediate styling
+          if (typeof browser.enforceWebviewStyles === 'function') {
+            browser.enforceWebviewStyles(true);
+          }
+          
+          // Ensure webview is visible
+          browser.webview.style.visibility = 'visible';
+          browser.webview.style.opacity = '1';
+          
+          // Hide loading content
+          if (typeof browser.hideLoadingContent === 'function') {
+            browser.hideLoadingContent();
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error checking if page is loaded:', err);
+    }
+  } else {
+    // For iframe fallback
+    try {
+      const contentWindow = browser.webview.contentWindow;
+      if (contentWindow && contentWindow.document) {
+        const readyState = contentWindow.document.readyState;
+        
+        if (readyState === 'complete' || readyState === 'interactive') {
+          console.log('Page appears to be loaded based on iframe readyState:', readyState);
+          browser.isLoading = false;
+          updateLoadingState(browser, false);
+          
+          if (typeof browser.webview.readyToShow === 'undefined') {
+            browser.webview.readyToShow = true;
+          } else {
+            browser.webview.readyToShow = true;
+          }
+          
+          // Hide loading content
+          if (typeof browser.hideLoadingContent === 'function') {
+            browser.hideLoadingContent();
+          }
+        }
+      }
+    } catch (err) {
+      // Security errors are expected for cross-origin iframes
+      console.warn('Error checking iframe loaded state (likely due to cross-origin restrictions)');
+    }
+  }
+}
+
 export default {
   handleWebviewLoad,
   handleWebviewError,
@@ -757,5 +923,6 @@ export default {
   handleFrameMessages,
   updateLoadingState,
   updateNavigationButtons,
-  updateLoadingProgress
+  updateLoadingProgress,
+  checkIfPageIsLoaded
 }; 

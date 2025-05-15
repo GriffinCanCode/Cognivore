@@ -410,8 +410,165 @@ export async function loadContentDirectly(webview, url) {
   }
 }
 
+/**
+ * Render HTML content safely
+ * @param {string} html - HTML content to render
+ * @returns {Object} Rendered content container
+ */
+export function renderHtml(html) {
+  // Create container for rendered content
+  const container = document.createElement('div');
+  container.className = 'rendered-content';
+  
+  // Set inner HTML safely (consider using DOMPurify)
+  container.innerHTML = html;
+  
+  // Disable all scripts
+  const scripts = container.querySelectorAll('script');
+  scripts.forEach(script => script.remove());
+  
+  // Process links to open in webview
+  const links = container.querySelectorAll('a');
+  links.forEach(link => {
+    const href = link.getAttribute('href');
+    if (href) {
+      link.setAttribute('target', '_blank');
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        // Find parent webview or dispatch event
+        let currentNode = container;
+        let webview = null;
+        
+        while (currentNode) {
+          if (currentNode.tagName && currentNode.tagName.toLowerCase() === 'webview') {
+            webview = currentNode;
+            break;
+          }
+          currentNode = currentNode.parentNode;
+        }
+        
+        if (webview) {
+          webview.src = href;
+        } else {
+          // Dispatch custom event for navigation handling
+          const event = new CustomEvent('navigate', { 
+            detail: { url: href }, 
+            bubbles: true 
+          });
+          container.dispatchEvent(event);
+        }
+      });
+    }
+  });
+  
+  return container;
+}
+
+/**
+ * Create a sanitized iframe
+ * @param {string} src - URL to load in iframe
+ * @param {Object} options - Additional options
+ * @returns {HTMLElement} Iframe element
+ */
+export function createSafeIframe(src, options = {}) {
+  const { width = '100%', height = '100%', sandbox = true } = options;
+  
+  // Create iframe
+  const iframe = document.createElement('iframe');
+  iframe.src = src;
+  iframe.width = width;
+  iframe.height = height;
+  
+  // Apply security attributes
+  if (sandbox) {
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
+  }
+  
+  iframe.setAttribute('frameborder', '0');
+  
+  return iframe;
+}
+
+/**
+ * Render content in the content view element
+ * @param {Object} browser - Browser instance 
+ * @param {string} content - HTML content to render
+ * @param {string} url - Current URL
+ */
+export function renderContentView(browser, content, url) {
+  if (!browser || !browser.container) return;
+  
+  // Find or create content view
+  let contentView = browser.container.querySelector('.browser-content-view');
+  if (!contentView) {
+    contentView = document.createElement('div');
+    contentView.className = 'browser-content-view';
+    browser.container.appendChild(contentView);
+  }
+  
+  // Clear previous content
+  contentView.innerHTML = '';
+  
+  // Create content wrapper
+  const contentWrapper = document.createElement('div');
+  contentWrapper.className = 'content-wrapper';
+  
+  // Add URL bar at top
+  const urlBar = document.createElement('div');
+  urlBar.className = 'content-url-bar';
+  urlBar.textContent = url;
+  contentWrapper.appendChild(urlBar);
+  
+  // Add actual content
+  const contentBody = document.createElement('div');
+  contentBody.className = 'content-body';
+  contentBody.innerHTML = content;
+  
+  // Process links in content
+  const links = contentBody.querySelectorAll('a');
+  links.forEach(link => {
+    const href = link.getAttribute('href');
+    if (href) {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        // Determine full URL
+        let fullUrl = href;
+        if (!href.startsWith('http')) {
+          try {
+            fullUrl = new URL(href, url).href;
+          } catch (err) {
+            console.warn('Invalid URL:', href);
+            return;
+          }
+        }
+        
+        // Navigate to URL
+        if (browser.navigateTo && typeof browser.navigateTo === 'function') {
+          browser.navigateTo(fullUrl);
+        } else if (browser.webview) {
+          browser.webview.src = fullUrl;
+        }
+      });
+    }
+  });
+  
+  contentWrapper.appendChild(contentBody);
+  contentView.appendChild(contentWrapper);
+  
+  // Show content view and hide webview
+  contentView.style.display = 'block';
+  if (browser.webview) {
+    browser.webview.style.display = 'none';
+  }
+}
+
 export default {
   renderProxiedContent,
   createBrowserPlaceholder,
-  loadContentDirectly
+  loadContentDirectly,
+  renderHtml,
+  createSafeIframe,
+  renderContentView
 }; 

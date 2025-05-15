@@ -231,9 +231,86 @@ export function formatUrl(url) {
   return formattedUrl;
 }
 
+/**
+ * Apply site-specific settings based on URL
+ * @param {string} url - The URL being navigated to
+ */
+export function applySiteSpecificSettings(url) {
+  if (!url) return;
+  
+  // Default settings
+  let settings = {
+    sandbox: 'standard',
+    headers: {},
+    userAgent: null,
+    bypassCSP: true
+  };
+  
+  // Google-specific settings
+  if (url.includes('google.com')) {
+    settings = {
+      sandbox: 'standard',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+      },
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      bypassCSP: true
+    };
+  }
+  
+  // YouTube-specific settings
+  else if (url.includes('youtube.com')) {
+    settings = {
+      sandbox: 'standard',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+      },
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      bypassCSP: true
+    };
+  }
+  
+  // Apply settings to webview
+  if (this.webview && this.webview.tagName.toLowerCase() === 'webview') {
+    try {
+      // Apply sandbox settings
+      if (settings.sandbox && typeof applySandboxSettings === 'function') {
+        applySandboxSettings(this.webview, settings.sandbox);
+      }
+      
+      // Apply user agent
+      if (settings.userAgent && typeof this.webview.setUserAgent === 'function') {
+        this.webview.setUserAgent(settings.userAgent);
+      }
+      
+      // Handle CSP bypass through session if available
+      if (settings.bypassCSP && this.webview.getSession) {
+        try {
+          const session = this.webview.getSession();
+          if (session && session.webRequest) {
+            session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+              if (details.responseHeaders && details.responseHeaders['content-security-policy']) {
+                delete details.responseHeaders['content-security-policy'];
+              }
+              callback({ responseHeaders: details.responseHeaders });
+            });
+          }
+        } catch (err) {
+          console.warn('Error setting up CSP bypass:', err);
+        }
+      }
+      
+      console.log(`Applied site-specific settings for: ${url}`);
+    } catch (err) {
+      console.warn('Error applying site-specific settings:', err);
+    }
+  }
+}
+
 export default {
   detectEnvironment,
   applySandboxSettings,
   formatUrl,
-  forceElectronMode
+  forceElectronMode,
+  applySiteSpecificSettings
 }; 

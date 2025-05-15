@@ -635,10 +635,37 @@ export function createWebviewElement(browser) {
     
     // Create a single comprehensive style application function that applies all styles at once
     const applyAllCriticalStyles = (forcedApply = false) => {
-      // Don't reapply if already initialized and not forced
-      if (!forcedApply && webview._stylesInitialized) {
-        return;
+      // Create style application lock if not exists
+      if (!webview._styleApplicationLock) {
+        webview._styleApplicationLock = {
+          locked: false,
+          lastApplied: Date.now(),
+          pendingApplication: false
+        };
       }
+      
+      // Don't reapply if already initialized and not forced
+      if (!forcedApply) {
+        const now = Date.now();
+        const timeSinceLastApplication = now - webview._styleApplicationLock.lastApplied;
+        
+        // Skip application if we applied styles recently (within 1 second) and webview is already initialized
+        if (timeSinceLastApplication < 1000 && webview._stylesInitialized && webview.readyToShow) {
+          console.log('Skipping style reapplication - webview already initialized');
+          return;
+        }
+        
+        // Skip if already locked to prevent concurrent applications
+        if (webview._styleApplicationLock.locked) {
+          webview._styleApplicationLock.pendingApplication = true;
+          return;
+        }
+      }
+      
+      // Lock style application to prevent multiple concurrent applications
+      webview._styleApplicationLock.locked = true;
+      webview._styleApplicationLock.lastApplied = Date.now();
+      webview._styleApplicationLock.pendingApplication = false;
       
       console.log('Applying all critical webview styles at once');
       
@@ -648,6 +675,23 @@ export function createWebviewElement(browser) {
       // Apply content styling if webview is ready
       if (webview.isReady && typeof webview.executeJavaScript === 'function') {
         try {
+          // Don't execute if styles already initialized unless forced
+          if (webview._contentStylesApplied && !forcedApply) {
+            console.log('Content styles already applied, skipping to prevent flicker');
+            
+            // Unlock style application after skipping
+            setTimeout(() => {
+              webview._styleApplicationLock.locked = false;
+              
+              // If there's a pending application, apply it now
+              if (webview._styleApplicationLock.pendingApplication) {
+                applyAllCriticalStyles(true);
+              }
+            }, 100);
+            
+            return;
+          }
+          
           // Execute all styles at once for maximum performance
           webview.executeJavaScript(webview.precompiledStyleScript)
             .then(() => {
@@ -656,6 +700,7 @@ export function createWebviewElement(browser) {
               // Mark webview as ready to show immediately
               webview.readyToShow = true;
               webview._stylesInitialized = true;
+              webview._contentStylesApplied = true;
               
               // Make webview fully visible with all styles applied
               webview.style.cssText = `
@@ -686,16 +731,27 @@ export function createWebviewElement(browser) {
                 user-select: auto !important;
                 touch-action: auto !important;
               `;
+              
+              // Unlock style application after completion
+              setTimeout(() => {
+                webview._styleApplicationLock.locked = false;
+                
+                // If there's a pending application, apply it now
+                if (webview._styleApplicationLock.pendingApplication) {
+                  applyAllCriticalStyles(true);
+                }
+              }, 100);
             })
             .catch(err => {
               console.warn('Error applying content styles:', err);
               
               // Mark as ready anyway to ensure content becomes visible
               webview.readyToShow = true;
-              
-              // Make sure webview is visible despite script error
               webview.style.visibility = 'visible';
               webview.style.opacity = '1';
+              
+              // Unlock style application even on error
+              webview._styleApplicationLock.locked = false;
             });
         } catch (err) {
           console.warn('Exception applying content styles:', err);
@@ -704,11 +760,24 @@ export function createWebviewElement(browser) {
           webview.readyToShow = true;
           webview.style.visibility = 'visible';
           webview.style.opacity = '1';
+          
+          // Unlock style application on error
+          webview._styleApplicationLock.locked = false;
         }
       } else {
         // Force visibility even if not fully ready
         webview.style.visibility = 'visible';
         webview.style.opacity = '1';
+        
+        // Unlock style application when not ready
+        setTimeout(() => {
+          webview._styleApplicationLock.locked = false;
+          
+          // If there's a pending application, apply it now
+          if (webview._styleApplicationLock.pendingApplication) {
+            applyAllCriticalStyles(true);
+          }
+        }, 100);
       }
     };
 
@@ -1200,7 +1269,7 @@ export function createWebview(browser, implementation, sandboxLevel) {
 }
 
 /**
- * Create browser progress bar
+ * Create progress bar
  * @returns {HTMLElement} Progress bar element
  */
 export function createProgressBar() {
@@ -1247,6 +1316,386 @@ export function createProgressBar() {
   progressContainer.appendChild(progressBar);
   
   return progressContainer;
+}
+
+/**
+ * Show loading content in the browser
+ * @param {Object} browser - Browser instance
+ * @param {string} url - The URL being loaded
+ */
+export function showLoadingContent(browser, url) {
+  // Check if loading content already exists
+  let loadingContent = document.querySelector('.browser-loading-content');
+  
+  // Create if it doesn't exist
+  if (!loadingContent) {
+    loadingContent = document.createElement('div');
+    loadingContent.className = 'browser-loading-content';
+    loadingContent.style.cssText = `
+      position: fixed !important;
+      top: 52px !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+      background-color: var(--bg-color, #1a1a1a) !important;
+      z-index: 1000 !important;
+      width: 100vw !important;
+      height: calc(100vh - 52px) !important;
+      transition: opacity 0.3s ease !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      min-height: calc(100vh - 52px) !important;
+      transform: none !important;
+    `;
+    
+    // Add spinner
+    const spinner = document.createElement('div');
+    spinner.className = 'browser-loading-spinner';
+    spinner.style.cssText = `
+      width: 48px !important;
+      height: 48px !important;
+      border: 4px solid rgba(76, 110, 245, 0.1) !important;
+      border-top-color: #4c6ef5 !important;
+      border-radius: 50% !important;
+      animation: spin 1s linear infinite !important;
+      margin-bottom: 24px !important;
+    `;
+    loadingContent.appendChild(spinner);
+    
+    // Add loading message
+    const message = document.createElement('h3');
+    message.textContent = 'Loading...';
+    message.style.cssText = `
+      font-size: 24px !important;
+      margin-bottom: 16px !important;
+      color: #e0e0e0 !important;
+      font-weight: 600 !important;
+    `;
+    loadingContent.appendChild(message);
+    
+    // Add URL info
+    const urlInfo = document.createElement('p');
+    urlInfo.className = 'browser-loading-url';
+    urlInfo.style.cssText = `
+      padding: 8px 16px !important;
+      background-color: rgba(76, 110, 245, 0.1) !important;
+      border-radius: 4px !important;
+      font-family: monospace !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+      max-width: 80% !important;
+      color: #aaaaaa !important;
+      margin-bottom: 24px !important;
+    `;
+    loadingContent.appendChild(urlInfo);
+    
+    // Append directly to body for maximum visibility
+    document.body.appendChild(loadingContent);
+  }
+  
+  // Keep webview hidden until fully ready
+  if (browser.webview) {
+    // Apply critical styling but keep it hidden
+    browser.webview.style.cssText = `
+      display: flex !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      z-index: 0 !important;
+      position: fixed !important;
+      top: 52px !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100vw !important;
+      height: calc(100vh - 52px) !important;
+      min-height: calc(100vh - 52px) !important;
+      max-height: calc(100vh - 52px) !important;
+      min-width: 100vw !important;
+      max-width: 100vw !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+      background-color: white !important;
+      flex: 1 1 auto !important;
+      transform: none !important;
+    `;
+    
+    // Reset readyToShow flag if it exists
+    if (typeof browser.webview.readyToShow !== 'undefined') {
+      browser.webview.readyToShow = false;
+    }
+  }
+  
+  // Update URL info
+  const urlInfo = loadingContent.querySelector('.browser-loading-url');
+  if (urlInfo) {
+    urlInfo.textContent = url;
+  }
+  
+  // Ensure loading content is visible
+  loadingContent.style.display = 'flex';
+  loadingContent.style.opacity = '1';
+}
+
+/**
+ * Hide loading content
+ * @param {Object} browser - Browser instance
+ */
+export function hideLoadingContent(browser) {
+  const loadingContent = document.querySelector('.browser-loading-content');
+  if (!loadingContent) return;
+  
+  // Check if webview is ready to show before hiding loading screen
+  if (browser.webview) {
+    // Apply immediate crucial styling first
+    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+      browser.webview.applyAllCriticalStyles(true);
+    } else {
+      enforceWebviewStyles(browser, true);
+    }
+    
+    // Only hide loading content when webview is ready to show
+    if (typeof browser.webview.readyToShow === 'undefined' || browser.webview.readyToShow === true) {
+      // Webview is ready, proceed with hiding loading content immediately
+      _hideLoadingContent(loadingContent, browser);
+    } else {
+      // Webview not ready yet, wait for readyToShow flag to become true
+      console.log('Webview not yet ready to show, waiting before hiding loading screen');
+      
+      // Set a maximum timeout of 1 second (reduced from 1.5)
+      const maxWaitTime = 1000;
+      const startTime = Date.now();
+      
+      // Check more frequently (10ms instead of 25ms)
+      const readyCheckInterval = setInterval(() => {
+        // Force visibility if taking too long
+        if (Date.now() - startTime > maxWaitTime) {
+          clearInterval(readyCheckInterval);
+          console.log('Forcing loading content hide after timeout');
+          _hideLoadingContent(loadingContent, browser);
+          
+          // Force webview visibility
+          if (browser.webview) {
+            browser.webview.style.visibility = 'visible';
+            browser.webview.style.opacity = '1';
+            browser.webview.readyToShow = true;
+            
+            // Apply all styling immediately
+            if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+              browser.webview.applyAllCriticalStyles(true);
+            } else {
+              enforceWebviewStyles(browser, true);
+            }
+          }
+          return;
+        }
+        
+        if (browser.webview.readyToShow === true) {
+          // Webview is now ready
+          clearInterval(readyCheckInterval);
+          _hideLoadingContent(loadingContent, browser);
+        }
+      }, 10); // Check every 10ms for faster response
+    }
+  } else {
+    // No webview, just hide loading content
+    _hideLoadingContent(loadingContent, browser);
+  }
+}
+
+/**
+ * Internal method to actually hide the loading content
+ * @private
+ * @param {HTMLElement} loadingContent - The loading content element to hide
+ * @param {Object} browser - Browser instance
+ */
+function _hideLoadingContent(loadingContent, browser) {
+  // Hide loading content immediately
+  loadingContent.style.opacity = '0';
+  loadingContent.style.display = 'none';
+  
+  // Ensure webview is immediately visible with proper styling
+  if (browser.webview) {
+    // Now show the webview with all styles applied
+    browser.webview.style.cssText = `
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      z-index: 1 !important;
+      position: fixed !important;
+      top: 52px !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100vw !important;
+      height: calc(100vh - 52px) !important;
+      min-height: calc(100vh - 52px) !important;
+      max-height: calc(100vh - 52px) !important;
+      min-width: 100vw !important;
+      max-width: 100vw !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+      background-color: white !important;
+      flex: 1 1 auto !important;
+      transform: none !important;
+      overflow: hidden !important;
+    `;
+    
+    // Immediately apply content styles if possible
+    if (browser.webview.tagName.toLowerCase() === 'webview' && typeof browser.webview.executeJavaScript === 'function') {
+      try {
+        browser.webview.executeJavaScript(`
+          // Apply comprehensive styles
+          document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
+          document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
+          
+          // Force fix in case default styles haven't been applied yet
+          const style = document.createElement('style');
+          style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; }";
+          document.head.appendChild(style);
+          
+          true;
+        `).catch(() => {});
+      } catch (e) {
+        console.warn('Error applying final content styles:', e);
+      }
+    }
+  }
+  
+  // Remove loading content immediately
+  try {
+    // Try to remove from DOM completely 
+    if (loadingContent && loadingContent.parentNode) {
+      loadingContent.parentNode.removeChild(loadingContent);
+    }
+  } catch (err) {
+    console.warn('Error removing loading content:', err);
+  }
+}
+
+/**
+ * Enforce proper webview styling
+ * This should be called periodically to ensure proper display
+ * @param {Object} browser - Browser instance
+ * @param {boolean} [forcedApply=false] - If true, ignores the throttle check for immediate application
+ */
+export function enforceWebviewStyles(browser, forcedApply = false) {
+  // Only proceed if it's been at least 2 seconds since the last enforcement or if forced
+  const now = Date.now();
+  if (!forcedApply && browser._lastStyleEnforcement && (now - browser._lastStyleEnforcement < 2000)) {
+    return;
+  }
+  
+  // Don't apply if initial styles are applied properly and we're not forcing
+  if (!forcedApply && browser._initialStylesAppliedTime && 
+      (now - browser._initialStylesAppliedTime < 2000) && 
+      browser.webview && browser.webview.readyToShow) {
+    return;
+  }
+  
+  browser._lastStyleEnforcement = now;
+  
+  try {
+    if (!browser.webview || !browser.webview.isConnected || browser._isUnloading) {
+      return;
+    }
+    
+    // Apply direct styling fixes to the webview element
+    if (browser.webview.tagName.toLowerCase() === 'webview') {
+      const container = browser.webview.parentElement;
+      
+      // Only clear existing styles if forcing or if dimensions are wrong
+      if (forcedApply) {
+        // Clear any existing style attributes first
+        browser.webview.removeAttribute('style');
+      }
+      
+      // Apply comprehensive styling
+      browser.webview.style.cssText = `
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 1 !important;
+        position: fixed !important;
+        top: 52px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: calc(100vh - 52px) !important;
+        min-height: calc(100vh - 52px) !important;
+        max-height: calc(100vh - 52px) !important;
+        min-width: 100vw !important;
+        max-width: 100vw !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        background-color: white !important;
+        transform: none !important;
+        overflow: hidden !important;
+        flex: 1 1 auto !important;
+      `;
+      
+      // Use CSS class as well for extra reliability
+      browser.webview.classList.add('browser-webview');
+      
+      // Force layout recalculation to ensure styles are applied
+      void browser.webview.offsetHeight;
+      
+      if (container) {
+        // Ensure container has proper styling
+        container.style.cssText = `
+          position: fixed !important;
+          top: 52px !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          width: 100vw !important;
+          height: calc(100vh - 52px) !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          display: flex !important;
+          flex-direction: column !important;
+          z-index: 1 !important;
+          background-color: white !important;
+        `;
+        
+        // Force layout recalculation for container
+        void container.offsetHeight;
+      }
+    } else if (browser.webview.tagName.toLowerCase() === 'iframe') {
+      // Handle iframe styling
+      browser.webview.style.cssText = `
+        width: 100% !important;
+        height: 100% !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+      `;
+    }
+    
+    // Ensure webview is marked as ready to show
+    browser.webview.readyToShow = true;
+    
+    // Application of content styles is now handled by applyAllCriticalStyles
+    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+      browser.webview.applyAllCriticalStyles(forcedApply);
+    }
+  } catch (err) {
+    console.error('Error enforcing webview styles:', err);
+  }
 }
 
 /**
@@ -1522,10 +1971,649 @@ function useAlternativeHeaderBypass(webview) {
   }
 }
 
+/**
+ * Apply critical styles immediately before navigation starts
+ * This helps prevent the flickering effect
+ * @param {Object} browser - Browser instance
+ */
+export function applyPreNavigationStyles(browser) {
+  if (!browser.webview || browser.webview.tagName.toLowerCase() !== 'webview') {
+    return;
+  }
+  
+  try {
+    // Apply direct styling to the webview element with transition support
+    browser.webview.style.cssText = `
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 0 !important;
+      z-index: 1 !important;
+      position: fixed !important;
+      top: 52px !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100vw !important;
+      height: calc(100vh - 52px) !important;
+      min-height: calc(100vh - 52px) !important;
+      max-height: calc(100vh - 52px) !important;
+      min-width: 100vw !important;
+      max-width: 100vw !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+      background-color: white !important;
+      transform: none !important;
+      overflow: hidden !important;
+      flex: 1 1 auto !important;
+      pointer-events: auto !important;
+      user-select: auto !important;
+      touch-action: auto !important;
+      transition: opacity 0.3s ease-in-out !important;
+    `;
+    
+    // Force a layout recalculation to ensure styles are applied
+    void browser.webview.offsetHeight;
+    
+    // Directly manipulate key properties to ensure they're set correctly
+    browser.webview.style.top = '52px';
+    browser.webview.style.position = 'fixed';
+    
+    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+      browser.webview.applyAllCriticalStyles(true);
+    }
+    
+    // Apply critical content styles immediately if possible
+    if (typeof browser.webview.executeJavaScript === 'function') {
+      browser.webview.executeJavaScript(`
+        (function() {
+          // Function to apply essential styles
+          function applyEssentialStyles() {
+            // Apply immediate styles to html/body with !important to override site styles
+            if (document && document.documentElement) {
+              document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
+            }
+            if (document && document.body) {
+              document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
+            }
+            
+            // Add a persistent style element with high specificity
+            if (document && document.head && !document.getElementById('cognivore-essential-fix')) {
+              const style = document.createElement('style');
+              style.id = 'cognivore-essential-fix';
+              style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; }";
+              document.head.appendChild(style);
+            }
+          }
+          
+          // Try to apply immediately
+          applyEssentialStyles();
+          
+          // Also set up to apply on DOMContentLoaded
+          if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+            document.addEventListener('DOMContentLoaded', applyEssentialStyles);
+          }
+          
+          window.__styleFixApplied = true;
+          return true;
+        })();
+      `).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('Error applying pre-navigation styles:', e);
+  }
+}
+
+/**
+ * Schedule multiple style checks at different intervals
+ * This creates a cascading approach to catch and fix any styling issues
+ * @param {Object} browser - Browser instance
+ */
+export function scheduleStyleChecks(browser) {
+  // Clear any existing style check timers
+  if (browser._styleCheckTimers) {
+    browser._styleCheckTimers.forEach(timer => {
+      if (typeof timer === 'number') {
+        clearTimeout(timer);
+      } else if (timer) {
+        clearInterval(timer);
+      }
+    });
+  }
+  
+  browser._styleCheckTimers = [];
+  
+  // Set a debounce flag to prevent multiple style applications in quick succession
+  // This helps prevent flickering caused by rapid style changes
+  if (!browser._styleApplicationLock) {
+    browser._styleApplicationLock = {
+      locked: false,
+      lastApplied: Date.now(),
+      pendingApplication: false
+    };
+  }
+  
+  // Save initial correct styles timestamp to avoid unnecessary re-styling
+  browser._initialStylesAppliedTime = Date.now();
+  
+  // Instead of multiple checks, apply all critical styles at once
+  if (typeof browser.webview.applyAllCriticalStyles !== 'function') {
+    // Add the comprehensive style application method to the webview
+    browser.webview.applyAllCriticalStyles = (forceApply = false) => {
+      // Check if we should skip applying additional styles after initial render
+      // If not forced and styles were already applied recently, skip to avoid flickering
+      if (!forceApply) {
+        const now = Date.now();
+        const timeSinceLastApplication = now - browser._styleApplicationLock.lastApplied;
+        
+        // Skip application if we applied styles recently (within 1 second) and webview is ready
+        if (timeSinceLastApplication < 1000 && 
+            browser._initialStylesAppliedTime && 
+            (now - browser._initialStylesAppliedTime < 2000) && 
+            browser.webview.readyToShow) {
+          return;
+        }
+        
+        // Skip if already locked to prevent concurrent applications
+        if (browser._styleApplicationLock.locked) {
+          browser._styleApplicationLock.pendingApplication = true;
+          return;
+        }
+      }
+      
+      // Lock style application to prevent multiple concurrent applications
+      browser._styleApplicationLock.locked = true;
+      browser._styleApplicationLock.lastApplied = Date.now();
+      browser._styleApplicationLock.pendingApplication = false;
+    
+      console.log('Applying all critical webview styles at once');
+      
+      // Apply direct styling to the webview element
+      browser.webview.style.cssText = `
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 1 !important;
+        position: fixed !important;
+        top: 52px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: calc(100vh - 52px) !important;
+        min-height: calc(100vh - 52px) !important;
+        max-height: calc(100vh - 52px) !important;
+        min-width: 100vw !important;
+        max-width: 100vw !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        background-color: white !important;
+        transform: none !important;
+        overflow: hidden !important;
+        flex: 1 1 auto !important;
+        pointer-events: auto !important;
+        user-select: auto !important;
+        touch-action: auto !important;
+      `;
+      
+      // Force layout recalculation
+      void browser.webview.offsetHeight;
+      
+      // Apply content styles only if needed 
+      if (typeof browser.webview.executeJavaScript === 'function' && (!browser.webview._stylesInitialized || forceApply)) {
+        try {
+          // Set initialization flag to avoid unnecessary repeated application
+          browser.webview.readyToShow = true;
+          browser.webview._stylesInitialized = true;
+          
+          // Execute a comprehensive one-time style fix
+          const allInOneStyleScript = `
+            (function() {
+              // Don't re-apply styles if fully applied and not forced
+              if (window._styleFixComplete && !${forceApply}) {
+                return true;
+              }
+              
+              // --- Create comprehensive style element ---
+              if (!document.getElementById('cognivore-complete-fix')) {
+                const style = document.createElement('style');
+                style.id = 'cognivore-complete-fix';
+                document.head.appendChild(style);
+              }
+              
+              // Apply Google-specific CSS if on Google with enhanced selectors
+              const styleEl = document.getElementById('cognivore-complete-fix');
+              if (window.location.hostname.includes('google.com')) {
+                styleEl.textContent = \`
+                  html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    min-height: 100% !important;
+                    max-width: 100vw !important;
+                    overflow-x: hidden !important;
+                    overflow-y: auto !important;
+                  }
+                  
+                  /* Google Search specific fixes */
+                  #main, #cnt, #rcnt, #center_col, .yuRUbf, .MjjYud, #rso, main, [role="main"],
+                  div[role="main"], #search, #searchform, .sfbg, .minidiv, .g, .appbar, #searchform {
+                    width: 100% !important;
+                    min-height: 100% !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                  }
+                  .g, .yuRUbf, .MjjYud, .v7W49e, .ULSxyf, .MUxGbd, .aLF0Z {
+                    width: 100% !important;
+                    margin-right: 0 !important;
+                    padding-right: 0 !important;
+                    box-sizing: border-box !important;
+                  }
+                  /* Center content container */
+                  #center_col, #rso, #search {
+                    width: 100% !important;
+                    max-width: 900px !important;
+                    margin: 0 auto !important;
+                    overflow-x: hidden !important;
+                  }
+                \`;
+              } else {
+                // Generic styles for other sites with enhanced targeting
+                styleEl.textContent = \`
+                  html, body {
+                    width: 100% !important;
+                    height: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow: auto !important;
+                    position: absolute !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    bottom: 0 !important;
+                    box-sizing: border-box !important;
+                  }
+                  main, [role="main"], #main, .main-content, .content, #content, article, 
+                  header, footer, section, nav, aside, div[role="main"], .container {
+                    width: 100% !important;
+                    min-height: 100% !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                  }
+                  /* Apply comprehensive fixes */
+                  * {
+                    max-width: 100vw !important;
+                    overflow-x: hidden !important;
+                  }
+                \`;
+              }
+              
+              // Apply direct styles to HTML and BODY with more aggressive fix
+              document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;";
+              document.body.style.cssText += "width: 100% !important; height: 100% !important; overflow: auto !important; position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important;";
+              
+              // Set a completion flag
+              window._styleFixComplete = true;
+              return true;
+            })();
+          `;
+          
+          // Execute all styles at once
+          browser.webview.executeJavaScript(allInOneStyleScript)
+            .then(() => {
+              console.log('Comprehensive webview content styles successfully applied');
+              
+              // Unlock style application after completion
+              setTimeout(() => {
+                browser._styleApplicationLock.locked = false;
+                
+                // If there's a pending application, apply it now
+                if (browser._styleApplicationLock.pendingApplication) {
+                  browser.webview.applyAllCriticalStyles(true);
+                }
+              }, 100);
+            })
+            .catch(err => {
+              console.warn('Error applying comprehensive styles:', err);
+              browser._styleApplicationLock.locked = false;
+            });
+        } catch (err) {
+          console.warn('Error executing style script:', err);
+          browser._styleApplicationLock.locked = false;
+        }
+      } else {
+        // Unlock style application after skipping content styling
+        setTimeout(() => {
+          browser._styleApplicationLock.locked = false;
+          
+          // If there's a pending application, apply it now
+          if (browser._styleApplicationLock.pendingApplication) {
+            browser.webview.applyAllCriticalStyles(true);
+          }
+        }, 100);
+      }
+      
+      // Mark as ready to show
+      browser.webview.readyToShow = true;
+    };
+  }
+  
+  // Apply a single comprehensive style pass instead of multiple checks
+  if (browser.webview && !browser._isUnloading) {
+    browser.webview.applyAllCriticalStyles(true);
+    
+    // Immediately mark as ready to show
+    browser.webview.readyToShow = true;
+    browser.webview.style.opacity = '1';
+    
+    // Check page load once after a short delay
+    setTimeout(() => {
+      if (browser.webview && !browser._isUnloading) {
+        // Call the browser's method if it exists
+        if (typeof browser.checkIfPageIsLoaded === 'function') {
+          browser.checkIfPageIsLoaded();
+        }
+      }
+    }, 300);
+  }
+  
+  // Add a one-time check for safety after a substantial delay
+  const safetyCheck = setTimeout(() => {
+    if (browser.webview && !browser._isUnloading) {
+      const rect = browser.webview.getBoundingClientRect();
+      const expectedHeight = window.innerHeight - 52;
+      const expectedWidth = window.innerWidth;
+      
+      // Only reapply if dimensions are significantly wrong (>10px difference)
+      // Increased from previous 5px to reduce unnecessary style applications
+      if (Math.abs(rect.width - expectedWidth) > 10 || 
+          Math.abs(rect.height - expectedHeight) > 10 || 
+          rect.top !== 52 || rect.left !== 0) {
+        console.log('Safety check: Webview dimensions need adjustment');
+        browser.webview.applyAllCriticalStyles(true);
+      }
+    }
+  }, 1000);
+  
+  browser._styleCheckTimers.push(safetyCheck);
+  
+  // Only add resize handler if it doesn't already exist
+  if (!browser._resizeHandler) {
+    browser._resizeHandler = () => {
+      if (browser.webview && !browser._isUnloading && typeof browser.webview.applyAllCriticalStyles === 'function') {
+        // Debounce resize handler
+        if (browser._resizeTimer) {
+          clearTimeout(browser._resizeTimer);
+        }
+        browser._resizeTimer = setTimeout(() => {
+          browser.webview.applyAllCriticalStyles(true);
+        }, 250);
+      }
+    };
+    
+    window.addEventListener('resize', browser._resizeHandler);
+  }
+  
+  return browser._styleCheckTimers;
+}
+
+/**
+ * Schedule a series of opacity transitions to create a smoother loading experience
+ * @param {Object} browser - Browser instance
+ */
+export function scheduleOpacityTransitions(browser) {
+  if (!browser.webview) return;
+  
+  // Clear any existing opacity timers
+  if (browser._opacityTimers) {
+    browser._opacityTimers.forEach(timer => clearTimeout(timer));
+    browser._opacityTimers = [];
+  }
+  
+  // Start with invisibility for smoother transition
+  browser.webview.style.cssText += `
+    visibility: visible !important;
+    opacity: 0 !important;
+    transition: opacity 0.3s ease-in-out !important;
+  `;
+  
+  // Apply a single transition to full opacity after a brief delay
+  const timer = setTimeout(() => {
+    if (browser.webview && browser.webview.isConnected && !browser._isUnloading) {
+      // Apply full styles first to ensure dimensions are correct
+      if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+        browser.webview.applyAllCriticalStyles(true);
+      }
+      
+      // Fade in with transition
+      browser.webview.style.opacity = '1';
+    }
+  }, 50);
+  
+  browser._opacityTimers = [timer];
+  
+  // Clean up timers after max time
+  setTimeout(() => {
+    if (browser._opacityTimers) {
+      browser._opacityTimers.forEach(timer => clearTimeout(timer));
+      browser._opacityTimers = [];
+    }
+  }, 1000);
+  
+  return browser._opacityTimers;
+}
+
+/**
+ * Setup the browser layout 
+ * @param {Object} browser - The browser instance
+ */
+export function setupBrowserLayout(browser) {
+  if (!browser || !browser.containerRef || !browser.containerRef.current) {
+    console.error('Cannot set up browser layout - container reference is missing');
+    return;
+  }
+
+  const container = browser.containerRef.current;
+  
+  // Create header
+  const header = createBrowserHeader(browser);
+  container.appendChild(header);
+  
+  // Create progress bar
+  const progressBar = createProgressBar();
+  container.appendChild(progressBar);
+  
+  // Create main content area
+  const webviewContainer = document.createElement('div');
+  webviewContainer.className = 'browser-webview-container';
+  webviewContainer.style.flex = '1';
+  webviewContainer.style.position = 'relative';
+  webviewContainer.style.overflow = 'hidden';
+  container.appendChild(webviewContainer);
+  
+  // Create research panel
+  const researchPanel = createResearchPanel();
+  container.appendChild(researchPanel);
+  
+  // Store references
+  browser.header = header;
+  browser.progressBar = progressBar.querySelector('.browser-progress-bar');
+  browser.progressContainer = progressBar;
+  browser.webviewContainer = webviewContainer;
+  browser.researchPanel = researchPanel;
+}
+
+/**
+ * Setup the navigation bar for the browser
+ * @param {Object} browser - The browser instance
+ */
+export function setupNavigationBar(browser) {
+  if (!browser || !browser.header) {
+    console.error('Cannot set up navigation bar - header is missing');
+    return;
+  }
+  
+  // Find navigation buttons
+  const backButton = browser.header.querySelector('.browser-back-btn');
+  const forwardButton = browser.header.querySelector('.browser-forward-btn');
+  const refreshButton = browser.header.querySelector('.browser-refresh-btn');
+  const stopButton = browser.header.querySelector('.browser-stop-btn');
+  const searchForm = browser.header.querySelector('.browser-search-form');
+  const searchInput = browser.header.querySelector('.browser-search-input');
+  
+  // Set references
+  browser.backButton = backButton;
+  browser.forwardButton = forwardButton;
+  browser.refreshButton = refreshButton;
+  browser.stopButton = stopButton;
+  browser.searchForm = searchForm;
+  browser.searchInput = searchInput;
+  
+  // Initialize button states
+  backButton.disabled = true;
+  forwardButton.disabled = true;
+  
+  // Set input reference
+  browser.addressInput = searchInput;
+  
+  // Set up event handlers
+  searchForm.addEventListener('submit', browser.handleAddressSubmit);
+  searchInput.addEventListener('change', browser.handleAddressChange);
+  backButton.addEventListener('click', () => browser.handleBackAction(browser));
+  forwardButton.addEventListener('click', () => browser.handleForwardAction(browser));
+  refreshButton.addEventListener('click', browser.refreshPage);
+  stopButton.addEventListener('click', browser.stopLoading);
+}
+
+/**
+ * Setup the webview container with the appropriate webview implementation
+ * @param {Object} browser - The browser instance
+ */
+export function setupWebViewContainer(browser) {
+  if (!browser || !browser.webviewContainer) {
+    console.error('Cannot set up webview container - container is missing');
+    return;
+  }
+  
+  // Determine browser implementation based on environment
+  const { webviewImplementation } = browser.state.environment;
+  
+  // Create webview
+  const { container, webview } = createWebview(browser, webviewImplementation, 'standard');
+  
+  // Replace container contents with new webview container
+  browser.webviewContainer.innerHTML = '';
+  browser.webviewContainer.appendChild(container);
+  
+  // Set up event handlers
+  if (webview) {
+    // For Electron webview
+    if (webview.tagName.toLowerCase() === 'webview') {
+      webview.addEventListener('did-start-loading', () => handleLoadStart(browser));
+      webview.addEventListener('did-stop-loading', () => handleLoadStop(browser));
+      webview.addEventListener('did-navigate', (e) => handlePageNavigation(browser, e));
+      webview.addEventListener('did-finish-load', browser.handleWebviewLoad);
+    } 
+    // For iframe
+    else {
+      webview.onload = browser.handleWebviewLoad;
+    }
+  }
+  
+  // Apply pre-navigation styles
+  applyPreNavigationStyles(browser);
+  
+  // Schedule style checks for consistent display
+  scheduleStyleChecks(browser);
+}
+
+/**
+ * Update the address bar with the current URL
+ * @param {Object} browser - The browser instance
+ * @param {string} url - The URL to display
+ */
+export function updateAddressBar(browser, url) {
+  if (!browser || !browser.addressInput) {
+    console.error('Cannot update address bar - input is missing');
+    return;
+  }
+  
+  browser.addressInput.value = url;
+}
+
+/**
+ * Update the loading indicator to show or hide progress
+ * @param {Object} browser - The browser instance
+ * @param {boolean} isLoading - Whether the browser is currently loading
+ */
+export function updateLoadingIndicator(browser, isLoading) {
+  if (!browser || !browser.progressBar || !browser.refreshButton || !browser.stopButton) {
+    console.error('Cannot update loading indicator - elements missing');
+    return;
+  }
+  
+  if (isLoading) {
+    // Show progress bar
+    browser.progressBar.style.display = 'block';
+    browser.progressBar.style.width = '80%';
+    
+    // Show stop button, hide refresh button
+    browser.refreshButton.style.display = 'none';
+    browser.stopButton.style.display = 'block';
+  } else {
+    // Finish progress animation then hide
+    browser.progressBar.style.width = '100%';
+    setTimeout(() => {
+      browser.progressBar.style.display = 'none';
+      browser.progressBar.style.width = '0%';
+    }, 300);
+    
+    // Show refresh button, hide stop button
+    browser.refreshButton.style.display = 'block';
+    browser.stopButton.style.display = 'none';
+  }
+}
+
+/**
+ * Update the page title in the browser
+ * @param {Object} browser - The browser instance
+ * @param {string} title - The page title
+ */
+export function updatePageTitle(browser, title) {
+  if (!browser) {
+    console.error('Cannot update page title - browser instance is missing');
+    return;
+  }
+  
+  // Update browser state
+  browser.setState({ title });
+  
+  // Update document title if needed
+  if (browser.props.updateDocumentTitle && title) {
+    document.title = title;
+  }
+}
+
 export default {
   createBrowserHeader,
   createResearchPanel,
   createWebviewElement,
+  createWebview,
   createProgressBar,
-  createWebview
+  showLoadingContent,
+  hideLoadingContent,
+  enforceWebviewStyles,
+  applyPreNavigationStyles,
+  scheduleStyleChecks,
+  scheduleOpacityTransitions,
+  setupBrowserLayout,
+  setupNavigationBar,
+  setupWebViewContainer,
+  updateAddressBar,
+  updateLoadingIndicator,
+  updatePageTitle
 }; 

@@ -292,6 +292,193 @@ function createGenericErrorPage(data) {
   `;
 }
 
+/**
+ * Show navigation error page in the browser
+ * @param {Object} browser - Browser instance
+ * @param {string} url - The URL that failed to load
+ * @param {string} errorMessage - The error message to display
+ */
+export function showNavigationErrorPage(browser, url, errorMessage) {
+  if (!browser.webview) return;
+  
+  console.error(`Navigation error for ${url}: ${errorMessage}`);
+  
+  // Hide loading content
+  if (typeof browser.hideLoadingContent === 'function') {
+    browser.hideLoadingContent();
+  }
+  
+  // Create error page HTML
+  const errorHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Navigation Error</title>
+      <style>
+        html, body {
+          height: 100%;
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+          background-color: #f7f7f7;
+          color: #333;
+        }
+        .error-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          padding: 20px;
+          box-sizing: border-box;
+          text-align: center;
+        }
+        .error-icon {
+          width: 64px;
+          height: 64px;
+          margin-bottom: 24px;
+          color: #e74c3c;
+        }
+        .error-title {
+          font-size: 24px;
+          margin-bottom: 16px;
+          color: #e74c3c;
+        }
+        .error-message {
+          font-size: 16px;
+          margin-bottom: 24px;
+          max-width: 600px;
+          line-height: 1.5;
+        }
+        .error-url {
+          font-size: 14px;
+          color: #666;
+          margin-bottom: 24px;
+          word-break: break-all;
+          max-width: 80%;
+          padding: 8px 16px;
+          background-color: #eee;
+          border-radius: 4px;
+        }
+        .retry-button {
+          padding: 10px 20px;
+          background-color: #3498db;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.3s;
+        }
+        .retry-button:hover {
+          background-color: #2980b9;
+        }
+        .alternative-button {
+          padding: 10px 20px;
+          background-color: transparent;
+          color: #3498db;
+          border: 1px solid #3498db;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          margin-left: 10px;
+          transition: background-color 0.3s;
+        }
+        .alternative-button:hover {
+          background-color: rgba(52, 152, 219, 0.1);
+        }
+        .error-help {
+          font-size: 14px;
+          color: #666;
+          margin-top: 24px;
+          max-width: 600px;
+          line-height: 1.5;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="error-container">
+        <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <h1 class="error-title">Navigation Error</h1>
+        <p class="error-message">${errorMessage || 'There was an error loading this page.'}</p>
+        <div class="error-url">${url}</div>
+        <div>
+          <button class="retry-button" onclick="window.location.reload()">Retry</button>
+          <button class="alternative-button" onclick="window.location.href='https://www.google.com'">Go to Google</button>
+        </div>
+        <p class="error-help">
+          If the problem persists, please try again later or check your internet connection.
+        </p>
+      </div>
+      <script>
+        // Add message handling to communicate with parent
+        document.addEventListener('DOMContentLoaded', function() {
+          // Retry button
+          const retryButton = document.querySelector('.retry-button');
+          if (retryButton) {
+            retryButton.addEventListener('click', function(e) {
+              e.preventDefault();
+              window.parent.postMessage({ 
+                type: 'cognivore-refresh-page',
+                url: '${url}'
+              }, '*');
+            });
+          }
+          
+          // Go to Google button
+          const alternativeButton = document.querySelector('.alternative-button');
+          if (alternativeButton) {
+            alternativeButton.addEventListener('click', function(e) {
+              e.preventDefault();
+              window.parent.postMessage({ 
+                type: 'cognivore-navigate', 
+                url: 'https://www.google.com' 
+              }, '*');
+            });
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `;
+  
+  // Load error page into webview
+  if (browser.webview.tagName.toLowerCase() === 'webview') {
+    try {
+      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(errorHTML)}`;
+      
+      if (typeof browser.webview.loadURL === 'function') {
+        browser.webview.loadURL(dataUrl).catch(err => {
+          console.error('Failed to load error page via loadURL:', err);
+          browser.webview.src = dataUrl;
+        });
+      } else {
+        browser.webview.src = dataUrl;
+      }
+    } catch (err) {
+      console.error('Error showing navigation error page:', err);
+      // Last resort
+      browser.webview.src = `data:text/html;charset=utf-8,${encodeURIComponent(errorHTML)}`;
+    }
+  } else {
+    // For iframe fallback
+    browser.webview.src = `data:text/html;charset=utf-8,${encodeURIComponent(errorHTML)}`;
+  }
+  
+  // Update loading state if there's a method for it
+  if (typeof browser.updateLoadingState === 'function') {
+    browser.isLoading = false;
+    browser.updateLoadingState(false);
+  }
+}
+
 export default {
-  renderErrorPage
+  renderErrorPage,
+  showNavigationErrorPage
 }; 

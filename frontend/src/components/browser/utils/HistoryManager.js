@@ -142,6 +142,162 @@ export function saveHistory(history, historyIndex) {
   }
 }
 
+/**
+ * Try a direct navigation method (used for alternative navigation approaches)
+ * @param {Object} browser - Browser instance
+ * @param {string} url - URL to navigate to
+ */
+export function tryDirectNavigation(browser, url) {
+  if (!url) return;
+  
+  console.log('Attempting direct navigation method for URL:', url);
+  
+  // Show loading content
+  if (typeof browser.showLoadingContent === 'function') {
+    browser.showLoadingContent(url);
+  }
+  
+  // Use appropriate method for webview
+  if (browser.webview) {
+    if (browser.webview.tagName.toLowerCase() === 'webview') {
+      try {
+        if (typeof browser.webview.src === 'string') {
+          // Set src directly
+          browser.webview.src = url;
+        } else if (typeof browser.webview.loadURL === 'function') {
+          // Use loadURL method
+          browser.webview.loadURL(url);
+        }
+      } catch (err) {
+        console.error('Error in direct navigation:', err);
+      }
+    } else if (browser.contentFrame) {
+      browser.contentFrame.src = url;
+    }
+  }
+  
+  // Update state
+  browser.currentUrl = url;
+  if (browser.searchInput) {
+    browser.searchInput.value = url;
+  }
+}
+
+/**
+ * Handle back button action
+ * @param {Object} browser - Browser instance
+ */
+export function handleBackAction(browser) {
+  if (!browser) return;
+  
+  // Check if we can go back
+  if (canGoBack(browser.state.historyPosition)) {
+    // Get previous URL
+    const result = goBack(browser.state.history, browser.state.historyPosition);
+    
+    if (result) {
+      // Update browser state
+      browser.setState({
+        historyPosition: result.historyIndex,
+        isLoading: true
+      });
+      
+      // Navigate to the URL
+      browser.navigate(result.url);
+      
+      // Update button states
+      if (browser.backButton) {
+        browser.backButton.disabled = !canGoBack(result.historyIndex);
+      }
+      if (browser.forwardButton) {
+        browser.forwardButton.disabled = !canGoForward(browser.state.history, result.historyIndex);
+      }
+    }
+  }
+}
+
+/**
+ * Handle forward button action
+ * @param {Object} browser - Browser instance
+ */
+export function handleForwardAction(browser) {
+  if (!browser) return;
+  
+  // Check if we can go forward
+  if (canGoForward(browser.state.history, browser.state.historyPosition)) {
+    // Get next URL
+    const result = goForward(browser.state.history, browser.state.historyPosition);
+    
+    if (result) {
+      // Update browser state
+      browser.setState({
+        historyPosition: result.historyIndex,
+        isLoading: true
+      });
+      
+      // Navigate to the URL
+      browser.navigate(result.url);
+      
+      // Update button states
+      if (browser.backButton) {
+        browser.backButton.disabled = !canGoBack(result.historyIndex);
+      }
+      if (browser.forwardButton) {
+        browser.forwardButton.disabled = !canGoForward(browser.state.history, result.historyIndex);
+      }
+    }
+  }
+}
+
+/**
+ * Update the visited URLs history with a new URL
+ * @param {Object} browser - Browser instance
+ * @param {string} url - URL to add to history
+ */
+export function updateVisitedUrls(browser, url) {
+  if (!browser || !url) return;
+  
+  // Update the history state
+  const { history, historyIndex } = addToHistory(
+    browser.state.history,
+    browser.state.historyPosition,
+    url
+  );
+  
+  // Update the browser state
+  browser.setState({
+    history,
+    historyPosition: historyIndex
+  });
+  
+  // Save to localStorage
+  saveHistory(history, historyIndex);
+  
+  // Update navigation buttons
+  if (browser.backButton) {
+    browser.backButton.disabled = !canGoBack(historyIndex);
+  }
+  if (browser.forwardButton) {
+    browser.forwardButton.disabled = !canGoForward(history, historyIndex);
+  }
+}
+
+/**
+ * Create a history record object
+ * @param {string} url - The URL
+ * @param {string} title - The page title
+ * @param {string} timestamp - ISO timestamp
+ * @returns {Object} History record object
+ */
+export function createHistoryRecord(url, title, timestamp) {
+  return {
+    url: url || '',
+    title: title || 'Untitled Page',
+    timestamp: timestamp || new Date().toISOString(),
+    id: `hist_${Date.now()}_${Math.floor(Math.random() * 10000)}`
+  };
+}
+
 export default {
   addToHistory,
   goBack,
@@ -150,5 +306,10 @@ export default {
   canGoForward,
   getCurrentUrl,
   loadHistory,
-  saveHistory
+  saveHistory,
+  tryDirectNavigation,
+  handleBackAction,
+  handleForwardAction,
+  updateVisitedUrls,
+  createHistoryRecord
 }; 
