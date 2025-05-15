@@ -2,7 +2,7 @@
  * SpecialWordRenderer Component
  * Renders special words (Mnemosyne, Cognivore) with dramatic styling
  */
-import logger from '../utils/logger.js';
+import logger from '../../utils/logger.js';
 
 // Create context-specific logger
 const specialWordsLogger = logger.scope('SpecialWordRenderer');

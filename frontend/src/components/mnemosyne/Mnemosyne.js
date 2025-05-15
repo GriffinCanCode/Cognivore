@@ -3,10 +3,10 @@
  * A visual component representing document processing workflow
  * Displays three cards for docs, links, and videos
  */
-import ApiService from '../services/ApiService.js';
-import DocProcessor from '../services/DocProcessorService.js';
-import logger from '../utils/logger.js';
-import MuseModel from '../utils/MuseModel.js';
+import ApiService from '../../services/ApiService.js';
+import DocProcessor from '../../services/DocProcessorService.js';
+import logger from '../../utils/logger.js';
+import MuseModel from '../../utils/MuseModel.js';
 
 // Create scope-specific logger
 const mnemosyneLogger = logger.scope('MnemosyneComponent');

@@ -215,6 +215,56 @@ const getToolDefinitions = () => {
           }
         }
       }
+    },
+    
+    // Database query tool
+    queryDatabase: {
+      name: 'queryDatabase',
+      description: 'Perform advanced semantic queries on the database to answer questions about stored data',
+      version: '1.0.0',
+      location: 'backend',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The natural language query to search for in the database'
+          },
+          filters: {
+            type: 'object',
+            description: 'Optional filters for the query',
+            properties: {
+              sourceType: {
+                type: 'string',
+                description: 'Filter by source type (pdf, url, youtube, etc.)'
+              },
+              dateRange: {
+                type: 'object',
+                description: 'Filter by date range',
+                properties: {
+                  from: {
+                    type: 'string',
+                    description: 'Start date (ISO format)'
+                  },
+                  to: {
+                    type: 'string',
+                    description: 'End date (ISO format)'
+                  }
+                }
+              }
+            }
+          },
+          includeContent: {
+            type: 'boolean',
+            description: 'Whether to include the full content in the results (default: false)'
+          },
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of results to return (default: 5)'
+          }
+        },
+        required: ['query']
+      }
     }
   };
 };

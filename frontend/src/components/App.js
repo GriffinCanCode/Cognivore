@@ -1,22 +1,28 @@
 /**
  * Main App Component - Coordinates the Cognivore application
  */
-import Sidebar from './Sidebar.js';
-import ChatHeader from './ChatHeader.js';
+import Sidebar from './ui/Sidebar.js';
+import ChatHeader from './chat/ChatHeader.js';
 import ChatUI from './ChatUI.js';
-import ThemeSwitcher from './ThemeSwitcher.js';
-import Footer from './Footer.js';
-import ContentViewer from './ContentViewer.js';
-import SearchSection from './SearchSection.js';
-import Header from './Header.js';
-import Mnemosyne from './Mnemosyne.js';
+import ThemeSwitcher from './renderers/ThemeSwitcher.js';
+import Footer from './ui/Footer.js';
+import ContentViewer from './chat/ContentViewer.js';
+import SearchSection from './chat/SearchSection.js';
+import Header from './ui/Header.js';
+import Mnemosyne from './mnemosyne/Mnemosyne.js';
 import Sieve from './Sieve.js';
 import DocProcessor from '../services/DocProcessorService.js';
 import logger from '../utils/logger.js';
 import Anthology from './Anthology.js';
+import Settings from './ui/Settings.js';
+import ToolRenderer from './tools/ToolRenderer.js';
+import Browser from './browser/Browser.js';
 
 // Create context-specific logger
 const appLogger = logger.scope('App');
+
+// Initialize the ToolRenderer singleton
+const toolRenderer = new ToolRenderer();
 
 class App {
   constructor() {
@@ -36,6 +42,8 @@ class App {
     this.mnemosyne = null; // Mnemosyne component
     this.sieve = null; // Sieve component
     this.anthology = null; // Anthology component
+    this.settings = null; // Settings component
+    this.browser = null; // Browser component
     
     // Bind methods
     this.handleNavigation = this.handleNavigation.bind(this);
@@ -49,6 +57,9 @@ class App {
   init() {
     appLogger.info('App.init called');
     
+    // Load required CSS files
+    this.loadStylesheets();
+    
     // Create notification service (can be null for now)
     const notificationService = null;
     
@@ -61,6 +72,9 @@ class App {
     
     // Connect ChatUI to ChatHeader
     this.chatUI.setHeaderComponent(this.chatHeader);
+    
+    // Initialize the tool rendering system
+    this.initializeToolSystem();
     
     // Create document manager (DocProcessor)
     this.documentManager = new DocProcessor(notificationService);
@@ -82,6 +96,12 @@ class App {
     
     // Create Anthology component
     this.anthology = new Anthology(notificationService);
+    
+    // Create Settings component
+    this.settings = new Settings(notificationService);
+    
+    // Create Browser component
+    this.browser = new Browser(notificationService);
     
     // Create search section
     this.searchSection = new SearchSection(notificationService);
@@ -118,6 +138,57 @@ class App {
   }
 
   /**
+   * Initialize the tool rendering system
+   */
+  initializeToolSystem() {
+    appLogger.info('Initializing tool rendering system');
+    
+    // Register event handlers for tool rendering
+    document.addEventListener('tool:rendered', (e) => {
+      appLogger.debug('Tool rendered:', e.detail.toolName);
+    });
+    
+    document.addEventListener('tool:error', (e) => {
+      appLogger.error('Tool rendering error:', e.detail.error);
+    });
+    
+    document.addEventListener('tool:execute', (e) => {
+      appLogger.info('Tool execution requested:', e.detail.toolCall);
+      if (this.chatUI) {
+        this.chatUI.executeToolCall(e.detail.toolCall);
+      }
+    });
+    
+    // Initialize the tool renderer (already done at the top level)
+    toolRenderer.initialize();
+  }
+
+  /**
+   * Load required stylesheets for the application
+   */
+  loadStylesheets() {
+    // Load tool renderers CSS
+    this.loadStylesheet('/styles/components/tool-renderers.css');
+    
+    // Load browser component CSS
+    this.loadStylesheet('/styles/components/browser.css');
+  }
+
+  /**
+   * Load a stylesheet if it hasn't been loaded already
+   * @param {string} href - Path to the stylesheet
+   */
+  loadStylesheet(href) {
+    if (!document.querySelector(`link[href="${href}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      document.head.appendChild(link);
+      appLogger.debug(`Loaded stylesheet: ${href}`);
+    }
+  }
+
+  /**
    * Set up event listeners for component communication
    */
   setupEventListeners() {
@@ -137,6 +208,12 @@ class App {
     // Listen for theme changes
     document.addEventListener('theme:changed', (e) => {
       appLogger.info(`Theme changed to ${e.detail.isDark ? 'dark' : 'light'}`);
+    });
+    
+    // Listen for settings changes
+    document.addEventListener('settings:changed', (e) => {
+      appLogger.info('Settings changed, updating application');
+      // You could add logic here to handle settings changes
     });
   }
 
@@ -218,6 +295,16 @@ class App {
       // For new chat, clear the messages and start fresh
       this.chatUI.handleNewChat();
       this.chatUI.focusInput();
+    } else if (itemId === 'api-settings' && this.settings) {
+      // For API settings, initialize the settings component
+      this.settings.initialize();
+    } else if (itemId === 'preferences' && this.settings) {
+      // For preferences, initialize the settings component with general tab
+      this.settings.activeTab = 'general';
+      this.settings.initialize();
+    } else if (itemId === 'browser' && this.browser) {
+      // For browser, initialize it
+      this.browser.initialize();
     }
     
     // If on mobile, close the sidebar
@@ -357,6 +444,18 @@ class App {
         mainContent.appendChild(this.contentViewer.render());
         break;
         
+      case 'browser':
+        // Render Browser component
+        appLogger.info('Rendering Browser component');
+        const browserElement = this.browser.render();
+        mainContent.appendChild(browserElement);
+        
+        // Initialize Browser
+        setTimeout(() => {
+          this.browser.initialize();
+        }, 100);
+        break;
+        
       case 'anthology':
         // Render Anthology component
         appLogger.info('Rendering Anthology component');
@@ -372,6 +471,19 @@ class App {
       case 'search':
         // Render search view
         mainContent.appendChild(this.searchSection.render());
+        break;
+        
+      case 'api-settings':
+      case 'preferences':
+        // Render Settings component
+        appLogger.info('Rendering Settings component');
+        const settingsElement = this.settings.render();
+        mainContent.appendChild(settingsElement);
+        
+        // Initialize Settings
+        setTimeout(() => {
+          this.settings.initialize();
+        }, 100);
         break;
         
       default:
@@ -410,6 +522,7 @@ class App {
     // Remove event listeners
     document.removeEventListener('content:selected', this.handleContentSelected);
     document.removeEventListener('content:updated', this.handleContentUpdated);
+    document.removeEventListener('settings:changed', null);
     
     // Clean up components
     if (this.sidebar) this.sidebar.cleanup();
@@ -423,6 +536,8 @@ class App {
     if (this.anthology) this.anthology.cleanup();
     if (this.searchSection) { /* no cleanup needed */ }
     if (this.header) { /* no cleanup needed */ }
+    if (this.settings) this.settings.cleanup();
+    if (this.browser) this.browser.cleanup();
     
     // Remove document listeners from DocProcessor
     if (this.documentManager) {
@@ -464,6 +579,8 @@ class App {
     this.header = null;
     this.documentManager = null;
     this.anthology = null;
+    this.settings = null;
+    this.browser = null;
     
     appLogger.info('App cleanup complete');
   }

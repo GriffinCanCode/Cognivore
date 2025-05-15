@@ -21,5 +21,9 @@
     "auth": {
       "keyFilePath": ""
     }
-  }
+  },
+  "googleApiKey": "AIzaSyBojlGR-X8o-afNhQzoTbtN7O7QsvHqV-A",
+  "llmModel": "gemini-2.0-flash",
+  "embeddingModel": "text-embedding-005",
+  "debug": false
 } 

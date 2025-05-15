@@ -1,5 +1,5 @@
 // SearchSection component
-import ApiService from '../services/ApiService.js';
+import ApiService from '../../services/ApiService.js';
 
 class SearchSection {
   constructor(notificationService) {

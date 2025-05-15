@@ -1,0 +1,100 @@
+/* JSON Syntax Highlighting Styles */
+
+/* JSON key styling */
+.json-key {
+  color: #e06c75;
+}
+
+/* JSON string styling */
+.json-string {
+  color: #98c379;
+}
+
+/* JSON number styling */
+.json-number {
+  color: #d19a66;
+}
+
+/* JSON boolean styling */
+.json-boolean {
+  color: #56b6c2;
+}
+
+/* JSON null styling */
+.json-null {
+  color: #c678dd;
+}
+
+/* Tool result pre formatting */
+pre.tool-result {
+  background-color: rgba(36, 41, 51, 0.7);
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.9em;
+  border-left: 3px solid rgba(79, 209, 197, 0.7);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Result list styling */
+.result-header {
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+}
+
+.result-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.result-item {
+  display: flex;
+  background-color: rgba(36, 41, 51, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.item-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  background-color: rgba(79, 209, 197, 0.2);
+  font-weight: 500;
+}
+
+.item-content {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+}
+
+.item-title {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: rgba(229, 231, 235, 0.8);
+}
+
+.item-field {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.field-name {
+  color: rgba(79, 209, 197, 0.9);
+  min-width: 80px;
+} 

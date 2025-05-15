@@ -1,5 +1,6 @@
 // LlmService for Gemini 2.5 Flash integration
 import systemPrompt from './systemPrompt';
+import messageFormatter from '../utils/messageFormatter.js';
 
 class LlmService {
   constructor() {
@@ -8,6 +9,7 @@ class LlmService {
     this.config = null;
     this.configPromise = this.loadConfig();
     this.apiKeyMissing = false;
+    this.debugMode = process.env.NODE_ENV !== 'production'; // Enable debug mode in development
   }
 
   /**
@@ -74,121 +76,255 @@ class LlmService {
   }
 
   /**
-   * Send a message to the LLM and get a response
-   * @param {string} message - The user's message
-   * @param {Array} chatHistory - Previous messages in the conversation
-   * @param {Object} options - Additional options for the LLM call
-   * @returns {Promise<Object>} - The assistant's response
+   * Send a message to the LLM for processing
+   * @param {string} message - Message to send
+   * @param {Array} chatHistory - Previous chat history
+   * @param {Object} options - Additional options for the LLM
+   * @returns {Promise<Object>} - Response from the LLM
    */
   async sendMessage(message, chatHistory = [], options = {}) {
     try {
-      console.log('Attempting to send message to LLM backend...');
-      
-      // If we already know the API key is missing, fail fast with a helpful message
-      if (this.apiKeyMissing) {
-        throw new Error('Google API key is missing. Please add your API key to the backend .env file and restart the server.');
+      // Check for backend connection first
+      if (!await this.checkBackendStatus()) {
+        return {
+          error: true,
+          text: "⚠️ Error: Backend server is not available. Please make sure the backend service is running.",
+          suggestedActions: [
+            { label: "Restart Application", action: "restart" },
+            { label: "Check Server Logs", action: "check_logs" }
+          ]
+        };
       }
 
-      // Check if backend is available with a timeout - use shorter timeout (3s) for better UX
-      let isBackendAvailable = false;
-      try {
-        isBackendAvailable = await Promise.race([
-          this.checkBackendStatus(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Backend connection timeout')), 3000))
-        ]);
-      } catch (connectionError) {
-        console.error('Backend connection error:', connectionError);
-        
-        // Try a second time with slightly longer timeout
+      // Prepare chat history with system prompt
+      const formattedHistory = this.formatChatHistoryWithSystemPrompt(chatHistory, options.systemPrompt);
+      
+      // Log memory usage before API call (if debug enabled)
+      if (this.debugMode) {
         try {
-          console.log('Retrying backend connection with longer timeout...');
-          isBackendAvailable = await Promise.race([
-            this.checkBackendStatus(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Backend connection timeout')), 5000))
-          ]);
-        } catch (retryError) {
-          console.error('Backend connection retry failed:', retryError);
+          console.debug('[LlmService] Memory before API call:', this.getMemoryUsage());
+        } catch (error) {
+          console.debug('[LlmService] Unable to get memory usage:', error.message);
+        }
+      }
+      
+      console.log('[LlmService] Sending chat request to backend server');
+      const response = await window.server.chat({
+        message,
+        chatHistory: formattedHistory,
+        model: options.model || this.defaultModel,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        tools: options.tools || this.getDefaultTools()
+      });
+      
+      console.log('[LlmService] Received response from backend server:', response);
+      
+      // Check for apiKeyMissing flag directly from preload.js response
+      if (response.apiKeyMissing) {
+        console.warn('[LlmService] API key missing detected, showing guidance');
+        return {
+          error: true,
+          text: "⚠️ Google API Key Missing",
+          details: [
+            "The Google API key is missing or couldn't be found. Please follow these steps:",
+            "1. Create a file named .env in the backend directory",
+            "2. Add your Google API key: GOOGLE_API_KEY=your_api_key_here",
+            "3. Restart the application",
+            "",
+            "You can get your Google API key from: https://ai.google.dev/"
+          ],
+          suggestedActions: [
+            { label: "Get API Key", action: "open_url", url: "https://ai.google.dev/" },
+            { label: "View Setup Guide", action: "view_docs", file: "API_SETUP.md" }
+          ],
+          apiKeyMissing: true
+        };
+      }
+      
+      // Check for error response from the IPC bridge
+      if (response.error === true) {
+        let errorMessage = response.message || "Unknown error occurred";
+        let errorDetails = [];
+        
+        // Provide helpful guidance for API key issues
+        if (errorMessage.includes("API key") || 
+            errorMessage.includes("unregistered callers") || 
+            errorMessage.includes("authentication") ||
+            errorMessage.includes("403 Forbidden")) {
           
-          if (retryError.message.includes('timeout')) {
-            throw new Error('Backend server connection timed out. It may be starting up or under heavy load. Please try again in a moment.');
-          } else {
-            throw new Error('Backend server is not available. Please start the backend server by running "npm run server" in the backend directory.');
+          errorMessage = "⚠️ Google API Key Issue: The application cannot connect to Gemini AI.";
+          errorDetails = [
+            "The Google API key is missing or invalid, or doesn't have proper permissions. Please follow these steps:",
+            "1. Get an API key from https://ai.google.dev/",
+            "2. Make sure your project is enabled for Gemini API including function calling",
+            "3. Add your key to backend/.env file: GOOGLE_API_KEY=YOUR_API_KEY",
+            "4. Restart the application",
+            "",
+            "For detailed instructions, see backend/API_SETUP.md"
+          ];
+          
+          return {
+            error: true,
+            text: errorMessage,
+            details: errorDetails,
+            suggestedActions: [
+              { label: "Get API Key", action: "open_url", url: "https://ai.google.dev/" },
+              { label: "View Setup Guide", action: "view_docs", file: "API_SETUP.md" },
+              { label: "Check API Status", action: "check_api_status" }
+            ]
+          };
+        }
+        
+        // Handle quota/rate limit errors
+        if (errorMessage.includes("rate limit") || errorMessage.includes("quota")) {
+          errorMessage = "⚠️ API Quota Exceeded: You've reached your Google AI API usage limits.";
+          errorDetails = [
+            "You've reached your Google AI API quota or rate limits. Please try:",
+            "1. Wait a few minutes and try again",
+            "2. Check your Google AI Studio quota and usage limits",
+            "3. Consider upgrading your Google AI plan for higher limits"
+          ];
+          
+          return {
+            error: true,
+            text: errorMessage,
+            details: errorDetails,
+            suggestedActions: [
+              { label: "Check Quota", action: "open_url", url: "https://console.cloud.google.com/apis/dashboard" }
+            ]
+          };
+        }
+        
+        // Generic error handling
+        return {
+          error: true,
+          text: errorMessage,
+          details: errorDetails
+        };
+      }
+      
+      // Process successful response using message formatter
+      if (!response) {
+        throw new Error('Empty response received from backend');
+      }
+
+      // Log raw response for debugging
+      console.log('[LlmService] Processing raw response:', JSON.stringify(response).substring(0, 200) + '...');
+      
+      // Handle character-by-character indexed response format
+      if (response && typeof response === 'object' && response['0'] !== undefined) {
+        console.log('[LlmService] Detected character-by-character response format, reconstructing');
+        // Reconstruct the string from indexed characters
+        let reconstructedText = '';
+        const keys = Object.keys(response)
+                          .filter(key => !isNaN(parseInt(key)))
+                          .sort((a, b) => parseInt(a) - parseInt(b));
+        
+        for (const key of keys) {
+          reconstructedText += response[key];
+        }
+        
+        console.log('[LlmService] Reconstructed text length:', reconstructedText.length);
+        
+        // Try to parse it as JSON
+        try {
+          const parsed = JSON.parse(reconstructedText);
+          console.log('[LlmService] Successfully parsed reconstructed text as JSON');
+          
+          // Extract the actual text from the candidates structure
+          if (parsed.candidates && parsed.candidates.length > 0) {
+            const candidate = parsed.candidates[0];
+            if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+              // Collect all text parts and check for tool calls
+              let textContent = '';
+              let toolCalls = [];
+              
+              // Process all parts of the candidate
+              candidate.content.parts.forEach((part, idx) => {
+                if (part.text) {
+                  textContent += part.text;
+                } else if (part.functionCall || part.toolCall) {
+                  const call = part.functionCall || part.toolCall;
+                  toolCalls.push({
+                    name: call.name,
+                    toolCallId: call.id || `call-${Date.now()}-${idx}`,
+                    args: call.args || call.arguments || {}
+                  });
+                }
+              });
+              
+              // Create a properly formatted message object
+              const message = {
+                role: 'assistant',
+                content: textContent,
+                timestamp: new Date().toISOString()
+              };
+              
+              // Add tool calls if any were found
+              if (toolCalls.length > 0) {
+                message.toolCalls = toolCalls;
+                console.log('[LlmService] Found tool calls in candidates response:', toolCalls);
+              }
+              
+              return message;
+            }
           }
+          
+          // If we couldn't extract text in the expected format, use the entire response
+          return {
+            role: 'assistant',
+            content: JSON.stringify(parsed),
+            timestamp: new Date().toISOString()
+          };
+        } catch (e) {
+          console.error('[LlmService] Failed to parse reconstructed text:', e);
+          // Return reconstructed text directly if not parseable
+          return {
+            role: 'assistant',
+            content: reconstructedText,
+            timestamp: new Date().toISOString()
+          };
         }
       }
-      
-      if (!isBackendAvailable) {
-        throw new Error('Backend server is not available. Please start the backend server by running "npm run server" in the backend directory.');
-      }
 
-      // Ensure config is loaded
-      await this.configPromise;
+      // Use the messageFormatter for other cases
+      let formattedResponse = messageFormatter.processResponse(response);
       
-      // IMPORTANT: Force using gemini-2.0-flash - the 2.5 version doesn't exist yet
-      // Will override any model from config or options
-      const modelToUse = 'gemini-2.0-flash';
-      
-      console.log(`Using model: ${modelToUse} for message`);
-
-      // Use the server proxy exposed by the preload script
-      if (!window.server) {
-        throw new Error('Server proxy not available in the renderer process. This could indicate a problem with Electron preload script.');
+      // Ensure the response has all required fields for ChatMessages
+      // ChatMessages expects 'content', but messageFormatter returns 'text'
+      if (formattedResponse.text && !formattedResponse.content) {
+        formattedResponse.content = formattedResponse.text;
       }
       
-      console.log('Sending chat request to backend...');
-      
-      // Prepare formatted chat history with system prompt if not already present
-      const formattedChatHistory = this.formatChatHistoryWithSystemPrompt(chatHistory, options);
-      
-      // Add timeout to the chat request - use 15s instead of 30s for better UX when failing
-      try {
-        const response = await Promise.race([
-          window.server.chat({
-            message,
-            chatHistory: formattedChatHistory,
-            model: modelToUse,
-            temperature: options.temperature || 0.7,
-            maxTokens: options.maxTokens || 1024,
-            tools: options.tools || this.getDefaultTools()
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Request timed out. The backend may be processing a large request or experiencing high load.')), 
-            15000) // 15s timeout instead of 30s
-          )
-        ]);
-        
-        console.log('Received response from backend');
-        return response;
-      } catch (chatError) {
-        console.error('Error in chat request:', chatError);
-        
-        // Check if it's a timeout error
-        if (chatError.message.includes('timed out')) {
-          throw new Error('Chat request timed out. The model might be busy. Please try again with a shorter message.');
-        }
-        
-        // Otherwise rethrow the error
-        throw chatError;
+      // Always ensure there's a non-null content field
+      if (!formattedResponse.content) {
+        formattedResponse.content = '';
       }
+      
+      // Enhanced check for tool calls in formatted text (as fallback)
+      if ((!formattedResponse.toolCalls || formattedResponse.toolCalls.length === 0) && 
+          formattedResponse.text && 
+          (formattedResponse.text.includes('```tool_code') || 
+           formattedResponse.text.includes('listFiles'))) {
+        
+        console.log('[LlmService] Detected potential tool calls in text, attempting to process');
+        
+        // Check for tool calls in text content as a fallback
+        // This is a safety net in case the backend processing didn't catch the tool call
+        this.extractToolCallsFromText(formattedResponse);
+      }
+      
+      return formattedResponse;
+      
     } catch (error) {
-      console.error('Error in LlmService.sendMessage:', error);
+      console.error('[LlmService] Error sending message:', error);
       
-      // Enhance error message with more helpful information
-      if (error.message.includes('timeout') || error.message.includes('Timed out')) {
-        throw new Error('Request timed out. The backend server may be under heavy load or processing a large request. Please try again with a simpler query.');
-      } else if (error.message.includes('ECONNREFUSED') || error.message.includes('Backend server is not available')) {
-        throw new Error('Backend server is not available. Please start the backend server by running "npm run server" in the backend directory.');
-      } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        throw new Error('Network error. Please check your internet connection and ensure the backend server is running.');
-      } else if (error.message.includes('API key not valid') || error.message.includes('API_KEY_INVALID')) {
-        // Mark that the API key is missing to avoid repeated failed requests
-        this.apiKeyMissing = true;
-        throw new Error('Google API key is invalid. Please check your GOOGLE_API_KEY in the backend .env file and restart the server.');
-      } else if (error.message.includes('is not found for API version') || error.message.includes('not supported for generateContent')) {
-        throw new Error('The model specified is not available. Please change LLM_MODEL in the backend .env file to "gemini-2.0-flash" and restart the server.');
-      }
-      
-      throw error;
+      return {
+        error: true,
+        text: `⚠️ Error: ${error.message}`,
+        details: [error.stack]
+      };
     }
   }
 
@@ -428,6 +564,104 @@ class LlmService {
       console.error('Error in LlmService.generateEmbeddings:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get current memory usage information
+   * Safe to use in browser environment
+   * @returns {Object} - Memory usage stats or placeholder if not available
+   */
+  getMemoryUsage() {
+    // In browser environment, we have limited access to memory info
+    if (window.performance && window.performance.memory) {
+      const memory = window.performance.memory;
+      return {
+        totalJSHeapSize: this.formatBytes(memory.totalJSHeapSize),
+        usedJSHeapSize: this.formatBytes(memory.usedJSHeapSize),
+        jsHeapSizeLimit: this.formatBytes(memory.jsHeapSizeLimit),
+        percentUsed: Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100) + '%'
+      };
+    }
+    
+    // Return placeholder if not available
+    return { note: 'Memory usage info not available in this environment' };
+  }
+  
+  /**
+   * Format bytes to human-readable format
+   * @param {number} bytes - Bytes to format
+   * @returns {string} - Formatted string
+   */
+  formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  /**
+   * Extract tool calls from text if they're embedded in markdown or code blocks
+   * @param {Object} response - The formatted response object
+   * @returns {Object} - The response with extracted tool calls
+   */
+  extractToolCallsFromText(response) {
+    if (!response) return response;
+    
+    // Ensure response has content fields
+    const textContent = response.text || response.content || '';
+    if (!textContent) return response;
+    
+    // Make sure both text and content fields are synchronized
+    if (!response.text) response.text = textContent;
+    if (!response.content) response.content = textContent;
+    
+    // Check for tool calls in markdown code blocks with an expanded pattern set
+    const toolCallRegex = /```(?:tool_code|tool|code)?\s*\n(\w+\(.*?\))|tool_code\s*\n(\w+\(.*?\))|```.*?\n(\w+\(.*?\))\s*```/gs;
+    const matches = [...textContent.matchAll(toolCallRegex)];
+    
+    if (matches && matches.length > 0) {
+      console.log('[LlmService] Found tool calls in text content:', matches);
+      
+      // Initialize toolCalls array if it doesn't exist
+      if (!response.toolCalls) {
+        response.toolCalls = [];
+      }
+      
+      // Process each match
+      matches.forEach((match, index) => {
+        // Check all capture groups, some might be undefined
+        const toolCall = match[1] || match[2] || match[3]; // Get the captured tool call 
+        if (toolCall) {
+          // Extract tool name and parameters
+          const toolName = toolCall.split('(')[0].trim();
+          let paramsStr = toolCall.match(/\((.*?)\)/)?.[1] || '';
+          
+          // Parse parameters
+          const params = {};
+          const paramMatches = [...paramsStr.matchAll(/(\w+)\s*=\s*["'](.*?)["']/g)];
+          paramMatches.forEach(paramMatch => {
+            params[paramMatch[1]] = paramMatch[2];
+          });
+          
+          // Add to toolCalls array
+          response.toolCalls.push({
+            toolCallId: `frontend-extracted-${Date.now()}-${index}`,
+            toolName: toolName,
+            parameters: params
+          });
+          
+          console.log(`[LlmService] Extracted tool call from text: ${toolName}`, params);
+        }
+      });
+      
+      // Add a note about tool execution in the response
+      response.containsExtractedToolCalls = true;
+    }
+    
+    return response;
   }
 }
 

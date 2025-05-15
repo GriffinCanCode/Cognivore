@@ -37,6 +37,9 @@ class ToolsService {
       this.registerTool('listFilesWithContent', this.listFilesWithContent.bind(this));
       this.registerTool('listRecentFiles', this.listRecentFiles.bind(this));
       
+      // Register database query tool
+      this.registerTool('queryDatabase', this.queryDatabase.bind(this));
+      
       // Check if our tool implementations match the shared definitions
       this.validateToolImplementations();
       
@@ -760,6 +763,101 @@ class ToolsService {
       preview: item.preview || '',
       createdAt: item.created_at || new Date().toISOString()
     };
+  }
+
+  /**
+   * Query the database using semantic search
+   * @param {Object} params - Query parameters
+   * @param {string} params.query - Natural language query
+   * @param {Object} params.filters - Optional filters for the query
+   * @param {boolean} params.includeContent - Whether to include full content in results
+   * @param {number} params.limit - Maximum number of results to return
+   * @returns {Promise<Object>} - Query results
+   */
+  async queryDatabase(params) {
+    try {
+      this.logger.info('Executing database query', { query: params.query });
+      
+      if (!params.query) {
+        throw new Error('Query is required');
+      }
+      
+      // Convert query to vector using LLM service
+      const embeddingResult = await llmService.generateEmbeddings(params.query);
+      if (!embeddingResult || !embeddingResult.embedding) {
+        throw new Error('Failed to generate query embedding');
+      }
+      
+      const queryVector = embeddingResult.embedding;
+      
+      // Prepare search options
+      const searchOptions = {
+        limit: params.limit || 5,
+        includeContent: params.includeContent === true,
+        includeSummary: true,
+        minRelevanceScore: 0.6,
+        deduplicate: true
+      };
+      
+      // Perform semantic search
+      const searchResults = await database.semanticSearch(
+        params.query,
+        queryVector,
+        searchOptions
+      );
+      
+      // Apply additional filters if specified
+      let filteredResults = searchResults;
+      if (params.filters) {
+        if (params.filters.sourceType) {
+          filteredResults = filteredResults.filter(item => 
+            item.sourceType === params.filters.sourceType
+          );
+        }
+        
+        if (params.filters.dateRange) {
+          const { from, to } = params.filters.dateRange;
+          if (from || to) {
+            filteredResults = filteredResults.filter(item => {
+              const createdAt = item.metadata?.created_at || item.createdAt;
+              if (!createdAt) return true;
+              
+              const itemDate = new Date(createdAt);
+              if (from && to) {
+                return itemDate >= new Date(from) && itemDate <= new Date(to);
+              } else if (from) {
+                return itemDate >= new Date(from);
+              } else if (to) {
+                return itemDate <= new Date(to);
+              }
+              return true;
+            });
+          }
+        }
+      }
+      
+      // Format the results
+      const formattedResults = filteredResults.map(item => ({
+        id: item.id,
+        title: item.title,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+        relevanceScore: item.score,
+        summary: item.summary,
+        ...(item.content && { content: item.content }),
+        metadata: item.metadata
+      }));
+      
+      return {
+        query: params.query,
+        results: formattedResults,
+        totalResults: formattedResults.length,
+        searchTime: new Date().toISOString()
+      };
+    } catch (error) {
+      this.logger.error('Database query failed', { error: error.message });
+      throw error;
+    }
   }
 }
 

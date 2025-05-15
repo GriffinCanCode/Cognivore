@@ -7,6 +7,7 @@
   --primary-dark: #1d4ed8;
   --secondary-color: #8b5cf6;
   --accent-color: #0ea5e9;
+  --accent-color-hover: #0284c7;
   --text-light: #f8fafc;
   --text-dark: #1e293b;
   --background-dark: #0c1122;
@@ -16,14 +17,29 @@
   --glass-border: rgba(255, 255, 255, 0.12);
   --shadow-color: rgba(0, 0, 0, 0.35);
   --error-color: #ef4444;
+  --error-color-light: rgba(239, 68, 68, 0.1);
   --success-color: #10b981;
   --warning-color: #f59e0b;
+  
+  /* Settings Component Variables */
+  --bg-color-primary: #0f172a;
+  --bg-color-secondary: #111827;
+  --bg-color-tertiary: #1e293b;
+  --text-color-primary: #f3f4f6;
+  --text-color-secondary: #9ca3af;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --hover-color: rgba(255, 255, 255, 0.05);
+  --bg-active-item: rgba(14, 165, 233, 0.1);
+  --input-bg-color: rgba(15, 23, 42, 0.6);
   
   /* Layout Variables */
   --sidebar-width: 260px;
   --sidebar-collapsed-width: 70px;
   --header-height: 64px;
   --content-width: 1200px;
+  
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   
   /* Animation Variables */
   --animation-timing: cubic-bezier(0.215, 0.61, 0.355, 1);
@@ -39,6 +55,13 @@
     --bg-primary: #0c1122;
     --bg-primary-darker: #080c19;
     --sidebar-bg: #0f172a;
+    
+    /* Settings specific */
+    --bg-color-primary: #0f172a;
+    --bg-color-secondary: #111827;
+    --bg-color-tertiary: #1e293b;
+    --text-color-primary: #f3f4f6;
+    --text-color-secondary: #9ca3af;
   }
 }
 
@@ -49,6 +72,17 @@
     --bg-primary: #f8fafc;
     --bg-primary-darker: #e2e8f0;
     --sidebar-bg: #f1f5f9;
+    
+    /* Settings specific */
+    --bg-color-primary: #ffffff;
+    --bg-color-secondary: #f8fafc;
+    --bg-color-tertiary: #f1f5f9;
+    --text-color-primary: #1f2937;
+    --text-color-secondary: #4b5563;
+    --border-color: rgba(0, 0, 0, 0.1);
+    --hover-color: rgba(0, 0, 0, 0.05);
+    --bg-active-item: rgba(14, 165, 233, 0.1);
+    --input-bg-color: rgba(255, 255, 255, 0.8);
   }
 }
 
@@ -59,6 +93,18 @@ body.dark-theme {
   --bg-primary: #0c1122;
   --bg-primary-darker: #080c19;
   --sidebar-bg: #0f172a;
+  
+  /* Settings specific */
+  --bg-color-primary: #0f172a;
+  --bg-color-secondary: #111827;
+  --bg-color-tertiary: #1e293b;
+  --text-color-primary: #f3f4f6;
+  --text-color-secondary: #9ca3af;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --hover-color: rgba(255, 255, 255, 0.05);
+  --bg-active-item: rgba(14, 165, 233, 0.1);
+  --input-bg-color: rgba(15, 23, 42, 0.6);
+  
   color-scheme: dark;
 }
 
@@ -72,7 +118,7 @@ body.dark-theme {
 html, body {
   height: 100%;
   width: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-family);
   font-size: 16px;
   line-height: 1.5;
   color: var(--text-primary);

@@ -252,8 +252,8 @@ function createMainWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           isDev 
-            ? "default-src 'self' file:; script-src 'self' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
-            : "default-src 'self' file:; script-src 'self' file: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
+            ? "default-src 'self' file:; script-src 'self' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' https://* http://*; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
+            : "default-src 'self' file:; script-src 'self' file: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' https://* http://*; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
         ]
       }
     });

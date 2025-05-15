@@ -1,12 +1,18 @@
 /**
  * ChatMessages Component - Displays chat message history with an enhanced visual design
  */
-import ThinkingVisualization from './ThinkingVisualization.js';
-import SpecialWordRenderer from './SpecialWordRenderer.js';
-import logger from '../utils/logger.js';
+import ThinkingVisualization from '../renderers/ThinkingVisualization.js';
+import messageFormatter from '../../utils/messageFormatter.js';
+import logger from '../../utils/logger.js';
+import ToolRenderer from '../tools/ToolRenderer.js';
 
 // Create context-specific logger
 const messagesLogger = logger.scope('ChatMessages');
+
+// Create an instance of the ToolRenderer
+const toolRenderer = new ToolRenderer();
+// Initialize the tool renderer
+toolRenderer.initialize();
 
 class ChatMessages {
   /**
@@ -16,12 +22,59 @@ class ChatMessages {
    */
   constructor(messages = [], isLoading = false) {
     this.container = null;
-    this.messages = messages;
+    this.messages = this.sanitizeMessages(messages);
     this.isLoading = isLoading;
     this.observer = null;
     this.thinkingVisualization = null;
-    this.specialWordRenderer = new SpecialWordRenderer();
     this.setupIntersectionObserver();
+    
+    // Track if a rebuild is needed
+    this.needsRebuild = false;
+  }
+
+  /**
+   * Sanitize messages to ensure all are valid and have required fields
+   * @param {Array} messages - Raw messages array
+   * @returns {Array} - Sanitized messages array
+   */
+  sanitizeMessages(messages) {
+    if (!Array.isArray(messages)) {
+      messagesLogger.error('Messages is not an array:', messages);
+      return [];
+    }
+
+    return messages.filter((message, index) => {
+      // Check if message is null or undefined
+      if (!message) {
+        messagesLogger.error(`Message at index ${index} is null or undefined`);
+        return false;
+      }
+
+      // Ensure message has valid role
+      if (!message.role) {
+        messagesLogger.warn(`Message at index ${index} has no role, defaulting to 'system'`);
+        message.role = 'system';
+      }
+
+      // Ensure message has content, setting default if missing
+      if (message.content === undefined || message.content === null) {
+        messagesLogger.warn(`Message at index ${index} has no content, setting empty string`);
+        message.content = '';
+      }
+
+      // Convert content to string if it's not already
+      if (typeof message.content !== 'string') {
+        messagesLogger.warn(`Message at index ${index} has non-string content, converting to string`);
+        message.content = String(message.content || '');
+      }
+
+      // Ensure message has timestamp
+      if (!message.timestamp) {
+        message.timestamp = new Date().toISOString();
+      }
+
+      return true;
+    });
   }
 
   /**
@@ -49,19 +102,36 @@ class ChatMessages {
    */
   update(messages = [], isLoading = false) {
     messagesLogger.debug('ChatMessages.update called with', messages.length, 'messages');
-    this.messages = messages;
+    
+    // Sanitize incoming messages
+    this.messages = this.sanitizeMessages(messages);
     this.isLoading = isLoading;
     
     // Don't completely re-render, just update/append
     if (this.container && this.container.isConnected) {
-      // Check if we need to refresh the entire container
-      if (this.messages.length === 0) {
-        this.container.innerHTML = '';
-        this.container.appendChild(this.renderWelcomeMessage());
-      } else {
+      messagesLogger.debug('Container is connected, updating UI');
+      
+      try {
+        // Check if we need to refresh the entire container
+        if (this.messages.length === 0) {
+          messagesLogger.debug('No messages, showing welcome message');
+          this.container.innerHTML = '';
+          this.container.appendChild(this.renderWelcomeMessage());
+          return;
+        }
+        
         // Get current message elements
         const currentMessageElements = this.container.querySelectorAll('.message');
         const currentCount = currentMessageElements.length;
+        
+        messagesLogger.debug(`Current message count in DOM: ${currentCount}, messages in memory: ${this.messages.length}`);
+        
+        // Check for message count mismatch
+        if (currentCount > this.messages.length) {
+          messagesLogger.warn('DOM has more messages than memory, rebuilding container');
+          this.rebuildMessageContainer();
+          return;
+        }
         
         // Clear thinking visualization if exists
         const thinkingElement = this.container.querySelector('.thinking-visualization-container');
@@ -73,8 +143,17 @@ class ChatMessages {
         if (currentCount < this.messages.length) {
           messagesLogger.debug(`Adding ${this.messages.length - currentCount} new messages`);
           for (let i = currentCount; i < this.messages.length; i++) {
-            const messageElement = this.createMessageElement(this.messages[i]);
-            this.container.appendChild(messageElement);
+            try {
+              const messageElement = this.createMessageElement(this.messages[i]);
+              if (messageElement) {
+                this.container.appendChild(messageElement);
+                messagesLogger.debug(`Added message at index ${i}`);
+              } else {
+                messagesLogger.error(`Failed to create message element for index ${i}`);
+              }
+            } catch (err) {
+              messagesLogger.error(`Error creating message element for index ${i}:`, err);
+            }
           }
         }
         
@@ -82,27 +161,93 @@ class ChatMessages {
         if (this.isLoading) {
           this.container.appendChild(this.renderThinkingVisualization());
         }
+        
+        // Verify the update was successful
+        setTimeout(() => {
+          const updatedMessageElements = this.container.querySelectorAll('.message');
+          if (updatedMessageElements.length !== this.messages.length) {
+            messagesLogger.warn(`Message count mismatch after update: ${updatedMessageElements.length} in DOM vs ${this.messages.length} in memory`);
+            this.rebuildMessageContainer();
+          }
+        }, 0);
+      } catch (error) {
+        messagesLogger.error('Error in update:', error);
+        // Fall back to a full rebuild on error
+        this.rebuildMessageContainer();
       }
       
       // Scroll to bottom
       this.scrollToBottom(true);
     } else {
       messagesLogger.warn('ChatMessages.update called but container is null or not attached to DOM');
-      // Create a new container and return it - caller must attach it to DOM
-      const container = this.render();
+      this.needsRebuild = true;
       
       // Try to find and replace the existing messages container
       const existingContainer = document.getElementById('chat-messages-container');
       if (existingContainer && existingContainer.parentNode) {
         messagesLogger.debug('Found existing chat-messages-container, replacing it');
-        existingContainer.parentNode.replaceChild(container, existingContainer);
+        const newContainer = this.render();
+        existingContainer.parentNode.replaceChild(newContainer, existingContainer);
         // Scroll to bottom after replacing
         this.scrollToBottom(true);
       } else {
         messagesLogger.error('No existing chat-messages-container found in DOM, manual attachment required');
-        // Return the container for manual attachment
-        return container;
+        // Set flag for later rebuild
+        this.needsRebuild = true;
       }
+    }
+  }
+  
+  /**
+   * Rebuild the entire message container from scratch
+   */
+  rebuildMessageContainer() {
+    messagesLogger.info('Rebuilding message container');
+    
+    if (!this.container || !this.container.isConnected) {
+      messagesLogger.warn('Container not connected during rebuild attempt');
+      return;
+    }
+    
+    try {
+      // Create a new container
+      const newContainer = document.createElement('div');
+      newContainer.className = 'chat-messages';
+      newContainer.id = 'chat-messages-container';
+      
+      // Populate with messages
+      if (this.messages.length === 0) {
+        newContainer.appendChild(this.renderWelcomeMessage());
+      } else {
+        this.messages.forEach((message, index) => {
+          try {
+            const messageElement = this.createMessageElement(message);
+            if (messageElement) {
+              newContainer.appendChild(messageElement);
+            }
+          } catch (error) {
+            messagesLogger.error(`Error rendering message at index ${index}:`, error);
+          }
+        });
+      }
+      
+      // Add thinking visualization if needed
+      if (this.isLoading) {
+        newContainer.appendChild(this.renderThinkingVisualization());
+      }
+      
+      // Replace the existing container
+      if (this.container.parentNode) {
+        this.container.parentNode.replaceChild(newContainer, this.container);
+        this.container = newContainer;
+        
+        // Scroll to bottom
+        setTimeout(() => this.scrollToBottom(true), 0);
+      } else {
+        messagesLogger.error('Container has no parent, cannot replace');
+      }
+    } catch (error) {
+      messagesLogger.error('Error in rebuildMessageContainer:', error);
     }
   }
 
@@ -112,53 +257,19 @@ class ChatMessages {
    */
   scrollToBottom(smooth = false) {
     if (this.container) {
-      this.container.scrollTo({
-        top: this.container.scrollHeight,
-        behavior: smooth ? 'smooth' : 'auto'
-      });
+      // Ensure scroll happens even when container is newly created
+      setTimeout(() => {
+        try {
+          this.container.scrollTo({
+            top: this.container.scrollHeight,
+            behavior: smooth ? 'smooth' : 'auto'
+          });
+          messagesLogger.debug('Scrolled container to bottom');
+        } catch (error) {
+          messagesLogger.error('Error scrolling to bottom:', error);
+        }
+      }, 10);
     }
-  }
-
-  /**
-   * Format message content with markdown-like syntax
-   * @param {string} content - The raw message content
-   * @returns {string} - The formatted HTML content
-   */
-  formatMessageContent(content) {
-    if (!content) return '';
-    
-    // Simple formatting for code blocks
-    let formatted = content.replace(/```(\w*)\n([^`]+)```/g, (match, language, code) => {
-      return `<pre class="code-block ${language ? `language-${language}` : ''}"><code>${this.escapeHtml(code)}</code></pre>`;
-    });
-    
-    // Format inline code
-    formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
-    // Convert URLs to links
-    formatted = formatted.replace(
-      /(https?:\/\/[^\s]+)/g, 
-      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-    );
-    
-    // Convert line breaks to <br>
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    // Apply special word styling
-    formatted = this.specialWordRenderer.processHtml(formatted);
-    
-    return formatted;
-  }
-
-  /**
-   * Escape HTML special characters to prevent XSS
-   * @param {string} html - The string to escape
-   * @returns {string} - The escaped string
-   */
-  escapeHtml(html) {
-    const div = document.createElement('div');
-    div.textContent = html;
-    return div.innerHTML;
   }
 
   /**
@@ -167,13 +278,41 @@ class ChatMessages {
    * @returns {HTMLElement} - The message element
    */
   createMessageElement(message) {
-    const isUser = message.role === 'user';
-    const isError = message.isError;
-    const isTool = message.role === 'tool';
+    // Ensure message has required fields
+    if (!message) {
+      messagesLogger.error('Cannot create element for null message');
+      return document.createElement('div'); // Return empty div as fallback
+    }
+    
+    // Debug the message object in case of issues
+    messagesLogger.debug(`Creating message element for role: ${message.role}`, 
+      { contentLength: message.content ? message.content.length : 0, message: JSON.stringify(message) });
+    
+    // Ensure message has valid role and content
+    const role = message.role || 'system';
+    let content = '';
+    
+    // Safely handle content even if it's null/undefined
+    if (message.content === undefined || message.content === null) {
+      messagesLogger.warn(`Message with role ${role} has null/undefined content, using empty string`);
+      content = '';
+    } else {
+      content = message.content;
+      
+      // Additional validation for content
+      if (typeof content !== 'string') {
+        messagesLogger.warn(`Message has non-string content of type ${typeof content}, converting to string`);
+        content = String(content || '');
+      }
+    }
+    
+    const isUser = role === 'user';
+    const isError = message.isError || role === 'error';
+    const isTool = role === 'tool';
     
     const messageElement = document.createElement('div');
     messageElement.className = `message ${isUser ? 'user-message' : 'assistant-message'} ${isError ? 'error-message' : ''} ${isTool ? 'tool-message' : ''}`;
-    messageElement.setAttribute('data-message-role', message.role);
+    messageElement.setAttribute('data-message-role', role);
     
     // Add fade-in animation
     messageElement.style.opacity = '0';
@@ -233,30 +372,36 @@ class ChatMessages {
     if (isTool) {
       const toolHeader = document.createElement('div');
       toolHeader.className = 'tool-header';
-      toolHeader.innerHTML = `<span class="tool-label">Tool Response: ${message.toolName || 'Unknown Tool'}</span>`;
+      toolHeader.innerHTML = `<span class="tool-label">Tool Response: ${message.name || message.toolName || 'Unknown Tool'}</span>`;
       messageContent.appendChild(toolHeader);
       
       // Try to prettify the JSON content for tool responses
       let formattedToolContent;
       try {
         // Check if content is a JSON string
-        if (typeof message.content === 'string' && (message.content.startsWith('{') || message.content.startsWith('['))) {
-          const jsonData = JSON.parse(message.content);
-          formattedToolContent = `<pre class="tool-result">${this.formatToolResult(jsonData)}</pre>`;
+        if (typeof content === 'string' && (content.startsWith('{') || content.startsWith('['))) {
+          const jsonData = JSON.parse(content);
+          formattedToolContent = `<pre class="tool-result">${messageFormatter.formatToolResult(jsonData)}</pre>`;
         } else {
           // For non-JSON content use a simple format
-          formattedToolContent = `<pre class="tool-result">${this.escapeHtml(message.content)}</pre>`;
+          formattedToolContent = `<pre class="tool-result">${messageFormatter.escapeHtml(content)}</pre>`;
         }
       } catch (error) {
         // If JSON parsing fails, just display the raw content
-        formattedToolContent = `<pre class="tool-result">${this.escapeHtml(message.content)}</pre>`;
+        messagesLogger.warn('Failed to parse tool response as JSON, falling back to plain text:', error);
+        formattedToolContent = `<pre class="tool-result">${messageFormatter.escapeHtml(content)}</pre>`;
       }
       
       messageContent.innerHTML += formattedToolContent;
     } else {
       // Format message content with markdown-like syntax
-      const formattedContent = this.formatMessageContent(message.content);
-      messageContent.innerHTML = formattedContent;
+      try {
+        const formattedContent = messageFormatter.formatMessageContent(content);
+        messageContent.innerHTML = formattedContent;
+      } catch (error) {
+        messagesLogger.error('Error formatting message content:', error);
+        messageContent.textContent = content || "Error displaying message content";
+      }
     }
     
     messageElement.appendChild(messageContent);
@@ -266,7 +411,7 @@ class ChatMessages {
     timestampElement.className = 'message-timestamp';
     
     // Format the timestamp to show date if not today, otherwise just time
-    const messageTime = new Date(message.timestamp);
+    const messageTime = message.timestamp ? new Date(message.timestamp) : new Date();
     const now = new Date();
     let timeString;
     
@@ -282,31 +427,55 @@ class ChatMessages {
     timestampElement.textContent = timeString;
     messageContent.appendChild(timestampElement);
     
-    // Add tool calls if present with better styling
-    if (message.toolCalls && message.toolCalls.length > 0) {
-      messagesLogger.debug(`Message has ${message.toolCalls.length} tool calls:`, message.toolCalls);
-      const toolCallsContainer = document.createElement('div');
-      toolCallsContainer.className = 'tool-calls';
-      
-      message.toolCalls.forEach(toolCall => {
-        try {
-          const toolCallElement = this.createToolCallElement(toolCall);
-          toolCallsContainer.appendChild(toolCallElement);
-        } catch (error) {
-          messagesLogger.error('Error rendering tool call:', error, toolCall);
+          // Improved tool calls handling
+      if (message.toolCalls && Array.isArray(message.toolCalls) && message.toolCalls.length > 0) {
+        messagesLogger.debug(`Message has ${message.toolCalls.length} tool calls:`, message.toolCalls);
+        const toolCallsContainer = document.createElement('div');
+        toolCallsContainer.className = 'tool-calls';
+        
+        // Track successful renders
+        let successfulRenders = 0;
+        
+        message.toolCalls.forEach((toolCall, index) => {
+          try {
+            // Handle different formats of tool calls
+            const processedToolCall = messageFormatter.normalizeToolCall(toolCall);
+            if (processedToolCall) {
+              messagesLogger.debug(`Rendering tool call ${index + 1}/${message.toolCalls.length}:`, 
+                { name: processedToolCall.name || processedToolCall.toolName });
+              
+              const toolCallElement = this.createToolCallElement(processedToolCall);
+              if (toolCallElement) {
+                toolCallsContainer.appendChild(toolCallElement);
+                successfulRenders++;
+              } else {
+                messagesLogger.error(`Failed to create element for tool call ${index}`);
+              }
+            } else {
+              messagesLogger.warn(`Failed to normalize tool call at index ${index}`);
+            }
+          } catch (error) {
+            messagesLogger.error('Error rendering tool call:', error, toolCall);
+          }
+        });
+        
+        // Only add if we have valid tool calls
+        if (toolCallsContainer.children.length > 0) {
+          messagesLogger.debug(`Adding ${successfulRenders} tool calls to message`);
+          messageElement.appendChild(toolCallsContainer);
+        } else {
+          messagesLogger.warn('No tool calls were successfully rendered');
         }
-      });
-      
-      messageElement.appendChild(toolCallsContainer);
-    } else if (message.role === 'assistant' && message.content) {
+      } else if (role === 'assistant' && content) {
       // Check if the message contains text that looks like a tool call but isn't properly structured
       const toolCallRegex = /(search[kK]nowledge[bB]ase|getItem[cC]ontent|summarize[cC]ontent|list[aA]ll[fF]iles|list[fF]iles[bB]y[tT]ype)\s*\(/;
-      const matches = message.content.match(toolCallRegex);
+      const functionCallRegex = /```tool_code\s*\n\s*{\s*"tool_name"\s*:\s*"([^"]+)"/;
+      const matches = content.match(toolCallRegex) || content.match(functionCallRegex);
       
       if (matches) {
         // Found text that looks like a tool call - extract and display it properly
         messagesLogger.debug('Message appears to contain a tool reference but no toolCalls property:', 
-          message.content.substring(0, 100));
+          content.substring(0, 100));
         
         try {
           // Create a container for the extracted tool call
@@ -366,37 +535,62 @@ class ChatMessages {
    * @returns {HTMLElement} - The tool call element
    */
   createToolCallElement(toolCall) {
-    const toolCallElement = document.createElement('div');
-    toolCallElement.className = 'tool-call';
-    
-    const toolCallHeader = document.createElement('div');
-    toolCallHeader.className = 'tool-call-header';
-    toolCallHeader.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-      </svg>
-      <span>Tool: ${toolCall.name}</span>
-    `;
-    
-    toolCallElement.appendChild(toolCallHeader);
-    
-    // Add formatted function parameters if available
-    if (toolCall.args) {
-      const argsContent = document.createElement('div');
-      argsContent.className = 'tool-call-args';
-      
-      try {
-        const args = typeof toolCall.args === 'string' ? JSON.parse(toolCall.args) : toolCall.args;
-        argsContent.innerHTML = `<pre>${JSON.stringify(args, null, 2)}</pre>`;
-      } catch (e) {
-        // If parsing fails, just display as string
-        argsContent.textContent = toolCall.args;
-      }
-      
-      toolCallElement.appendChild(argsContent);
+    if (!toolCall) {
+      messagesLogger.error('Cannot create tool call element for null toolCall');
+      return document.createElement('div'); // Return empty div as fallback
     }
     
-    return toolCallElement;
+    try {
+      // Log the tool call for debugging
+      messagesLogger.debug('Rendering tool call with ToolRenderer:', { 
+        name: toolCall.name || toolCall.toolName, 
+        hasArgs: !!toolCall.args 
+      });
+      
+      // Make sure the tool renderer is initialized
+      if (!toolRenderer.renderers) {
+        messagesLogger.warn('ToolRenderer not fully initialized, initializing now');
+        toolRenderer.initialize();
+      }
+      
+      // Use the ToolRenderer to render the tool call
+      return toolRenderer.render(toolCall);
+    } catch (error) {
+      messagesLogger.error('Error rendering tool call with ToolRenderer:', error);
+      
+      // Fallback to basic rendering if ToolRenderer fails
+      const toolCallElement = document.createElement('div');
+      toolCallElement.className = 'tool-call';
+      
+      const toolCallHeader = document.createElement('div');
+      toolCallHeader.className = 'tool-call-header';
+      toolCallHeader.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+        </svg>
+        <span>Tool: ${toolCall.name || toolCall.toolName || 'Unknown Tool'}</span>
+      `;
+      
+      toolCallElement.appendChild(toolCallHeader);
+      
+      // Add formatted function parameters if available
+      if (toolCall.args) {
+        const argsContent = document.createElement('div');
+        argsContent.className = 'tool-call-args';
+        
+        try {
+          const args = typeof toolCall.args === 'string' ? JSON.parse(toolCall.args) : toolCall.args;
+          argsContent.innerHTML = `<pre>${JSON.stringify(args, null, 2)}</pre>`;
+        } catch (e) {
+          // If parsing fails, just display as string
+          argsContent.textContent = typeof toolCall.args === 'string' ? toolCall.args : JSON.stringify(toolCall.args);
+        }
+        
+        toolCallElement.appendChild(argsContent);
+      }
+      
+      return toolCallElement;
+    }
   }
 
   /**
@@ -491,17 +685,20 @@ class ChatMessages {
       
       // Add messages with verification
       this.messages.forEach((message, index) => {
-        if (!message || !message.content) {
-          messagesLogger.error('Invalid message at index', index, message);
-          return; // Skip invalid messages
-        }
-        
-        messagesLogger.debug('Rendering message', index, message.role, message.content.substring(0, 30) + (message.content.length > 30 ? '...' : ''));
         try {
           const messageElement = this.createMessageElement(message);
-          messageContainer.appendChild(messageElement);
+          if (messageElement) {
+            messageContainer.appendChild(messageElement);
+          } else {
+            throw new Error('Failed to create message element');
+          }
         } catch (error) {
-          messagesLogger.error('Error rendering message:', error);
+          messagesLogger.error(`Error rendering message at index ${index}:`, error);
+          // Add a placeholder for the failed message to maintain count
+          const errorElement = document.createElement('div');
+          errorElement.className = 'message error-message';
+          errorElement.innerHTML = `<div class="message-content">Error rendering message: ${error.message}</div>`;
+          messageContainer.appendChild(errorElement);
         }
       });
     }
@@ -517,9 +714,18 @@ class ChatMessages {
     // Set up scroll to bottom button if needed
     this.setupScrollToBottomButton();
     
+    // Clear the rebuild flag
+    this.needsRebuild = false;
+    
     // Verify content
     setTimeout(() => {
-      messagesLogger.debug(`Container has ${messageContainer.childNodes.length} child nodes`);
+      messagesLogger.debug(`Container has ${messageContainer.childNodes.length} child nodes, messages in memory: ${this.messages.length}`);
+      
+      // Verify that messages are correctly rendered
+      const messageElements = messageContainer.querySelectorAll('.message');
+      if (messageElements.length !== this.messages.length) {
+        messagesLogger.warn(`Message count mismatch after render: ${messageElements.length} in DOM vs ${this.messages.length} in memory`);
+      }
     }, 0);
 
     return messageContainer;
@@ -574,9 +780,6 @@ class ChatMessages {
       this.thinkingVisualization = null;
     }
     
-    // Clean up special word renderer if exists
-    this.specialWordRenderer = null;
-    
     // Remove scroll to bottom button if exists
     const scrollButton = document.querySelector('.scroll-to-bottom');
     if (scrollButton && scrollButton.parentNode) {
@@ -591,122 +794,6 @@ class ChatMessages {
       }
       this.container = clone;
     }
-  }
-
-  /**
-   * Format a tool result for better display
-   * @param {Object|Array} result - The tool result to format
-   * @returns {string} - Formatted HTML string
-   */
-  formatToolResult(result) {
-    if (!result) return 'No result';
-    
-    // Check for specific data structures we want to format differently
-    if (Array.isArray(result)) {
-      // For arrays of items, use a special format
-      if (result.length > 0 && result[0] && typeof result[0] === 'object') {
-        return this.formatResultItems(result);
-      }
-    }
-    
-    // If it's a file listing result
-    if (result.items && Array.isArray(result.items)) {
-      return this.formatResultItems(result.items, result.totalItems);
-    }
-    
-    // Default formatting with JSON syntax highlighting
-    return this.syntaxHighlightJson(result);
-  }
-  
-  /**
-   * Format a list of result items
-   * @param {Array} items - The items to format
-   * @param {number} totalItems - Optional total count
-   * @returns {string} - Formatted HTML string
-   */
-  formatResultItems(items, totalItems) {
-    if (!items || items.length === 0) return 'No items found';
-    
-    let html = '';
-    
-    // Add header with count if provided
-    if (totalItems !== undefined) {
-      html += `<div class="result-header">Found ${items.length} of ${totalItems} items</div>`;
-    } else {
-      html += `<div class="result-header">Found ${items.length} items</div>`;
-    }
-    
-    // Create item list
-    html += '<div class="result-items">';
-    
-    items.forEach((item, index) => {
-      html += `<div class="result-item">`;
-      
-      // Add item number
-      html += `<div class="item-number">${index + 1}</div>`;
-      
-      // Add item content
-      html += `<div class="item-content">`;
-      
-      // Add title if available
-      if (item.title) {
-        html += `<div class="item-title">${this.escapeHtml(item.title)}</div>`;
-      } else if (item.id) {
-        html += `<div class="item-title">Item ${item.id}</div>`;
-      }
-      
-      // Add other fields in a condensed format
-      html += `<div class="item-details">`;
-      Object.entries(item).forEach(([key, value]) => {
-        // Skip title as it's already displayed
-        if (key === 'title') return;
-        
-        // Format value based on type
-        let formattedValue;
-        if (typeof value === 'object' && value !== null) {
-          formattedValue = JSON.stringify(value).slice(0, 100);
-          if (JSON.stringify(value).length > 100) formattedValue += '...';
-        } else if (typeof value === 'string') {
-          formattedValue = value.length > 100 ? value.slice(0, 100) + '...' : value;
-        } else {
-          formattedValue = String(value);
-        }
-        
-        html += `<div class="item-field"><span class="field-name">${key}:</span> ${this.escapeHtml(formattedValue)}</div>`;
-      });
-      html += `</div>`;
-      
-      html += `</div>`; // Close item-content
-      html += `</div>`; // Close result-item
-    });
-    
-    html += '</div>'; // Close result-items
-    return html;
-  }
-  
-  /**
-   * Syntax highlight JSON for better readability
-   * @param {Object|Array} json - The JSON to highlight
-   * @returns {string} - Highlighted HTML string
-   */
-  syntaxHighlightJson(json) {
-    const jsonStr = JSON.stringify(json, null, 2);
-    return this.escapeHtml(jsonStr)
-      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
-        let cls = 'json-number';
-        if (/^"/.test(match)) {
-          if (/:$/.test(match)) {
-            cls = 'json-key';
-          } else {
-            cls = 'json-string';
-          }
-        } else if (/true|false/.test(match)) {
-          cls = 'json-boolean';
-        } else if (/null/.test(match)) {
-          cls = 'json-null';
-        }
-        return `<span class="${cls}">${match}</span>`;
-      });
   }
 }
 

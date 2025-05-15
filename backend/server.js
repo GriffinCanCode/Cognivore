@@ -11,54 +11,31 @@ const path = require('path');
 // Load environment variables
 dotenv.config();
 
+// Services
+const toolsService = require('./src/services/tools');
+
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Check for API key in various locations
+// Define API_UNAVAILABLE flag at the top with other variables
 let GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+let API_UNAVAILABLE = false; // Initialize as false, will set to true if there are issues
 
-// If API key isn't in environment variables, check for a .env file in various locations
-if (!GOOGLE_API_KEY) {
-  const possibleEnvLocations = [
-    './.env',
-    '../.env',
-    './backend/.env',
-    path.join(__dirname, '.env')
-  ];
-  
-  for (const envPath of possibleEnvLocations) {
-    try {
-      if (fs.existsSync(envPath)) {
-        console.log(`Found .env file at ${envPath}`);
-        // Parse .env file manually if needed
-        const envContent = fs.readFileSync(envPath, 'utf8');
-        const apiKeyMatch = envContent.match(/GOOGLE_API_KEY=(.+)/);
-        if (apiKeyMatch && apiKeyMatch[1]) {
-          GOOGLE_API_KEY = apiKeyMatch[1].trim();
-          console.log('Loaded API key from .env file');
-          break;
-        }
-      }
-    } catch (error) {
-      console.warn(`Error checking .env at ${envPath}:`, error.message);
-    }
-  }
-}
-
-// If API key is still not set, look for it in config.json
-if (!GOOGLE_API_KEY) {
-  try {
-    const configPath = path.join(__dirname, 'config.json');
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (config.googleApiKey) {
-        GOOGLE_API_KEY = config.googleApiKey;
-        console.log('Loaded API key from config.json');
-      }
-    }
-  } catch (error) {
-    console.warn('Error loading API key from config.json:', error.message);
+// Check for API key at startup
+const apiKey = process.env.GOOGLE_API_KEY;
+if (!apiKey) {
+  console.error('\x1b[31m%s\x1b[0m', '⚠️ ERROR: GOOGLE_API_KEY environment variable not set!');
+  console.error('\x1b[31m%s\x1b[0m', 'You must set a valid Google AI API key to use Gemini features.');
+  console.error('\x1b[33m%s\x1b[0m', 'Add the key to your .env file: GOOGLE_API_KEY=your_api_key');
+  console.error('\x1b[33m%s\x1b[0m', 'Get an API key from: https://ai.google.dev/\n');
+} else {
+  // Basic validation of API key format (AIza... format for Google API keys)
+  if (!apiKey.startsWith('AIza')) {
+    console.warn('\x1b[33m%s\x1b[0m', '⚠️ WARNING: Your API key does not start with "AIza".');
+    console.warn('\x1b[33m%s\x1b[0m', 'This may not be a valid Google AI API key. Check the key format.');
+  } else {
+    console.log('Google API key found (' + apiKey.substring(0, 4) + '...' + apiKey.substring(apiKey.length - 4) + ')');
   }
 }
 
@@ -100,10 +77,27 @@ app.use(bodyParser.json());
 // Initialize Google Generative AI if API key is available
 let genAI;
 if (GOOGLE_API_KEY) {
-  genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+  try {
+    genAI = new GoogleGenerativeAI(GOOGLE_API_KEY);
+    // Verify API key works by making a simple call
+    genAI.getGenerativeModel({ model: 'gemini-1.0-pro-latest' });
+    console.log('Successfully initialized Google Generative AI client');
+  } catch (error) {
+    console.error('Error initializing Google Generative AI:', error.message);
+    console.error('The API key might be invalid or there might be network issues.');
+    // Set the API unavailable flag
+    API_UNAVAILABLE = true;
+  }
 } else {
   console.error('GOOGLE_API_KEY is not set. LLM functionality will not work!');
   console.error('Please create a .env file in the backend directory with GOOGLE_API_KEY=your_api_key');
+  // Set the API unavailable flag
+  API_UNAVAILABLE = true;
+}
+
+// Add a helper function to check if the API is available
+function isApiAvailable() {
+  return !!genAI && !API_UNAVAILABLE;
 }
 
 // Global error handler
@@ -281,6 +275,10 @@ const llmController = {
           
         case 'listRecentFiles':
           toolResponse = await knowledgeController.listRecentItems(parameters.days, parameters.fileType, parameters.limit);
+          break;
+          
+        case 'queryDatabase':
+          toolResponse = await toolsService.queryDatabase(parameters);
           break;
           
         default:
@@ -531,95 +529,110 @@ function setupIpcHandlers() {
 
   // Chat - only used if not already registered
   safelyRegisterHandler('chat', async (event, args) => {
-    const { message, chatHistory, model, temperature, maxTokens, tools } = args;
-    
-    const modelId = model || LLM_MODEL;
-    const genModel = genAI.getGenerativeModel({
-      model: modelId,
-      tools: tools || [],
-      generationConfig: {
-        temperature: temperature || 0.7,
-        maxOutputTokens: maxTokens || 1024,
-        topP: 0.9,
-        topK: 40,
-      },
-    });
-    
-    // Format the chat history for the Gemini API
-    const formattedHistory = chatHistory?.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : msg.role,
-      parts: [{ text: msg.content }],
-      // Include tool calls if available
-      ...(msg.toolCalls && {
-        toolCalls: msg.toolCalls.map(tc => ({
-          id: tc.id,
-          name: tc.name,
-          args: tc.args
-        }))
-      })
-    })) || [];
-    
-    // Create a chat session
-    const chat = genModel.startChat({
-      history: formattedHistory,
-      generationConfig: {
-        temperature: temperature || 0.7,
-        maxOutputTokens: maxTokens || 1024,
-        topP: 0.9,
-        topK: 40,
-      },
-    });
-    
-    // Generate a response
-    const result = await chat.sendMessage(message);
-    const response = result.response;
-    
-    // Process the response
-    const responseText = response.text();
-    
-    // Check if there are any tool calls
-    let toolCalls = [];
-    
-    // Try to extract function calls from candidates if they exist
-    if (response.candidates && response.candidates.length > 0) {
-      const candidate = response.candidates[0];
-      if (candidate.content && candidate.content.parts) {
-        // Look through all parts for function calls
-        toolCalls = candidate.content.parts.flatMap(part => {
-          if (part.functionCall) {
-            return [{
-              id: Date.now().toString(),
-              name: part.functionCall.name,
-              args: part.functionCall.args
-            }];
-          }
-          return [];
-        });
+    try {
+      // First check if API is available
+      if (!isApiAvailable()) {
+        throw new Error('Google API key is missing or invalid. Please add a valid API key to your .env file or config.json and restart the application.');
       }
+      
+      const { message, chatHistory, model, temperature, maxTokens, tools } = args;
+      
+      const modelId = model || LLM_MODEL;
+      const genModel = genAI.getGenerativeModel({
+        model: modelId,
+        tools: tools || [],
+        generationConfig: {
+          temperature: temperature || 0.7,
+          maxOutputTokens: maxTokens || 1024,
+          topP: 0.9,
+          topK: 40,
+        },
+      });
+      
+      // Format the chat history for the Gemini API
+      const formattedHistory = chatHistory?.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : msg.role,
+        parts: [{ text: msg.content }],
+        // Include tool calls if available
+        ...(msg.toolCalls && {
+          toolCalls: msg.toolCalls.map(tc => ({
+            id: tc.id,
+            name: tc.name,
+            args: tc.args
+          }))
+        })
+      })) || [];
+      
+      // Create a chat session
+      const chat = genModel.startChat({
+        history: formattedHistory,
+        generationConfig: {
+          temperature: temperature || 0.7,
+          maxOutputTokens: maxTokens || 1024,
+          topP: 0.9,
+          topK: 40,
+        },
+      });
+      
+      // Generate a response
+      const result = await chat.sendMessage(message);
+      const response = result.response;
+      
+      // Process the response
+      const responseText = response.text();
+      
+      // Check if there are any tool calls
+      let toolCalls = [];
+      
+      // Try to extract function calls from candidates if they exist
+      if (response.candidates && response.candidates.length > 0) {
+        const candidate = response.candidates[0];
+        if (candidate.content && candidate.content.parts) {
+          // Look through all parts for function calls
+          toolCalls = candidate.content.parts.flatMap(part => {
+            if (part.functionCall) {
+              return [{
+                id: Date.now().toString(),
+                name: part.functionCall.name,
+                args: part.functionCall.args
+              }];
+            }
+            return [];
+          });
+        }
+      }
+      
+      // If no tool calls found, check older response format (functionCalls)
+      if (toolCalls.length === 0 && response.functionCalls && response.functionCalls.length > 0) {
+        toolCalls = response.functionCalls.map(call => ({
+          id: Date.now().toString(),
+          name: call.name,
+          args: call.args || {}
+        }));
+      }
+      
+      // Log for debugging
+      if (toolCalls.length > 0) {
+        console.log(`Found ${toolCalls.length} tool calls in response`, toolCalls);
+      } else if (responseText.includes('searchKnowledgeBase') || responseText.includes('getItemContent')) {
+        console.warn('Response text contains tool references but no tool calls were properly extracted');
+      }
+      
+      // Return the response
+      return {
+        text: responseText,
+        toolCalls: toolCalls,
+        model: modelId
+      };
+    } catch (error) {
+      console.error('Error in chat handler:', error);
+      // For IPC, we need to return an object with error information rather than throw
+      return {
+        error: true,
+        message: error.message,
+        details: error.stack
+      };
     }
-    
-    // If no tool calls found, check older response format (functionCalls)
-    if (toolCalls.length === 0 && response.functionCalls && response.functionCalls.length > 0) {
-      toolCalls = response.functionCalls.map(call => ({
-        id: Date.now().toString(),
-        name: call.name,
-        args: call.args || {}
-      }));
-    }
-    
-    // Log for debugging
-    if (toolCalls.length > 0) {
-      console.log(`Found ${toolCalls.length} tool calls in response`, toolCalls);
-    } else if (responseText.includes('searchKnowledgeBase') || responseText.includes('getItemContent')) {
-      console.warn('Response text contains tool references but no tool calls were properly extracted');
-    }
-    
-    // Return the response
-    return {
-      text: responseText,
-      toolCalls: toolCalls,
-      model: modelId
-    };
   });
 
   // Execute tool call - only used if not already registered
@@ -656,6 +669,10 @@ function setupIpcHandlers() {
         
       case 'listRecentFiles':
         toolResponse = await knowledgeController.listRecentItems(parameters.days, parameters.fileType, parameters.limit);
+        break;
+        
+      case 'queryDatabase':
+        toolResponse = await toolsService.queryDatabase(parameters);
         break;
         
       default:

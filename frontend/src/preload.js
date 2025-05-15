@@ -3,6 +3,11 @@ const http = require('http');
 const https = require('https');
 const url = require('url');
 
+// Create backend object immediately for global use
+let backend = {
+  isElectron: true
+};
+
 // Inline logger to avoid module issues in the preload context
 const log = {
   info: (message) => console.log(`[INFO] ${message}`),
@@ -113,6 +118,76 @@ const api = {
       log.error('Error listing recent files:', error);
       throw error;
     }
+  },
+  
+  // Chat with LLM
+  async chat(data) {
+    log.info('Sending chat request via IPC');
+    try {
+      try {
+        // Add request info for debugging
+        log.info(`Chat request details: message length: ${data.message?.length || 0}, history items: ${data.chatHistory?.length || 0}`);
+        
+        // Add timeout for IPC call
+        const result = await Promise.race([
+          ipcRenderer.invoke('chat', data),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('IPC chat request timed out after 20 seconds')), 20000)
+          )
+        ]);
+        
+        // Log successful response
+        log.info('Received chat response via IPC');
+        return result;
+      } catch (ipcError) {
+        // Special handling for API key errors
+        if (ipcError && ipcError.message && ipcError.message.includes('Google API key is not configured')) {
+          // Use warning level instead of error since this is a handled condition
+          log.info('IPC chat not available due to missing API key - this is expected and being handled');
+          log.info('API key not configured, showing guidance');
+          return {
+            content: `⚠️ Google API Key Not Configured
+
+You need to set up your Google API key to use the chat functionality. Please follow these steps:
+
+1. Create a file named \`.env\` in the \`backend\` directory 
+2. Add this line to the file:
+   \`\`\`
+   GOOGLE_API_KEY=your_actual_api_key_here
+   \`\`\`
+3. Restart the application
+
+You can get your Google API key from: https://ai.google.dev/`,
+            apiKeyMissing: true
+          };
+        }
+        
+        // This is for other errors that we need to handle differently
+        log.error('IPC chat failed, error details:', ipcError);
+        
+        // Check if this is a timeout error
+        if (ipcError.message?.includes('timed out')) {
+          log.error('IPC request timed out, falling back to HTTP');
+        }
+        
+        // Fall back to HTTP request with detailed error handling
+        log.info('Falling back to HTTP chat request');
+        try {
+          const httpResult = await serverProxy.request('/api/llm/chat', {
+            method: 'POST',
+            body: JSON.stringify(data)
+          });
+          log.info('HTTP fallback chat request succeeded');
+          return httpResult;
+        } catch (httpError) {
+          log.error('HTTP fallback also failed:', httpError.message);
+          throw new Error(`Chat request failed on both IPC and HTTP: ${httpError.message}`);
+        }
+      }
+    } catch (error) {
+      log.error('Chat request failed completely:', error.message);
+      throw error;
+    }
   }
 };
 
@@ -120,6 +195,104 @@ const api = {
 const serverProxy = {
   // Base URL for the backend API (fallback only)
   baseUrl: 'http://localhost:3001',
+  
+  // HTTP request helper for fallback
+  async request(path, options = {}) {
+    const url = `${this.baseUrl}${path}`;
+    log.info(`Making fallback request to: ${url}`);
+    
+    try {
+      // Try to use Electron's net module first if available
+      if (typeof electron !== 'undefined' && electron.net) {
+        return new Promise((resolve, reject) => {
+          const request = electron.net.request({
+            url,
+            method: options.method || 'GET'
+          });
+          
+          request.on('response', (response) => {
+            let body = '';
+            response.on('data', (chunk) => {
+              body += chunk.toString();
+            });
+            
+            response.on('end', () => {
+              try {
+                resolve(JSON.parse(body));
+              } catch (e) {
+                resolve(body);
+              }
+            });
+          });
+          
+          request.on('error', (error) => {
+            reject(error);
+          });
+          
+          if (options.body) {
+            request.write(options.body);
+          }
+          
+          request.end();
+        });
+      } else {
+        // Fallback to Node.js http/https when Electron net is not available
+        log.error('Electron net module is not available, using Node.js http/https fallback', electron);
+        
+        // Use global fetch API if available
+        if (typeof fetch === 'function') {
+          const response = await fetch(url, {
+            method: options.method || 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              ...options.headers
+            },
+            body: options.body
+          });
+          
+          return await response.json();
+        } else {
+          // Ultimate fallback using XHR if nothing else works
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open(options.method || 'GET', url);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            
+            for (const header in options.headers || {}) {
+              xhr.setRequestHeader(header, options.headers[header]);
+            }
+            
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  resolve(JSON.parse(xhr.responseText));
+                } catch (e) {
+                  resolve(xhr.responseText);
+                }
+              } else {
+                reject(new Error(`HTTP request failed with status ${xhr.status}`));
+              }
+            };
+            
+            xhr.onerror = () => {
+              reject(new Error('Network request failed'));
+            };
+            
+            xhr.send(options.body);
+          });
+        }
+      }
+    } catch (error) {
+      log.error('Error making HTTP request:', error);
+      throw error;
+    }
+  },
+  
+  // Chat with LLM - add this to match what LlmService expects
+  async chat(data) {
+    log.info('Server proxy: Delegating chat request to API');
+    return api.chat(data);
+  },
   
   // Check health endpoint to verify backend is running
   async checkHealth() {
@@ -154,53 +327,6 @@ const serverProxy = {
       }
     } catch (error) {
       log.error('Failed to get config:', error);
-      throw error;
-    }
-  },
-  
-  // Chat with LLM
-  async chat(data) {
-    log.info('Sending chat request via IPC');
-    try {
-      try {
-        // Add request info for debugging
-        log.info(`Chat request details: message length: ${data.message?.length || 0}, history items: ${data.chatHistory?.length || 0}`);
-        
-        // Add timeout for IPC call
-        const result = await Promise.race([
-          ipcRenderer.invoke('chat', data),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('IPC chat request timed out after 20 seconds')), 20000)
-          )
-        ]);
-        
-        // Log successful response
-        log.info('Received chat response via IPC');
-        return result;
-      } catch (ipcError) {
-        log.error('IPC chat failed, error details:', ipcError.message);
-        
-        // Check if this is a timeout error
-        if (ipcError.message.includes('timed out')) {
-          log.error('IPC request timed out, falling back to HTTP');
-        }
-        
-        // Fall back to HTTP request with detailed error handling
-        log.info('Falling back to HTTP chat request');
-        try {
-          const httpResult = await this.request('/api/llm/chat', {
-            method: 'POST',
-            body: JSON.stringify(data)
-          });
-          log.info('HTTP fallback chat request succeeded');
-          return httpResult;
-        } catch (httpError) {
-          log.error('HTTP fallback also failed:', httpError.message);
-          throw new Error(`Chat request failed on both IPC and HTTP: ${httpError.message}`);
-        }
-      }
-    } catch (error) {
-      log.error('Chat request failed completely:', error.message);
       throw error;
     }
   },
@@ -412,6 +538,40 @@ const serverProxy = {
     }
   }
 };
+
+// Add IPC methods to server proxy to bridge missing functionality
+serverProxy.ipc = {
+  // Other methods might be added here as needed
+  invoke: async (channel, ...args) => {
+    log.info(`Server proxy: Invoking IPC method: ${channel}`);
+    if (channel === 'settings:save') {
+      try {
+        log.info('Server proxy: Saving settings via IPC');
+        return await ipcRenderer.invoke(channel, ...args);
+      } catch (error) {
+        log.error('Error saving settings via IPC:', error);
+        throw error;
+      }
+    } else if (channel === 'settings:get') {
+      try {
+        log.info('Server proxy: Getting settings via IPC');
+        return await ipcRenderer.invoke(channel, ...args);
+      } catch (error) {
+        log.error('Error getting settings via IPC:', error);
+        throw error;
+      }
+    } else {
+      // For other channels, pass through to ipcRenderer
+      return await ipcRenderer.invoke(channel, ...args);
+    }
+  }
+};
+
+// Add backend property to exposed objects for compatibility
+contextBridge.exposeInMainWorld('backend', {
+  isElectron: true,
+  ipc: serverProxy.ipc
+});
 
 // Expose the APIs to the renderer process
 try {

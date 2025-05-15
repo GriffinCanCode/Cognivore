@@ -4,18 +4,11 @@
 .special-word {
   display: inline-block;
   position: relative;
-  font-weight: normal;
-  font-size: inherit;
-  line-height: inherit;
-  transition: all 0.3s ease;
+  font-weight: 600;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
   cursor: help;
-  padding: 0 2px;
-  z-index: 2;
-}
-
-/* Subtle glow on hover */
-.special-word:hover {
-  text-shadow: 0 0 8px currentColor;
 }
 
 /* Mnemosyne styling - goddess of memory */
@@ -338,4 +331,116 @@
   .assistant-message .special-word::before {
     opacity: 0.5;
   }
+}
+
+/* Mnemosyne word styling */
+.mnemosyne-word {
+  background-image: linear-gradient(135deg, #9c27b0 0%, #673ab7 50%, #3f51b5 100%);
+  animation: mnemosyne-pulse 4s infinite ease-in-out;
+  text-shadow: 0 0 8px rgba(103, 58, 183, 0.4);
+}
+
+/* Cognivore word styling */
+.cognivore-word {
+  background-image: linear-gradient(135deg, #2196f3 0%, #03a9f4 50%, #00bcd4 100%);
+  animation: cognivore-pulse 4s infinite ease-in-out;
+  text-shadow: 0 0 8px rgba(3, 169, 244, 0.4);
+}
+
+/* Griffin word styling */
+.griffin-word {
+  background-image: linear-gradient(135deg, #f44336 0%, #e91e63 50%, #9c27b0 100%);
+  animation: griffin-pulse 4s infinite ease-in-out;
+  text-shadow: 0 0 8px rgba(244, 67, 54, 0.4);
+}
+
+/* Expletive word styling */
+.expletive-word {
+  background-image: linear-gradient(135deg, #ff9800 0%, #ff5722 50%, #f44336 100%);
+  animation: expletive-pulse 3s infinite ease-in-out;
+  text-shadow: 0 0 8px rgba(255, 152, 0, 0.4);
+}
+
+/* Emphasized text styling */
+.emphasized-text {
+  display: inline-block;
+  position: relative;
+  font-weight: 600;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(135deg, #9575cd 0%, #7e57c2 50%, #673ab7 100%);
+  animation: emphasis-pulse 4s infinite ease-in-out;
+  text-shadow: 0 0 8px rgba(103, 58, 183, 0.3);
+}
+
+/* Animations */
+@keyframes mnemosyne-pulse {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes cognivore-pulse {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes griffin-pulse {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes expletive-pulse {
+  0%, 100% {
+    background-position: 0% 50%;
+    filter: brightness(1);
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: brightness(1.2);
+  }
+}
+
+@keyframes emphasis-pulse {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Hover effects */
+.special-word:hover, .emphasized-text:hover {
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+  transition: all 0.3s ease;
+}
+
+.special-word:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: 0.9;
 } 
