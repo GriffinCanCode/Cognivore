@@ -1,3 +1,299 @@
+## [0.5.21] - Web Preload Dependency Removal
+
+### Changed
+- Removed web preload file and its requirements from the Browser component:
+  - Eliminated all references to webviewHelper in setupHeaderModification
+  - Removed attemptAlternativeHeadersBypass dependency on preload
+  - Updated applySiteSpecificSettings to handle CSP bypass without webviewHelper
+  - Removed preload script path setting from createWebviewElement
+  - Enhanced browser functionality to work without requiring preload scripts
+  - Implemented direct session-based approach for header modifications
+  - Simplified webview initialization process
+
+### Fixed
+- Fixed webview readiness detection issue causing script execution failures:
+  - Enhanced webview readiness check with multiple detection methods
+  - Added comprehensive readiness state tracking throughout the webview lifecycle
+  - Implemented fail-safe execution for critical scripts when standard checks fail
+  - Added multiple event listeners to properly detect webview state (did-start-loading, did-stop-loading, did-finish-load)
+  - Fixed issues with the webRequest API detection and header modification
+  - Added alternative CSP bypass mechanisms when session APIs are unavailable
+  - Enhanced error recovery in executeSafelyInWebview function
+  - Added periodic DOM attachment checks for better reliability
+- Fixed excessive console logging from header bypass mechanism:
+  - Added throttling to prevent multiple calls within short time periods
+  - Implemented flags to prevent duplicate bypass script execution
+  - Enhanced MutationObserver with batched processing to reduce execution frequency
+  - Added state tracking to eliminate redundant console messages
+  - Improved event listener logic to minimize header bypass calls during navigation
+- Fixed excessive style maintenance logging in browser component:
+  - Replaced continuous interval with targeted MutationObserver to apply fixes only when needed
+  - Added intelligent change detection system that only fixes the specific styles that changed
+  - Implemented adaptive logging with exponential backoff (less frequent logging over time)
+  - Added strict log message capping to show at most 3 log messages during entire session
+  - Added debouncing to prevent rapid consecutive style applications
+  - Limited style checks to monitor only critical style and class attribute mutations
+  - Added mutation filtering to only process a maximum of 10 mutations per batch
+  - Implemented a self-limiting interval that automatically stops after 10 executions
+  - Reduced background interval frequency from 5s to 15s for additional log reduction
+  - Added one-time initialization of critical styles to prevent repeated application
+
+## [0.5.20] - Comprehensive Browser Display Fix
+
+### Fixed
+- Implemented comprehensive fix for browser rendering issues:
+  - Added complete DevTools prevention with multiple defensive measures
+  - Enhanced Google search rendering with targeted CSS fixes for search results
+  - Implemented aggressive DevTools element removal via mutation observers and intervals
+  - Added multiple layers of DevTools prevention: webview attributes, webpreferences, CSS, and JavaScript
+  - Enhanced webviewPreferences with explicit devTools=false setting
+  - Fixed potential collision with existing DevTools panels
+  - Added absolute positioning with z-index -9999 for any DevTools elements
+  - Implemented targeted fixes for Google Search layout elements
+  - Enhanced container styling with stronger box-sizing enforcement
+  - Added periodic checks to ensure DevTools elements are continuously removed
+  - Fixed Google search result sizing to improve overall display
+
+## [0.5.19] - Browser Progress Bar Enhancement
+
+### Changed
+- Enhanced browser progress bar appearance and behavior:
+  - Added subtle pulse animation to improve visibility during loading
+  - Created custom keyframes animation for better visual feedback
+  - Added rounded corners for smoother modern appearance
+  - Set transparent background to prevent flicker during transitions
+  - Improved styling for better integration with Google's design language
+  - Implemented subtle shadow effects for depth perception
+
+## [0.5.18] - DevTools Interference Fix
+
+### Fixed
+- Fixed issue with DevTools panel interfering with browser display:
+  - Added `disabledevtools` attribute to webview element
+  - Implemented CSS selectors to hide any DevTools-related elements
+  - Added JavaScript to prevent DevTools from opening via keyboard shortcuts
+  - Enhanced CSS for Google's homepage elements with proper centering
+  - Improved logo and search box positioning for better layout
+  - Added mutation observer to detect and remove DevTools elements
+  - Implemented automated cleanup interval for DevTools interference
+  - Added specific styling for Google's unique layout components
+  - Fixed inconsistent search box sizing with proper max-width value
+  - Enhanced page element alignment with flex layout properties
+
+## [0.5.17] - Browser Content Scrolling Fix
+
+### Fixed
+- Fixed browser content being constrained to small scrollable container:
+  - Added proper overflow handling with hidden container but auto scrolling content
+  - Improved Google-specific CSS targeting with more accurate selectors
+  - Enhanced search results layout with better width and margin handling
+  - Fixed main page elements to properly center at appropriate widths
+  - Added mutation observer to maintain proper overflow settings
+  - Implemented comprehensive search results container fixes
+  - Enhanced content element styling with proper scrolling behavior
+  - Fixed footer container to prevent horizontal scrollbars
+  - Added specific styling for Google's search box and input elements
+
+## [0.5.16] - Browser Fullscreen Display Fix
+
+### Fixed
+- Fixed browser not rendering fullscreen in container:
+  - Implemented direct document.body mounting for browser container to bypass application layout constraints
+  - Changed positioning from absolute to fixed for more reliable fullscreen sizing
+  - Used viewport units (vw/vh) instead of percentage values for accurate sizing
+  - Enhanced webview and container styling with max-height/width properties
+  - Added additional webview attributes for better content rendering
+  - Improved Google-specific CSS fixes for enhanced display
+  - Added transform:none to prevent unintended transformations
+  - Enhanced content element targeting for common website containers
+  - Added background colors to prevent transparent containers
+  - Used more aggressive positioning with !important flags on all styles
+  - Expanded targeting for Google Search UI elements
+  - Fixed loading screen to use document.body mounting for proper visibility
+  - Enhanced component cleanup to properly remove all DOM elements
+  - Improved visibility management during page transitions
+
+## [0.5.15] - Browser Container Sizing Fix
+
+### Fixed
+- Fixed browser not rendering in full container
+  - Changed container positioning from fixed to absolute for more reliable sizing
+  - Simplified and standardized styling across all container elements
+  - Removed flex layout in favor of absolute positioning for more predictable sizing
+  - Reduced complicated CSS in webview content scripts
+  - Fixed interference between loading screen and webview container
+  - Simplified preload script path handling
+  - Added more frequent style enforcement during critical periods
+
+## [0.5.14] - Browser Webview Preload Path Fix
+
+### Fixed
+- Fixed browser not rendering in full container due to webview preload script pathing issues
+  - Updated build process to correctly copy webview-preload.js to the dist directory
+  - Enhanced BrowserRenderer.js to look for the preload script in multiple locations
+  - Added file existence checker API exposed through preload.js for better path resolution
+  - Enhanced createWebview function with more aggressive positioning styles
+  - Applied stronger sizing enforcement in enforceWebviewStyles method
+  - Fixed null tagName check in Browser.js to prevent "toLowerCase of undefined" errors
+  - Improved logging for webview-preload.js path resolution
+  - Added fallback mechanism when preload script isn't found in the expected location
+  - Enhanced container sizing with absolute positioning and proper dimensions
+
+## [0.5.13] - Browser Component Method Binding Fix
+
+### Fixed
+- Fixed critical error in Browser component preventing it from initializing:
+  - Added safer method binding in Browser constructor with existence checks
+  - Implemented the missing setupWebviewEventListeners method with proper event handling
+  - Added missing updateLoadingState method to handle browser loading state changes
+  - Implemented checkIfPageIsLoaded for detecting page loading completion
+  - Added applySiteSpecificSettings method for URL-based configuration
+  - Implemented showNavigationErrorPage with user-friendly error display
+  - Improved error handling throughout the browser initialization process
+  - Fixed "Cannot read properties of undefined (reading 'bind')" error
+  - Fixed "applySiteSpecificSettings is not a function" navigation error
+  - Fixed "showNavigationErrorPage is not a function" error handling issue
+  - Enhanced error feedback in method binding to aid troubleshooting
+
+## [0.5.12] - Unified Browser Full Screen Rendering Fix
+
+### Fixed
+- Streamlined browser rendering with consistent webview styling approach
+  - Standardized on a single preload script (webview-preload.js) with enhanced margin fixes
+  - Updated container element positioning to absolute with inset property for full coverage
+  - Enhanced Google-specific element targeting with comprehensive selector list
+  - Implemented continuous style enforcement through mutation observers
+  - Fixed webview content rendering with more aggressive box model enforcement
+  - Added direct styling to HTML/body elements to prevent margin inheritance
+  - Improved preload script path handling for consistent loading
+  - Applied scrollbar fixes to prevent horizontal overflow
+  - Fixed "Failed to convert URL to file path" error by removing file:// protocol from preload paths
+  - Added DOM attachment verification to ensure webview is properly connected before navigation
+  - Implemented reattachment mechanism for webview elements that become detached
+  - Enhanced error recovery with visual feedback for webview initialization failures
+  - Fixed setupWebviewEventListeners method binding in constructor to prevent "not a function" errors
+
+## [0.5.11] - Comprehensive Browser Fullscreen Enhancement
+
+### Fixed
+- Fixed browser component not filling entire screen with aggressive style enforcement
+  - Enhanced container styling with box-sizing and flex properties for consistent sizing
+  - Improved webview positioning with inset and object-fit properties
+  - Added more comprehensive selectors for Google Search elements
+  - Implemented mutation observer to maintain styles during dynamic page updates
+  - Added universal overflow handling to prevent horizontal scrolling
+  - Enhanced element targeting for containers and wrappers across various websites
+  - Fixed layout issues by targeting additional Google-specific UI elements
+  - Added multiple timing checks to ensure styles apply after AJAX content loads
+  - Applied cross-browser fixes for content containers with consistent box model
+  - Fixed inconsistent container heights with enhanced flex properties
+- Fixed issue where browser would correctly display loading screen but shrink when showing actual website
+  - Implemented permanent style enforcement with periodic checks
+  - Added absolute positioning with inset properties for more reliable sizing
+  - Enhanced Google-specific CSS selectors to target search results containers
+  - Added continuous mutation observer to maintain styles during page interactions
+  - Implemented redundant style application methods for 100% reliability
+  - Applied fixes from Electron community (GitHub issue #9419) to remove black borders
+  - Added explicit body margin and padding removal to eliminate default Chrome spacing
+  - Implemented immediate style fixes on DOM-ready and page-load events
+  - Added comprehensive margin elimination in webview-preload.js for earliest possible fix
+  - Properly configured preload script path to ensure margin fixes are applied
+
+## [0.5.10] - Browser Fullscreen Fix 
+
+### Fixed
+- Fixed browser component only taking up top 20% of screen with fullscreen implementation
+  - Updated Browser.js and ContentRenderer.js with proper height and positioning properties
+  - Modified browser.css with improved container layout settings for fullscreen display
+  - Added absolute positioning with top/left/right/bottom=0 for complete viewport coverage
+  - Changed fixed pixel heights (500px, 600px) to relative units (100%, 100vh)
+  - Enhanced webview container to properly expand with flex-grow property
+  - Improved progress bar positioning to display properly in fullscreen mode
+  - Fixed scroll behavior within browser content for better user experience
+
+## [0.5.9] - Comprehensive X-Frame-Options Bypass for Browser
+
+### Fixed
+- Implemented complete X-Frame-Options header bypass for browser component:
+  - Added session-level header modification for all webviews in Electron main process
+  - Created multi-layered header removal system to handle all scenarios:
+    - Main process level through defaultSession configuration
+    - Per-webview level through dedicated session handlers
+    - Dynamic level via preload script helper functions
+  - Fixed "The object has already navigated" error with better partition attribute handling
+  - Implemented special Google-specific header bypass for enhanced compatibility
+  - Added case-insensitive header detection and removal
+  - Enhanced error detection with multiple fallback methods
+  - Applied header bypass before navigation to prevent timing issues
+  - Improved logging for better debugging of header modification
+
+## [0.5.8] - Browser Security Fix
+
+### Fixed
+- Fixed ERR_BLOCKED_BY_RESPONSE issue in Browser component
+  - Enhanced webview security settings to prevent content blocking
+  - Updated EventHandlers to better handle non-main frame errors
+  - Added comprehensive sandbox permissions to fix resource loading issues
+  - Improved Google-specific settings to enhance loading reliability
+  - Implemented better error detection and handling for blocked resources
+  - Added intelligent handling of common error codes (-27, -3, -300)
+
+## [0.5.7] - Voyager View Navigation Fix
+
+### Fixed
+- Fixed "under construction" message in Voyager View by adding proper navigation handling
+  - Added case for 'voyager' in the render method's switch statement
+  - Updated handleNavigation method to recognize 'voyager' as equivalent to 'browser'
+  - Fixed mismatch between navigation item ID and component rendering
+
+## [0.5.6] - Browser CSS Import Fix
+
+### Fixed
+- Fixed browser component not rendering due to missing CSS import
+  - Added missing import for `frontend/public/styles/components/browser.css` in index.html
+  - Ensured browser component styling is properly loaded with the application
+  - Fixed dynamic CSS loading path in App.js to use relative paths (./styles) instead of absolute paths (/styles)
+
+## [0.5.4] - Browser Component Fixes
+
+### Fixed
+- Fixed browser component to properly handle iframe/webview functionality
+  - Added proper checks for `getURL` method to support both Electron webview and iframe fallbacks
+  - Created missing CSS file `frontend/public/styles/components/browser.css` with responsive styles
+  - Fixed Content Security Policy issues preventing iframe loading of external sites
+  - Added frame-src directive to CSP configuration to allow proper website loading
+  - Fixed error handling for cross-origin content extraction
+  - Enhanced error detection with graceful fallbacks when accessing restricted content
+  - Improved browser navigation with more robust URL handling
+
+## [0.5.5] - Browser Component Refactoring
+
+### Changed
+- Refactored browser component with better Separation of Concerns
+  - Created modular file structure for browser component in `frontend/src/components/browser/`
+  - Separated utility functions into `utils/` subdirectory
+  - Moved rendering logic to `renderers/` subdirectory
+  - Created event handlers in `handlers/` subdirectory
+  - Added proper error page rendering with `ErrorPageRenderer.js`
+  - Enhanced content processing with dedicated `ContentUtils.js`
+  - Implemented environment detection in `BrowserEnv.js`
+  - Improved content extraction in `ContentExtractor.js`
+  - Added dedicated bookmark and history management utilities
+- Enhanced browser rendering capability with better cross-environment support
+  - Improved iframe/webview compatibility with environment-specific rendering
+  - Added better sandboxing options for secure content display
+  - Enhanced proxy support for content fetching across origins
+  - Improved error handling with dedicated error page renderers
+  - Added better content type detection and handling
+
+### Fixed
+- Improved browser component modularity while maintaining all existing functionality
+  - Fixed browser rendering issues with better compatibility handling
+  - Enhanced error detection with graceful fallbacks for restricted content
+  - Improved navigation history with more robust state management
+  - Fixed proxy content rendering with better error handling
+  - Enhanced content extraction with improved security handling
+
 ## [0.5.3] - Import Path Fixes
 
 ### Fixed
@@ -1454,3 +1750,103 @@
 ### Fixed
 - Improved error handling for tool call rendering and execution
 - Enhanced notification system for tool actions
+
+## [0.5.8] - Browser Auto-Detection in Electron
+
+### Changed
+- Enhanced browser components to reliably detect and operate in Electron environments:
+  - Improved `detectEnvironment()` with multiple Electron detection methods
+  - Added new `forceElectronMode()` function to bypass detection when needed
+  - Modified BrowserRenderer to correctly create webview elements in Electron
+  - Updated placeholder display logic to automatically hide in Electron
+  - Added automatic initial navigation to Google in Electron environments
+
+### Fixed
+- Fixed issue with browser not loading external pages in Electron despite security settings
+- Corrected environment detection when environment indicators are ambiguous
+- Ensured webview is properly displayed and placeholder is hidden in Electron
+
+## [0.5.9] - Browser Rendering Fix
+
+### Fixed
+- Fixed issues with browser environment detection in Electron app:
+  - Forced webview implementation regardless of environment detection
+  - Directly enabled browser functionality with webSecurity disabled
+  - Bypassed environment-specific rendering paths for consistent behavior
+  - Removed conditional logic that was causing detection failures
+  - Improved browser initialization to always load Google on startup
+  - Fixed placeholder hiding to ensure it's not shown in Electron
+  - Guaranteed that webview is always displayed properly
+
+## [0.5.8] - Browser Rendering Enhancement
+
+### Fixed
+- Fixed browser component not rendering websites correctly
+  - Added detailed event debugging for Electron webview to track loading issues
+  - Enhanced webview DOM-ready event handling to ensure content is visible
+  - Improved error handling with better logging and diagnostics
+  - Enhanced navigation method to support both webview and iframe elements
+  - Added more robust error page fallback when content can't be loaded
+  - Fixed webview container sizing to ensure proper display
+  - Added additional safety checks throughout browser component
+  - Enhanced EventHandlers to better handle Electron-specific webview events
+
+## [0.5.9] - Enhanced Browser WebView Loading
+
+### Fixed
+- Fixed webview not properly loading websites in Electron environment
+  - Added more permissive webview attributes to allow content loading
+  - Implemented site-specific settings for popular websites like Google
+  - Created preload script to bypass common embedding restrictions
+  - Added direct navigation method as fallback for difficult sites
+  - Added system to attempt alternative loading method from error pages
+  - Enhanced loadURL options with better headers and user agent
+  - Improved error page with additional retry options
+
+## [0.5.8] - Browser Webview Loading Fix
+
+### Fixed
+- Fixed browser component webview loading issues in Electron
+  - Enhanced error handling in EventHandlers.js to properly detect and report navigation failures
+  - Added timeout detection and recovery in Browser.js for navigation taking too long
+  - Improved frame message handling to prevent missing navigation events
+  - Fixed webview initialization with proper preload script and security settings
+  - Added fallback mechanisms when websites fail to load in webview
+  - Enhanced error page rendering with better user feedback and retry options
+  - Fixed Content Security Policy settings to allow proper resource loading
+  - Improved event communication between webview and main application
+
+## [0.5.9] - Enhanced Browser Webview Loading Reliability
+
+### Fixed
+- Fixed critical issue where webview wasn't loading websites in Electron:
+  - Implemented multiple loading strategies with automatic fallbacks
+  - Added `loadContentDirectly` function with iframe-based rendering technique
+  - Enhanced browser component to handle special cases for Google and YouTube
+  - Improved webview element initialization with more reliable attributes
+  - Added enhanced debugging with detailed console logging
+  - Fixed webview visibility issues with direct style enforcement
+  - Added multiple fallback mechanisms when primary loading fails
+  - Enhanced navigation timeout handling with progressive approaches
+  - Implemented DOM-ready detection with forced content visibility
+  - Fixed webview security settings to ensure content loads properly
+
+## Version 1.x.x (Development)
+
+### Bug Fixes
+- Fixed browser script execution errors by using IIFEs and window-scoped variables to prevent redeclaration
+- Fixed browser not filling the full screen by rendering directly to document body instead of within app container
+- Fixed browser loading screen not displaying properly by implementing a dedicated loading content component with improved styling
+- Fixed browser webview rendering issues with more aggressive styling using !important directives
+- Fixed z-index issues between loading screen and webview content for proper layer management
+- Improved browser component rendering with inline styles to prevent external style overrides
+- Added persistent style enforcement system to maintain proper fullscreen display after content loads
+- Implemented internal webview content styling to prevent Google from breaking out of the container
+- Added site-specific CSS styling with Google Search-specific fixes for container elements
+- Implemented content page navigation detection to ensure styles persist during in-page transitions
+- Enhanced style enforcement with multiple strategies (direct CSS, style elements, mutation observers)
+- Fixed browser container overflow and dimension issues with explicit max/min height properties
+- Added periodic style reapplication to handle dynamic content that modifies layout
+- Implemented style reset on page navigation to ensure consistent rendering across sites
+
+// ... existing code ...

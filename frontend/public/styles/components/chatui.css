@@ -194,10 +194,23 @@
   transition: margin-left 0.3s ease, width 0.3s ease;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   position: relative;
   z-index: 1;
+}
+
+/* When displaying the browser, allow full height */
+.browser-container {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  z-index: 9999 !important;
+  margin: 0 !important;
 }
 
 .sidebar-collapsed .main-content {

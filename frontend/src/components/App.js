@@ -168,10 +168,10 @@ class App {
    */
   loadStylesheets() {
     // Load tool renderers CSS
-    this.loadStylesheet('/styles/components/tool-renderers.css');
+    this.loadStylesheet('./styles/components/tool-renderers.css');
     
     // Load browser component CSS
-    this.loadStylesheet('/styles/components/browser.css');
+    this.loadStylesheet('./styles/components/browser.css');
   }
 
   /**
@@ -281,11 +281,35 @@ class App {
       return;
     }
     
+    // Check if we're navigating away from browser section
+    const wasInBrowser = ['browser', 'voyager'].includes(this.currentSection);
+    
     // Set active navigation item
     this.sidebar.setActiveItem(itemId);
     
     // Save current section
     this.currentSection = itemId;
+    
+    // If we were in browser mode and now switching to something else,
+    // make sure to restore the main app container visibility and clean up browser
+    if (wasInBrowser && !['browser', 'voyager'].includes(itemId)) {
+      // Show the main app container
+      const appContainer = document.getElementById('app');
+      if (appContainer) {
+        appContainer.style.display = 'block';
+      }
+      
+      // Clean up the browser component
+      if (this.browser) {
+        this.browser.cleanup();
+      }
+      
+      // Remove any browser containers that might be directly in the body
+      const browserContainers = document.querySelectorAll('body > .browser-container');
+      browserContainers.forEach(container => {
+        container.parentNode.removeChild(container);
+      });
+    }
     
     // Handle specific navigation actions
     if (itemId === 'ai-assistant' && this.chatUI) {
@@ -302,8 +326,8 @@ class App {
       // For preferences, initialize the settings component with general tab
       this.settings.activeTab = 'general';
       this.settings.initialize();
-    } else if (itemId === 'browser' && this.browser) {
-      // For browser, initialize it
+    } else if ((itemId === 'browser' || itemId === 'voyager') && this.browser) {
+      // For browser/voyager, initialize it
       this.browser.initialize();
     }
     
@@ -445,16 +469,27 @@ class App {
         break;
         
       case 'browser':
-        // Render Browser component
+      case 'voyager':
+        // Special handling for Browser component - render directly to body
         appLogger.info('Rendering Browser component');
         const browserElement = this.browser.render();
-        mainContent.appendChild(browserElement);
+        
+        // Don't append to mainContent, append directly to body
+        document.body.appendChild(browserElement);
+        
+        // Hide the main app container when browser is active
+        const appContainer = document.getElementById('app');
+        if (appContainer) {
+          appContainer.style.display = 'none';
+        }
         
         // Initialize Browser
         setTimeout(() => {
           this.browser.initialize();
         }, 100);
-        break;
+        
+        // Return early since we've handled rendering outside the main flow
+        return;
         
       case 'anthology':
         // Render Anthology component

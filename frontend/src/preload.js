@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer, net } = require('electron');
 const http = require('http');
 const https = require('https');
 const url = require('url');
+const fs = require('fs');
+const path = require('path');
+const { app } = require('electron').remote || { app: null };
 
 // Create backend object immediately for global use
 let backend = {
@@ -16,6 +19,30 @@ const log = {
 
 // Define API methods to expose to renderer process
 const api = {
+  // File system utilities
+  checkFileExists: (filePath) => {
+    try {
+      return fs.existsSync(filePath);
+    } catch (error) {
+      log.error(`Error checking if file exists (${filePath}):`, error);
+      return false;
+    }
+  },
+  
+  getAppPath: () => {
+    try {
+      // Try to use remote if available
+      if (app) {
+        return app.getAppPath();
+      }
+      // Fallback to a reasonable guess
+      return path.resolve(path.join(__dirname, '..'));
+    } catch (error) {
+      log.error('Error getting app path:', error);
+      return '';
+    }
+  },
+  
   // PDF processing
   processPDF: async (filePath) => {
     try {
@@ -567,20 +594,58 @@ serverProxy.ipc = {
   }
 };
 
-// Add backend property to exposed objects for compatibility
+// Expose backend object to allow renderer to know it's running in Electron
 contextBridge.exposeInMainWorld('backend', {
-  isElectron: true,
-  ipc: serverProxy.ipc
+  isElectron: true
+});
+
+// Expose specific API functions to renderer
+contextBridge.exposeInMainWorld('api', api);
+contextBridge.exposeInMainWorld('server', serverProxy);
+
+// Expose electron-specific helpers that combine functionality
+contextBridge.exposeInMainWorld('electron', {
+  // Pass session for webRequest
+  session: (process.versions.electron ? { defaultSession: null } : null),
+  
+  // File system helpers
+  checkFileExists: api.checkFileExists,
+  getAppPath: api.getAppPath,
+  
+  // Existing methods
+  ipcRenderer: {
+    invoke: (channel, ...args) => {
+      const validChannels = [
+        'check-health', 'get-config', 'process-pdf', 'process-url', 'process-youtube',
+        'delete-item', 'list-items', 'save-browser-content', 'search',
+        'list-all-files', 'list-files-by-type', 'list-files-with-content', 'list-recent-files',
+        'get-available-tools', 'execute-tool', 'generate-summary', 'chat',
+        'generate-embeddings', 'execute-tool-call', 'semantic-search',
+        'get-story-chapters', 'get-story-chapter-content', 'setup-header-bypass',
+        'settings:get', 'settings:save', 'settings:clear', 'settings:testApiKey'
+      ];
+      
+      if (validChannels.includes(channel)) {
+        return ipcRenderer.invoke(channel, ...args);
+      }
+      
+      throw new Error(`Channel "${channel}" is not allowed for security reasons.`);
+    },
+    
+    send: (channel, ...args) => {
+      const validChannels = [
+        'app-ready', 'setup-header-bypass'
+      ];
+      
+      if (validChannels.includes(channel)) {
+        ipcRenderer.send(channel, ...args);
+      }
+    }
+  }
 });
 
 // Expose the APIs to the renderer process
 try {
-  contextBridge.exposeInMainWorld('api', api);
-  contextBridge.exposeInMainWorld('server', serverProxy);
-  log.info('Preload script loaded successfully, API exposed to renderer');
-
-  // Expose protected methods that allow the renderer process to use
-  // the ipcRenderer without exposing the entire object
   contextBridge.exposeInMainWorld('electronAPI', {
     // Example: send: (channel, data) => ipcRenderer.send(channel, data),
     // Example: invoke: (channel, data) => ipcRenderer.invoke(channel, data),
@@ -612,3 +677,83 @@ try {
 } catch (error) {
   log.error('Failed to expose API:', error);
 }
+
+// Add special handler for webview management
+contextBridge.exposeInMainWorld('webviewHelper', {
+  getPreloadPath: () => {
+    // Return the current preload script path if needed by webviews
+    return __filename;
+  },
+  
+  disableCSP: (webviewElement) => {
+    if (webviewElement && webviewElement.getWebContents) {
+      try {
+        const webContents = webviewElement.getWebContents();
+        webContents.session.webRequest.onHeadersReceived((details, callback) => {
+          callback({
+            responseHeaders: {
+              ...details.responseHeaders,
+              'Content-Security-Policy': ['default-src * blob: data: filesystem: ws: wss: \'unsafe-inline\' \'unsafe-eval\'']
+            }
+          });
+        });
+        return true;
+      } catch (err) {
+        console.error('Error disabling CSP:', err);
+        return false;
+      }
+    }
+    return false;
+  },
+  
+  removeXFrameOptions: (webviewElement) => {
+    if (webviewElement && webviewElement.getWebContents) {
+      try {
+        console.log('Setting up X-Frame-Options removal in preload');
+        const webContents = webviewElement.getWebContents();
+        
+        webContents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+          const responseHeaders = { ...details.responseHeaders };
+          
+          // Headers to remove to bypass frame restrictions (case-insensitive check)
+          const headersToRemove = [
+            'x-frame-options',
+            'content-security-policy',
+            'x-content-security-policy',
+            'frame-options'
+          ];
+          
+          // Find and remove headers case-insensitively
+          for (const header in responseHeaders) {
+            if (headersToRemove.includes(header.toLowerCase())) {
+              console.log(`Removing restrictive header: ${header}`);
+              delete responseHeaders[header];
+            }
+          }
+          
+          callback({ responseHeaders });
+        });
+        
+        console.log('X-Frame-Options removal set up successfully');
+        return true;
+      } catch (err) {
+        console.error('Error setting up X-Frame-Options removal:', err);
+        return false;
+      }
+    }
+    return false;
+  },
+  
+  injectHelperScript: (webviewElement, script) => {
+    if (webviewElement && webviewElement.executeJavaScript) {
+      try {
+        webviewElement.executeJavaScript(script);
+        return true;
+      } catch (err) {
+        console.error('Error injecting helper script:', err);
+        return false;
+      }
+    }
+    return false;
+  }
+});
