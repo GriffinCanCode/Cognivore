@@ -340,16 +340,13 @@ class Browser {
       document.body.appendChild(loadingContent);
     }
     
-    // Ensure webview exists and has proper styling BEFORE setting opacity to 0
+    // Keep webview hidden until fully ready
     if (this.webview) {
-      // Apply critical styling immediately
-      this.enforceWebviewStyles(true); // Pass true to indicate this is initial styling
-      
-      // Then make it invisible while loading
+      // Apply critical styling but keep it hidden
       this.webview.style.cssText = `
         display: flex !important;
-        visibility: visible !important;
-        opacity: 0 !important; /* Hide until loaded */
+        visibility: hidden !important;
+        opacity: 0 !important;
         z-index: 0 !important;
         position: fixed !important;
         top: 52px !important;
@@ -370,6 +367,11 @@ class Browser {
         flex: 1 1 auto !important;
         transform: none !important;
       `;
+      
+      // Reset readyToShow flag if it exists
+      if (typeof this.webview.readyToShow !== 'undefined') {
+        this.webview.readyToShow = false;
+      }
     }
     
     // Update URL info
@@ -390,13 +392,86 @@ class Browser {
     const loadingContent = document.querySelector('.browser-loading-content');
     if (!loadingContent) return;
     
+    // Check if webview is ready to show before hiding loading screen
+    if (this.webview) {
+      // Apply immediate crucial styling first
+      this.enforceWebviewStyles(true);
+      
+      // Only hide loading content when webview is ready to show
+      if (typeof this.webview.readyToShow === 'undefined' || this.webview.readyToShow === true) {
+        // Webview is ready, proceed with hiding loading content
+        this._hideLoadingContent(loadingContent);
+      } else {
+        // Webview not ready yet, wait for readyToShow flag to become true
+        console.log('Webview not yet ready to show, waiting before hiding loading screen');
+        
+        // Check every 100ms if webview is ready
+        const readyCheckInterval = setInterval(() => {
+          if (this.webview.readyToShow === true) {
+            // Webview is now ready
+            clearInterval(readyCheckInterval);
+            this._hideLoadingContent(loadingContent);
+          }
+        }, 100);
+        
+        // Set a maximum timeout of 5 seconds
+        setTimeout(() => {
+          if (readyCheckInterval) {
+            clearInterval(readyCheckInterval);
+            console.log('Forcing loading content hide after timeout');
+            this._hideLoadingContent(loadingContent);
+            
+            // Force webview visibility
+            if (this.webview) {
+              this.webview.style.visibility = 'visible';
+              this.webview.style.opacity = '1';
+            }
+          }
+        }, 5000);
+      }
+    } else {
+      // No webview, just hide loading content
+      this._hideLoadingContent(loadingContent);
+    }
+  }
+  
+  /**
+   * Internal method to actually hide the loading content
+   * @private
+   * @param {HTMLElement} loadingContent - The loading content element to hide
+   */
+  _hideLoadingContent(loadingContent) {
     // Hide loading content
     loadingContent.style.opacity = '0';
     
     // Ensure webview is immediately visible with proper styling
     if (this.webview) {
-      // Apply critical styles first
-      this.enforceWebviewStyles(true); // Apply immediate enhancement
+      // Now show the webview with all styles applied
+      this.webview.style.cssText = `
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 1 !important;
+        position: fixed !important;
+        top: 52px !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: calc(100vh - 52px) !important;
+        min-height: calc(100vh - 52px) !important;
+        max-height: calc(100vh - 52px) !important;
+        min-width: 100vw !important;
+        max-width: 100vw !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        background-color: white !important;
+        flex: 1 1 auto !important;
+        transform: none !important;
+        overflow: hidden !important;
+      `;
     }
     
     // Then remove loading content after transition completes
@@ -409,23 +484,6 @@ class Browser {
         } catch (err) {
           console.warn('Error removing loading content:', err);
         }
-        
-        // Set up shorter, more frequent style enforcement
-        let styleCheckCount = 0;
-        const styleChecker = setInterval(() => {
-          this.enforceWebviewStyles();
-          styleCheckCount++;
-          if (styleCheckCount >= 5) {
-            clearInterval(styleChecker);
-            
-            // Set up periodic style enforcement at a lower frequency
-            if (!this.permanentStyleInterval) {
-              this.permanentStyleInterval = setInterval(() => {
-                this.enforceWebviewStyles();
-              }, 5000); // Check every 5 seconds
-            }
-          }
-        }, 1000); // Check once per second
       }
     }, 300);
   }

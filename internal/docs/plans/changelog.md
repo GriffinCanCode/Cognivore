@@ -38,6 +38,24 @@
   - Reduced background interval frequency from 5s to 15s for additional log reduction
   - Added one-time initialization of critical styles to prevent repeated application
 
+## [0.5.22] - Browser Webview Immediate Styling Fix
+
+### Fixed
+- Fixed browser webview taking too long to properly render with correct styling
+  - Implemented one-time comprehensive style application at initialization
+  - Added readyToShow flag to prevent webview display until fully styled
+  - Eliminated progressive style application that caused visual glitching
+  - Optimized style application to apply all critical styles at once
+  - Reduced over 30 sequential style fixes down to a single application
+  - Added coordination between loading screen and webview visibility
+  - Fixed "Illegal return statement" errors in webview JavaScript execution
+  - Implemented better content script structure with cleaner global variable usage
+  - Added visibility synchronization between loading and content screens
+  - Eliminated multiple redundant style applications during initialization
+  - Enhanced error recovery with maximum timeout safeguards
+  - Improved visual consistency during initial page load
+  - Implemented smarter loading screen that waits for webview to be ready
+
 ## [0.5.20] - Comprehensive Browser Display Fix
 
 ### Fixed
