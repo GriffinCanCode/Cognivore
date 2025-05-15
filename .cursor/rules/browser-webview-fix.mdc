@@ -1,3 +1,8 @@
+---
+description: 
+globs: browser*
+alwaysApply: false
+---
 # Browser Webview Rendering Fix
 
 ## Problem

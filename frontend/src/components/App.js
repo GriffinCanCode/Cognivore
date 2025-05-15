@@ -16,7 +16,7 @@ import logger from '../utils/logger.js';
 import Anthology from './Anthology.js';
 import Settings from './ui/Settings.js';
 import ToolRenderer from './tools/ToolRenderer.js';
-import Browser from './browser/Browser.js';
+import Browser from './browser/Voyager.js';
 
 // Create context-specific logger
 const appLogger = logger.scope('App');

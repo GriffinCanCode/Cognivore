@@ -1,3 +1,96 @@
+## [0.5.27] - Voyager Webview Flicker Reduction
+
+### Fixed
+- Fixed Voyager webview flickering during loading with more stable rendering:
+  - Integrated with enhanced BrowserRenderer styling system for consistent styling
+  - Implemented progressive opacity increases during page load for smoother appearance
+  - Added dimension verification system to maintain proper sizing throughout loading
+  - Enhanced style application timing with multi-layered approach (10ms, 50ms, 100ms, etc.)
+  - Reduced navigation timeout from 2.5s to 2s for faster recovery
+  - Implemented one-time event listeners for each navigation to prevent memory leaks
+  - Added persistent style elements with essential fixes for faster style application
+  - Enhanced webview creation with pre-compiled style bundles for immediate application
+  - Improved style transition during loading with opacity animations
+  - Added dimension verification with 3px tolerance for pixel-perfect sizing
+  - Fixed Google content rendering with enhanced selectors for search results pages
+
+## [0.5.26] - Voyager Instant Webview Rendering Fix
+
+### Fixed
+- Fixed webview showing incorrect styling for 10 seconds before rendering correctly:
+  - Implemented continuous style monitoring with dimension verification
+  - Added progressive style check system with cascading timing (100ms, 250ms, 500ms, etc.)
+  - Enhanced loading screen to webview transition with smooth fade-out animation
+  - Made webview partially visible during loading for better perceived performance
+  - Added post-loading dimension verification to maintain correct size after content loads
+  - Created dedicated style maintenance utilities for both container and content
+  - Added mutation observer for content style maintenance
+  - Reduced navigation timeout from 5 seconds to 3 seconds for faster recovery
+  - Improved style application frequency with shorter intervals (1000ms vs 2000ms)
+  - Enhanced preloading of styles with critical positioning and visibility properties
+  - Fixed race conditions in style application and loading screen handling
+
+## [0.5.25] - Voyager Webview Loading Enhancement
+
+### Fixed
+- Further optimized Voyager (formerly Browser) webview loading for immediate and consistent display:
+  - Applied critical styling immediately at the start of page loading
+  - Made webview partially visible during navigation to improve perceived performance
+  - Reduced maximum timeout from 5 seconds to 1.5 seconds for faster failover
+  - Added more aggressive checking for page readiness with 25ms intervals (from 50ms)
+  - Enhanced readyState detection with immediate style application
+  - Added content script execution at the earliest possible moment in page lifecycle
+  - Implemented more frequent load checks (250ms intervals) for faster style application
+  - Reduced navigation retry delay from 100ms to 50ms
+  - Added immediate style application to content when hiding loading screen
+  - Removed special Google-specific handling in favor of universal fast loading approach
+  - Enhanced checkIfPageIsLoaded with comprehensive styling application
+
+## [0.5.24] - Browser Component Renamed to Voyager
+
+### Changed
+- Renamed Browser component to Voyager for better brand alignment:
+  - Renamed Browser.js to Voyager.js while maintaining all functionality
+  - Updated all internal references to use the new Voyager name
+  - Ensured navigation in sidebar uses consistent "Voyager" naming
+  - Maintained backward compatibility with existing browser functionality
+  - Enhanced component organization with consistent naming conventions
+  - Improved codebase readability with more descriptive component names
+
+## [0.5.23] - Browser Webview Loading Optimization
+
+### Fixed
+- Optimized browser webview loading to render correctly on first load and significantly faster:
+  - Preloaded critical styles before any attributes are set for immediate application
+  - Stored precompiled style script on webview for faster execution
+  - Added early style application during did-start-loading event for faster visual rendering
+  - Removed unnecessary delays and timeouts in style application process
+  - Optimized hideLoadingContent method with faster checking and reduced delay
+  - Improved navigation process with more efficient loading workflow
+  - Reduced maximum timeout for loading screens from 5 seconds to 2 seconds
+  - Removed half-second delay between style application and visibility
+  - Enhanced readyToShow flag handling to make webview visible immediately after styling
+  - Implemented more frequent loading status checks (50ms instead of 100ms)
+  - Fixed navigation retry delay from 500ms to 100ms for faster recovery
+
+## [0.5.22] - Browser Webview Immediate Styling Fix
+
+### Fixed
+- Fixed browser webview taking too long to properly render with correct styling
+  - Implemented one-time comprehensive style application at initialization
+  - Added readyToShow flag to prevent webview display until fully styled
+  - Eliminated progressive style application that caused visual glitching
+  - Optimized style application to apply all critical styles at once
+  - Reduced over 30 sequential style fixes down to a single application
+  - Added coordination between loading screen and webview visibility
+  - Fixed "Illegal return statement" errors in webview JavaScript execution
+  - Implemented better content script structure with cleaner global variable usage
+  - Added visibility synchronization between loading and content screens
+  - Eliminated multiple redundant style applications during initialization
+  - Enhanced error recovery with maximum timeout safeguards
+  - Improved visual consistency during initial page load
+  - Implemented smarter loading screen that waits for webview to be ready
+
 ## [0.5.21] - Web Preload Dependency Removal
 
 ### Changed
@@ -37,24 +130,6 @@
   - Implemented a self-limiting interval that automatically stops after 10 executions
   - Reduced background interval frequency from 5s to 15s for additional log reduction
   - Added one-time initialization of critical styles to prevent repeated application
-
-## [0.5.22] - Browser Webview Immediate Styling Fix
-
-### Fixed
-- Fixed browser webview taking too long to properly render with correct styling
-  - Implemented one-time comprehensive style application at initialization
-  - Added readyToShow flag to prevent webview display until fully styled
-  - Eliminated progressive style application that caused visual glitching
-  - Optimized style application to apply all critical styles at once
-  - Reduced over 30 sequential style fixes down to a single application
-  - Added coordination between loading screen and webview visibility
-  - Fixed "Illegal return statement" errors in webview JavaScript execution
-  - Implemented better content script structure with cleaner global variable usage
-  - Added visibility synchronization between loading and content screens
-  - Eliminated multiple redundant style applications during initialization
-  - Enhanced error recovery with maximum timeout safeguards
-  - Improved visual consistency during initial page load
-  - Implemented smarter loading screen that waits for webview to be ready
 
 ## [0.5.20] - Comprehensive Browser Display Fix
 
@@ -1868,3 +1943,24 @@
 - Implemented style reset on page navigation to ensure consistent rendering across sites
 
 // ... existing code ...
+
+## Web Browser Component Improvements
+
+- Fixed error `ReferenceError: immediate is not defined` in Voyager.js and BrowserRenderer.js by standardizing parameter naming
+- Renamed parameter from `immediate` to `forcedApply` for consistency across style application methods
+- Fixed parameter passing in applyContentStyles, enforceWebviewStyles, and applyAllCriticalStyles methods
+- Eliminated flickering caused by failed JavaScript execution during style application
+
+## Voyager Webview Flickering Elimination
+
+- Eliminated remaining flickering issues in webview browser component:
+  - Implemented smarter dimension verification with stability tracking to reduce style reapplications
+  - Added dimension stability counter to prevent fluctuations from triggering style updates
+  - Enhanced opacity transitions with improved easing functions and timing
+  - Implemented two-phase timeout system for smoother loading experience
+  - Reduced frequency of style checks with exponential backoff strategy
+  - Eliminated redundant dimension check interval to reduce style interference
+  - Added transition property removal after animations complete to prevent flickering
+  - Increased dimension tolerance from 5px to 10px to reduce unnecessary updates
+  - Implemented style application caching to prevent redundant operations
+  - Enhanced timeout handling with better coordination between loading phases
