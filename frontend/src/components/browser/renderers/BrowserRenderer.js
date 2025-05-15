@@ -251,7 +251,8 @@ export function createWebviewElement(browser) {
     webview.classList.add('browser-webview');
     webview.classList.add('browser-content-frame');
     
-    // CRITICAL: Set partition for persistence AFTER initial styling but BEFORE any attributes that might trigger navigation
+    // CRITICAL: Set partition for persistence BEFORE any attributes that might trigger navigation
+    // FIX: Set this first to avoid "object has already navigated" error
     webview.setAttribute('partition', 'persist:main');
     
     // Set important webview properties for Electron
@@ -1706,93 +1707,125 @@ function setupHeaderBypass(webview) {
   if (!webview) return;
   
   try {
-    // Fallback to direct approach
-    console.log('📋 Using direct header bypass method');
+    // Use preload script approach as primary method
+    console.log('📋 Setting up X-Frame-Options bypass with preload script');
     
-    // Wait a short moment for webview to initialize
+    // Create a preload script path (we'll inject it directly instead)
+    // This script will run in the context of the webview and remove restrictive headers
+    const bypassScript = `
+      // Bypass X-Frame-Options and CSP using DOM methods
+      const bypassRestrictions = () => {
+        try {
+          // Remove CSP meta tags
+          const cspTags = document.querySelectorAll('meta[http-equiv="Content-Security-Policy"], meta[http-equiv="content-security-policy"]');
+          cspTags.forEach(tag => tag.remove());
+          
+          // Add permissive CSP
+          const meta = document.createElement('meta');
+          meta.httpEquiv = 'Content-Security-Policy';
+          meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;";
+          document.head.appendChild(meta);
+          
+          // Prevent frame busting scripts
+          if (window.top !== window.self) {
+            try {
+              // Override frame busting properties
+              Object.defineProperty(window, 'top', { value: window.self, configurable: true });
+              Object.defineProperty(window, 'parent', { value: window.self, configurable: true });
+              Object.defineProperty(window, 'frameElement', { value: null, configurable: true });
+            } catch(e) {}
+          }
+          
+          console.log('Applied header bypass via preload script');
+        } catch(e) {
+          console.warn('Error in header bypass:', e);
+        }
+      };
+      
+      // Execute when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bypassRestrictions);
+      } else {
+        bypassRestrictions();
+      }
+      
+      // Also hook into any future document writes
+      const originalWrite = document.write;
+      document.write = function(...args) {
+        const result = originalWrite.apply(this, args);
+        bypassRestrictions();
+        return result;
+      };
+    `;
+    
+    // Try multiple bypass methods for redundancy
+    
+    // Method 1: Try to set preload script if possible
+    try {
+      // Create a Blob URL for the preload script (works in recent Electron versions)
+      const blob = new Blob([bypassScript], { type: 'application/javascript' });
+      const preloadUrl = URL.createObjectURL(blob);
+      webview.setAttribute('preload', preloadUrl);
+    } catch (err) {
+      console.warn('Could not set preload via URL.createObjectURL:', err);
+    }
+    
+    // Method 2: Apply directly via executeJavaScript when navigation starts
+    webview.addEventListener('did-start-loading', () => {
+      if (typeof webview.executeJavaScript === 'function') {
+        try {
+          webview.executeJavaScript(bypassScript)
+            .catch(err => console.warn('ExecuteJavaScript bypass error:', err));
+        } catch (err) {
+          console.warn('Error executing bypass script:', err);
+        }
+      }
+    });
+    
+    // Method 3: Apply when DOM is ready
+    webview.addEventListener('dom-ready', () => {
+      if (typeof webview.executeJavaScript === 'function') {
+        try {
+          webview.executeJavaScript(bypassScript)
+            .catch(err => console.warn('DOM ready bypass error:', err));
+        } catch (err) {
+          console.warn('Error executing bypass script:', err);
+        }
+      }
+    });
+    
+    // Method 4: Fallback - try using direct electron session when available
+    // This will be executed only if the environment supports it
     setTimeout(() => {
       try {
-        if (webview.getWebContents) {
-          try {
-            const webContents = webview.getWebContents();
+        if (webview.getWebContents && typeof webview.getWebContents === 'function') {
+          const webContents = webview.getWebContents();
+          if (webContents && webContents.session && webContents.session.webRequest) {
+            console.log('Using native webRequest API for header bypass');
             
-            if (webContents && webContents.session) {
-              console.log('📋 Setting up immediate header bypass via webContents');
-              const { session } = webContents;
+            const { session } = webContents;
+            session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+              if (!details.responseHeaders) return callback({ cancel: false });
               
-              // Check if webRequest API is supported before using it
-              if (session.webRequest && typeof session.webRequest.onHeadersReceived === 'function') {
-                try {
-                  // Add a listener to remove restrictive headers
-                  session.webRequest.onHeadersReceived(
-                    { urls: ['*://*/*'] },
-                    (details, callback) => {
-                      if (!details || !details.responseHeaders) {
-                        return callback({ cancel: false });
-                      }
-                      
-                      // Clone the headers to avoid modification issues
-                      const responseHeaders = {};
-                      
-                      // Copy headers safely without references to the original object
-                      if (details.responseHeaders) {
-                        Object.keys(details.responseHeaders).forEach(key => {
-                          const headerValue = details.responseHeaders[key];
-                          // Ensure we only include serializable values
-                          if (typeof headerValue === 'string' || Array.isArray(headerValue)) {
-                            responseHeaders[key] = headerValue;
-                          }
-                        });
-                      }
-                      
-                      // Headers to remove to bypass frame restrictions
-                      const headersToRemove = [
-                        'x-frame-options', 'X-Frame-Options',
-                        'content-security-policy', 'Content-Security-Policy',
-                        'x-content-security-policy', 'X-Content-Security-Policy',
-                        'frame-options', 'Frame-Options'
-                      ];
-                      
-                      // Remove each header if it exists
-                      headersToRemove.forEach(header => {
-                        if (responseHeaders[header]) {
-                          console.log(`🔄 Removing restrictive header for webview: ${header}`);
-                          delete responseHeaders[header];
-                        }
-                      });
-                      
-                      // Continue with modified headers - use a plain object to avoid cloning issues
-                      callback({ responseHeaders: responseHeaders, cancel: false });
-                    }
-                  );
-                  
-                  console.log('✅ Header bypass set up successfully');
-                } catch (err) {
-                  console.warn('WebRequest API error:', err.message);
-                  // Fall back to alternative method if webRequest fails
-                  useAlternativeHeaderBypass(webview);
-                }
-              } else {
-                console.warn('Session does not support webRequest API, using alternative method');
-                useAlternativeHeaderBypass(webview);
-              }
-            } else {
-              console.warn('WebContents session not available, using alternative method');
-              useAlternativeHeaderBypass(webview);
-            }
-          } catch (err) {
-            console.warn('Error accessing webContents:', err);
-            useAlternativeHeaderBypass(webview);
+              // Create a clean copy of headers to avoid reference issues
+              const responseHeaders = { ...details.responseHeaders };
+              
+              // Remove restrictive headers
+              ['x-frame-options', 'content-security-policy', 'frame-options'].forEach(header => {
+                delete responseHeaders[header];
+                delete responseHeaders[header.toUpperCase()];
+              });
+              
+              callback({ responseHeaders, cancel: false });
+            });
           }
-        } else {
-          console.warn('getWebContents method not available on webview, using alternative method');
-          useAlternativeHeaderBypass(webview);
         }
-      } catch (error) {
-        console.warn('Error in header bypass setup, falling back to alternative method:', error);
-        useAlternativeHeaderBypass(webview);
+      } catch (err) {
+        console.warn('Failed to set up native webRequest header bypass:', err);
       }
-    }, 100);
+    }, 200);
+    
+    console.log('✅ Header bypass setup with multiple fallback methods');
   } catch (err) {
     console.warn('Error setting up header bypass:', err);
     useAlternativeHeaderBypass(webview);
