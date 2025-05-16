@@ -177,6 +177,9 @@ class App extends Component {
     
     // Load browser component CSS
     this.loadStylesheet('./styles/components/browser.css');
+
+    // Load research panel CSS
+    this.loadStylesheet('./styles/components/ResearchPanel.css');
   }
 
   /**

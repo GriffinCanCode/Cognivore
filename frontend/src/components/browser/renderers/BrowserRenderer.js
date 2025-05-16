@@ -284,104 +284,25 @@ export function createBrowserHeader(browser) {
     console.log('Research button clicked');
     
     try {
-      // Don't toggle the visual state immediately - wait for the actual result first
-      
-      // Call the toggleResearchMode handler first to get the actual state
+      // Call the toggleResearchMode handler to delegate to the Researcher component
       if (typeof browser.toggleResearchMode === 'function') {
         console.log('Calling toggleResearchMode');
         const result = browser.toggleResearchMode();
         console.log('toggleResearchMode result:', result);
-        
-        // Now update the button state based on the ACTUAL result, not just toggling
-        if (result === true) {
-          researchButton.classList.add('active');
-          researchButton.title = 'Research mode active';
-          showToastNotification('Research mode activated');
-        } else {
-          researchButton.classList.remove('active');
-          researchButton.title = 'Toggle research mode';
-          showToastNotification('Research mode deactivated');
-        }
-        
-        // Super-force panel visibility if activated
-        if (result === true && browser.researchPanel) {
-          // First immediate check
-          if (browser.researchPanel && browser.researchPanel.isConnected) {
-            browser.researchPanel.setAttribute('style', `
-              display: block !important;
-              z-index: 999999 !important;
-              opacity: 1 !important;
-              visibility: visible !important;
-              position: fixed !important;
-              right: 0 !important;
-              top: 0 !important;
-              bottom: 0 !important;
-              height: 100vh !important;
-              width: 350px !important;
-              transform: none !important;
-            `);
-            
-            // Move to body for absolute maximum visibility
-            document.body.appendChild(browser.researchPanel);
-          }
-          
-          // Try again after a delay
-          setTimeout(() => {
-            if (browser.researchPanel && browser.researchPanel.isConnected) {
-              browser.researchPanel.setAttribute('style', `
-                display: block !important;
-                z-index: 999999 !important;
-                opacity: 1 !important;
-                visibility: visible !important;
-                position: fixed !important;
-                right: 0 !important;
-                top: 0 !important;
-              `);
-              
-              // Ensure it's in the body
-              if (browser.researchPanel.parentElement !== document.body) {
-                document.body.appendChild(browser.researchPanel);
-              }
-            }
-          }, 100);
-        }
       } else {
-        console.error('toggleResearchMode is not a function on the browser object');
-        showToastNotification('Research mode not available', 'error');
+        console.error('toggleResearchMode method not available on browser instance');
+        throw new Error('Research mode toggle not available');
       }
-    } catch (error) {
-      console.error('Error toggling research mode:', error);
-      showToastNotification('Error toggling research mode', 'error');
+    } catch (err) {
+      console.error('Error toggling research mode:', err);
       
-      // Attempt emergency recovery
+      // Show error notification
       try {
-        // Try to create panel directly if it doesn't exist
-        if (!browser.researchPanel) {
-          console.log('Attempting emergency panel creation');
-          browser.researchPanel = createResearchPanel();
-          document.body.appendChild(browser.researchPanel);
-          browser.researchPanel.setAttribute('style', `
-            display: block !important;
-            z-index: 999999 !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-            position: fixed !important;
-            right: 0 !important;
-            top: 0 !important;
-            bottom: 0 !important;
-            height: 100vh !important;
-            width: 350px !important;
-          `);
-        }
-      } catch (recoveryError) {
-        console.error('Emergency recovery failed:', recoveryError);
+        showToastNotification('Failed to toggle research mode: ' + (err.message || 'Unknown error'), 'error');
+      } catch (notifyErr) {
+        console.warn('Could not show error notification:', notifyErr);
       }
     }
-    
-    // Fire a custom event to notify any listeners
-    document.dispatchEvent(new CustomEvent('researchModeToggled', {
-      detail: { browser, button: researchButton }
-    }));
   });
   
   actionButtons.appendChild(researchButton);
@@ -578,118 +499,21 @@ function updateNavButtonStates(browser, backBtn, forwardBtn) {
 }
 
 /**
- * Create the research panel
+ * Create a placeholder for the research panel
+ * This is a stub that delegates to the Researcher component's methods
  * @returns {HTMLElement} Research panel element
+ * @deprecated Use the Researcher component directly instead
  */
 export function createResearchPanel() {
-  // Create the panel with explicit comprehensive styling
-  const researchPanel = document.createElement('div');
-  researchPanel.className = 'browser-research-panel';
+  console.warn('createResearchPanel in BrowserRenderer is deprecated. Use the Researcher component instead.');
   
-  // Apply immediate styling to ensure visibility
-  researchPanel.style.cssText = `
-    display: none !important;
-    z-index: 9999 !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-    position: fixed !important;
-    right: 0 !important;
-    top: 0 !important;
-    bottom: 0 !important;
-    height: 100vh !important;
-    width: 350px !important;
-    background-color: #ffffff !important;
-    box-shadow: -5px 0 25px rgba(0, 0, 0, 0.25) !important;
-    transition: transform 0.3s ease-in-out, opacity 0.3s ease !important;
-    transform: translateX(100%) !important;
-    pointer-events: none !important;
-    overflow: auto !important;
-    font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-  `;
+  // Create a simple placeholder that will be replaced by the actual implementation
+  const placeholderPanel = document.createElement('div');
+  placeholderPanel.className = 'browser-research-panel hidden';
+  placeholderPanel.setAttribute('data-panel-type', 'research');
+  placeholderPanel.setAttribute('data-placeholder', 'true');
   
-  // Create header with standard styling
-  const researchHeader = document.createElement('div');
-  researchHeader.className = 'research-panel-header';
-  researchHeader.style.cssText = `
-    padding: 15px !important;
-    border-bottom: 1px solid #e0e0e0 !important;
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    background-color: #f8f9fa !important;
-  `;
-  
-  // Add header content
-  researchHeader.innerHTML = `
-    <h3 style="margin: 0; font-size: 18px; font-weight: 500;">Research</h3>
-    <div class="research-panel-controls" style="display: flex; gap: 10px;">
-      <button class="research-panel-clear" style="background: none; border: none; cursor: pointer; font-size: 14px; padding: 5px 8px; border-radius: 4px;">Clear</button>
-      <button class="research-panel-close" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 5px 8px; border-radius: 4px;">×</button>
-    </div>
-  `;
-  
-  // Set up event handlers with console logging
-  researchHeader.querySelector('.research-panel-close').addEventListener('click', (event) => {
-    console.log('Research panel close button clicked');
-    
-    // Use a more robust approach to hide the panel
-    researchPanel.style.cssText = `
-      transform: translateX(100%) !important;
-      opacity: 0 !important;
-      visibility: hidden !important;
-      display: none !important;
-      pointer-events: none !important;
-    `;
-    
-    // Also try to find and toggle the research button
-    const researchBtn = document.querySelector('.browser-research-btn');
-    if (researchBtn && researchBtn.classList.contains('active')) {
-      researchBtn.click();
-    }
-    
-    event.stopPropagation();
-  });
-  
-  researchHeader.querySelector('.research-panel-clear').addEventListener('click', (event) => {
-    console.log('Research panel clear button clicked');
-    const content = researchPanel.querySelector('.research-panel-content');
-    if (content) {
-      content.innerHTML = `
-        <div class="research-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
-          <p>No research data available yet.</p>
-          <p>Enable research mode to automatically save pages as you browse.</p>
-        </div>
-      `;
-    }
-    event.stopPropagation();
-  });
-  
-  researchPanel.appendChild(researchHeader);
-  
-  // Create content area with standard styling
-  const researchContent = document.createElement('div');
-  researchContent.className = 'research-panel-content';
-  researchContent.style.cssText = `
-    flex: 1 !important;
-    overflow-y: auto !important;
-    padding: 10px 15px !important;
-    height: calc(100vh - 51px) !important; /* 51px is header height */
-  `;
-  
-  // Add initial empty state
-  researchContent.innerHTML = `
-    <div class="research-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
-      <p>No research data available yet.</p>
-      <p>Enable research mode to automatically save pages as you browse.</p>
-    </div>
-  `;
-  
-  researchPanel.appendChild(researchContent);
-  
-  // Log panel creation
-  console.log('Created research panel with explicit styling');
-  
-  return researchPanel;
+  return placeholderPanel;
 }
 
 /**
@@ -2638,9 +2462,11 @@ export function setupBrowserLayout(browser) {
   webviewContainer.style.overflow = 'hidden';
   container.appendChild(webviewContainer);
   
-  // Create research panel
-  const researchPanel = createResearchPanel();
-  container.appendChild(researchPanel);
+  // Add a placeholder div for the research panel - the actual panel will be managed by Researcher component
+  const researchPanelPlaceholder = document.createElement('div');
+  researchPanelPlaceholder.className = 'browser-research-panel-placeholder';
+  researchPanelPlaceholder.style.display = 'none';
+  container.appendChild(researchPanelPlaceholder);
   
   // Store references
   browser.header = header;
@@ -2649,7 +2475,9 @@ export function setupBrowserLayout(browser) {
   browser.progressBar = progressBar.querySelector('.browser-progress-bar');
   browser.progressContainer = progressBar;
   browser.webviewContainer = webviewContainer;
-  browser.researchPanel = researchPanel;
+  
+  // Note: browser.researchPanel is no longer created/managed here
+  // It will be set by the Researcher component when it initializes
   
   // Log layout creation for debugging
   console.log('Browser layout created with address bar at the top');

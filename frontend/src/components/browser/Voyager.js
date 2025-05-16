@@ -12,7 +12,7 @@ import React, { Component } from 'react';
 import { nanoid } from 'nanoid';
 import DOMPurify from 'dompurify';
 
-// Import researcher component
+// Import researcher component and research panel styles
 import Researcher from './researcher/Researcher';
 
 // Import browser component utilities
@@ -108,6 +108,13 @@ class Voyager extends Component {
     this.addressInput = null;
     this.researcher = null;
     
+    // Create research panel reference if it doesn't exist
+    this.researchPanel = document.createElement('div');
+    this.researchPanel.className = 'browser-research-panel hidden'; // Start hidden
+    
+    // Ensure research panel is added to the DOM immediately
+    document.body.appendChild(this.researchPanel);
+    
     // Track if we've already done the initial navigation
     this.hasNavigatedInitially = false;
     
@@ -129,26 +136,30 @@ class Voyager extends Component {
     this.addBookmark = this.addBookmark.bind(this);
     this.extractPageContent = this.extractPageContent.bind(this);
     this.initialize = this.initialize.bind(this);
+    this.initializeResearcher = this.initializeResearcher.bind(this);
     this.cleanup = this.cleanup.bind(this);
   }
   
   componentDidMount() {
-    this.setState({ isMounted: true }, () => {
-      // Now that state is updated, we can initialize
+    console.log(`Voyager browser component mounted (ID: ${this.browserId})`);
+    
+    // Set isMounted state to enable rendering of child components
+    this.setState({
+      isMounted: true
+    }, () => {
+      // Initialize the browser once state is updated
       this.initialize();
     });
   }
   
   componentWillUnmount() {
-    this.setState({ isMounted: false });
+    this._isUnloading = true;
+    this.cleanup();
     
-    // Clean up any event listeners
-    if (this.webview) {
-      this.webview.removeEventListener('did-start-loading', this.handleLoadStart);
-      this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
-      this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
-      this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
-    }
+    // Set isMounted to false to prevent any further state updates
+    this.setState({
+      isMounted: false
+    });
   }
   
   componentDidUpdate(prevProps) {
@@ -613,309 +624,55 @@ class Voyager extends Component {
   }
   
   /**
-   * Toggle research mode for the browser
+   * Toggle research mode on/off
    * @returns {boolean} The new research mode state
    */
   toggleResearchMode() {
     console.log('Toggle research mode called');
     
-    // CRITICAL CHANGE: First explicitly modify state directly to ensure toggling works
-    // (setState is asynchronous, so using it directly wouldn't work for returns)
+    // Calculate the new state (prior to setting it)
     const newResearchMode = !this.state.researchMode;
     
-    // Set state directly for immediate use
-    this.state.researchMode = newResearchMode;
+    // Initialize researcher if needed
+    if (newResearchMode && !this.researcher) {
+      this.initializeResearcher();
+    }
     
-    // Log the new state
-    console.log(`TOGGLED RESEARCH MODE: ${newResearchMode ? 'ON' : 'OFF'}`);
-    
-    // Then use setState to trigger component updates (async)
-    this.setState({ researchMode: newResearchMode }, () => {
-      console.log(`Research mode ${newResearchMode ? 'activated' : 'deactivated'}`);
+    // Use the researcher component instance if available
+    if (this.researcher && typeof this.researcher.toggleActive === 'function') {
+      console.log('Delegating research mode toggle to Researcher component');
       
-      // Check if research panel exists, if not create it
-      if (!this.researchPanel) {
-        // Get the research panel element - it was created during setupBrowserLayout 
-        // and should already be in the DOM
-        this.researchPanel = this.containerRef.current?.querySelector('.browser-research-panel');
-        
-        // If it still doesn't exist, create it
-        if (!this.researchPanel) {
-          console.log('Creating new research panel');
-          const { createResearchPanel } = require('./renderers/BrowserRenderer');
-          this.researchPanel = createResearchPanel();
-          
-          // Make sure it's attached to the DOM
-          if (this.containerRef.current) {
-            this.containerRef.current.appendChild(this.researchPanel);
-          } else {
-            document.body.appendChild(this.researchPanel);
-          }
-          
-          // Set up event handlers
-          const closeBtn = this.researchPanel.querySelector('.research-panel-close');
-          if (closeBtn) {
-            closeBtn.addEventListener('click', () => {
-              this.toggleResearchMode();
-            });
-          }
-          
-          const clearBtn = this.researchPanel.querySelector('.research-panel-clear');
-          if (clearBtn) {
-            clearBtn.addEventListener('click', () => {
-              if (this.researcher && typeof this.researcher.clearResearch === 'function') {
-                this.researcher.clearResearch();
-              } else {
-                // Fallback implementation
-                const content = this.researchPanel.querySelector('.research-panel-content');
-                if (content) {
-                  content.innerHTML = `
-                    <div class="research-empty-state">
-                      <p>No research data available yet.</p>
-                      <p>Enable research mode to automatically save pages as you browse.</p>
-                    </div>
-                  `;
-                }
-              }
-            });
-          }
-        }
-      }
-      
-      // Toggle research panel visibility - IMPORTANT: Force panel into view explicitly
-      // EMERGENCY FIX: Create a completely new panel directly as a modal
-      console.log('Creating emergency direct research panel');
-      
-      // First, remove any existing panel
-      if (this.researchPanel && this.researchPanel.isConnected) {
-        this.researchPanel.remove();
-      }
-      
-      // Also find and remove any existing research panels in the body
-      const existingPanels = document.querySelectorAll('.browser-research-panel');
-      existingPanels.forEach(panel => panel.remove());
-      
+      // Add body class for proper layout BEFORE toggling
       if (newResearchMode) {
-        // Create a completely new panel with direct body attachment
-        const directPanel = document.createElement('div');
-        directPanel.id = 'emergency-research-panel-' + Date.now();
-        directPanel.className = 'browser-research-panel direct-emergency-panel';
-        
-        // Direct style application with important flag on every property
-        directPanel.setAttribute('style', `
-          display: block !important;
-          z-index: 999999 !important;
-          opacity: 1 !important;
-          visibility: visible !important;
-          position: fixed !important;
-          right: 0 !important;
-          top: 0 !important;
-          bottom: 0 !important;
-          height: 100vh !important;
-          width: 350px !important;
-          background-color: #ffffff !important;
-          box-shadow: -5px 0 25px rgba(0, 0, 0, 0.25) !important;
-          overflow: auto !important;
-          font-family: system-ui, -apple-system, sans-serif !important;
-          color: #000000 !important;
-          border-left: 3px solid #335eea !important;
-        `);
-        
-        // Add header with inline styles
-        directPanel.innerHTML = `
-          <div style="padding: 15px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa;">
-            <h3 style="margin: 0; font-size: 18px; font-weight: 500; color: #333;">Research Panel 📝</h3>
-            <div style="display: flex; gap: 10px;">
-              <button id="research-clear-btn" style="background: none; border: none; cursor: pointer; font-size: 14px; padding: 5px 8px; border-radius: 4px; color: #333;">Clear</button>
-              <button id="research-close-btn" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 5px 8px; border-radius: 4px; color: #333;">×</button>
-            </div>
-          </div>
-          <div style="flex: 1; overflow-y: auto; padding: 20px; height: calc(100vh - 51px);">
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
-              <p style="margin-bottom: 10px; font-size: 16px; color: #333;">Research panel activated!</p>
-              <p style="color: #666; font-size: 14px;">Browse the web to collect research automatically.</p>
-              <p style="margin-top: 20px; color: #666; font-size: 13px;">Current URL: ${this.state.url || 'None'}</p>
-              <div style="margin-top: 30px; border: 1px solid #eee; border-radius: 8px; padding: 15px; background: #f9f9f9; width: 80%;">
-                <p style="font-weight: 500; color: #333; margin-bottom: 8px;">Page Title: ${this.state.title || 'Not loaded'}</p>
-                <p style="color: #666;">Research entries: ${this.researcher?.state?.researchEntries?.length || 0}</p>
-              </div>
-            </div>
-          </div>
-        `;
-        
-        // Add to document body
-        document.body.appendChild(directPanel);
-        
-        // Store reference
-        this.researchPanel = directPanel;
-        
-        // Add event listeners
-        const closeBtn = directPanel.querySelector('#research-close-btn');
-        if (closeBtn) {
-          closeBtn.addEventListener('click', () => {
-            console.log('Close button clicked');
-            this.toggleResearchMode();
-          });
-        }
-        
-        // Clear button
-        const clearBtn = directPanel.querySelector('#research-clear-btn');
-        if (clearBtn) {
-          clearBtn.addEventListener('click', () => {
-            console.log('Clear button clicked');
-            const content = directPanel.querySelector('div:nth-child(2)');
-            if (content) {
-              content.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
-                  <p style="margin-bottom: 10px; font-size: 16px;">Research data cleared.</p>
-                  <p style="color: #999; font-size: 14px;">Browse the web to collect more research.</p>
-                </div>
-              `;
-            }
-          });
-        }
-        
-        // MEGA CRITICAL: Log that panel was created and do visibility check
-        console.log('🔴 EMERGENCY PANEL CREATED AND ATTACHED TO BODY 🔴', directPanel);
-        
-        // Force a browser layout calculation to ensure the panel is painted
-        void directPanel.offsetHeight;
-        
-        // Multiple visibility checks with increasing delays
-        [10, 100, 500].forEach(delay => {
-          setTimeout(() => {
-            if (directPanel.isConnected) {
-              const rect = directPanel.getBoundingClientRect();
-              console.log(`CHECK AT ${delay}ms - PANEL VISIBILITY:`, {
-                id: directPanel.id,
-                isConnected: directPanel.isConnected,
-                width: rect.width,
-                height: rect.height,
-                right: rect.right,
-                display: window.getComputedStyle(directPanel).display,
-                visibility: window.getComputedStyle(directPanel).visibility,
-                zIndex: window.getComputedStyle(directPanel).zIndex
-              });
-            } else {
-              console.log(`CHECK AT ${delay}ms - PANEL NOT CONNECTED TO DOM`);
-            }
-          }, delay);
-        });
+        document.body.classList.add('research-panel-active');
       } else {
-        // If researchMode is false, make sure any panel is removed
-        const existingPanels = document.querySelectorAll('.browser-research-panel');
-        existingPanels.forEach(panel => panel.remove());
+        document.body.classList.remove('research-panel-active');
       }
       
-      // Update the research button active state 
-      const researchBtn = this.containerRef.current?.querySelector('.browser-research-btn');
-      if (researchBtn) {
-        if (newResearchMode) {
-          researchBtn.classList.add('active');
-          researchBtn.title = 'Research mode active';
-          
-          // Show a toast notification
-          const { showToastNotification } = require('./renderers/BrowserRenderer');
-          if (typeof showToastNotification === 'function') {
-            showToastNotification('Research mode activated');
-          }
-        } else {
-          researchBtn.classList.remove('active');
-          researchBtn.title = 'Toggle research mode';
-          
-          // Show a toast notification
-          const { showToastNotification } = require('./renderers/BrowserRenderer');
-          if (typeof showToastNotification === 'function') {
-            showToastNotification('Research mode deactivated');
-          }
-        }
-      }
+      // Call the researcher's toggleActive method which will handle the UI
+      const result = this.researcher.toggleActive();
       
-              // If research mode is active, extract content from the current page
-      if (this.state.researchMode && this.state.url) {
-        // Initialize the researcher if needed
-        if (!this.researcher) {
-          try {
-            // Import Researcher dynamically if needed
-            const Researcher = require('./researcher/Researcher').default;
-            
-            // Create a new instance with proper configuration
-            this.researcher = new Researcher({
-              browser: this,
-              containerRef: this.researchPanel || this.containerRef.current,
-              currentUrl: this.state.url,
-              currentTitle: this.state.title,
-              onToggle: (isActive) => {
-                console.log(`Researcher component ${isActive ? 'activated' : 'deactivated'}`);
-              }
-            });
-            
-            console.log('Researcher component initialized on demand');
-          } catch (err) {
-            console.error('Failed to initialize researcher component:', err);
-          }
-        }
+      // Update our own state based on the result
+      this.setState({ researchMode: result }, () => {
+        console.log(`Research mode ${this.state.researchMode ? 'activated' : 'deactivated'}`);
         
-        // If researcher was created successfully, activate it
-        if (this.researcher) {
-          // If the researcher has no state, initialize it
-          if (!this.researcher.state) {
-            this.researcher.state = {
-              isActive: false,
-              isProcessing: false,
-              currentUrl: this.state.url,
-              currentTitle: this.state.title,
-              researchEntries: [],
-              autoExtract: true,
-              error: null,
-              llmConnected: false
-            };
-          }
-          
-          // Ensure researcher has proper container reference
-          this.researcher.props = this.researcher.props || {};
-          this.researcher.props.browser = this;
-          this.researcher.props.containerRef = this.researchPanel;
-          this.researcher.props.currentUrl = this.state.url;
-          this.researcher.props.currentTitle = this.state.title;
-          
-          // Activate researcher component if not already active
-          if (typeof this.researcher.toggleActive === 'function') {
-            // Only toggle if not already active
-            if (!this.researcher.state.isActive) {
-              console.log('Activating researcher component');
-              this.researcher.toggleActive();
-            } else {
-              console.log('Researcher component already active');
-            }
-          }
-          
-          // Either way, process the current page
-          if (typeof this.researcher.processPage === 'function') {
-            console.log('Processing current page in researcher');
-            this.researcher.processPage(this.state.url, this.state.title);
+        // Update the research button active state
+        const researchBtn = this.containerRef.current?.querySelector('.browser-research-btn');
+        if (researchBtn) {
+          if (this.state.researchMode) {
+            researchBtn.classList.add('active');
+            researchBtn.title = 'Research mode active';
           } else {
-            console.warn('processPage method not found on researcher component');
+            researchBtn.classList.remove('active');
+            researchBtn.title = 'Toggle research mode';
           }
         }
-      } else {
-        // Deactivate researcher component if active
-        if (this.researcher && 
-            typeof this.researcher.toggleActive === 'function' && 
-            this.researcher.state && 
-            this.researcher.state.isActive) {
-          this.researcher.toggleActive();
-        }
-      }
+      });
       
-      // Notify parent component if callback provided
-      if (this.props && this.props.onResearchModeToggle) {
-        this.props.onResearchModeToggle(newResearchMode);
-      }
-    });
+      return result;
+    }
     
-    // CRITICAL CHANGE: Return the new mode value directly
-    return newResearchMode;
+    return false;
   }
   
   /**
@@ -1128,44 +885,10 @@ class Voyager extends Component {
     // If researcher component is available, use it
     if (this.researcher) {
       return this.researcher.processPage(this.state.url, this.state.title);
+    } else {
+      console.error('Researcher component not available. Cannot extract content.');
+      return Promise.reject(new Error('Researcher component not available'));
     }
-    
-    // Otherwise use the default implementation
-    return new Promise((resolve, reject) => {
-      try {
-        if (!this.webview || !this.state.url) {
-          reject(new Error('Webview or URL not available'));
-          return;
-        }
-        
-        // Extract content using the Extractor utility
-        extractFullPageContent(this)
-          .then(content => {
-            if (!content) {
-              reject(new Error('No content extracted'));
-              return;
-            }
-            
-            // Update research panel with content
-            const { updateResearchPanel } = require('./handlers/ContentExtractor');
-            updateResearchPanel(this, content);
-            
-            // Notify parent component if callback provided
-            if (this.props.onContentExtracted) {
-              this.props.onContentExtracted(content);
-            }
-            
-            resolve(content);
-          })
-          .catch(err => {
-            console.error('Error extracting page content:', err);
-            reject(err);
-          });
-      } catch (err) {
-        console.error('Error in extractPageContent:', err);
-        reject(err);
-      }
-    });
   }
   
   /**
@@ -1252,6 +975,45 @@ class Voyager extends Component {
         reject(err);
       });
     });
+  }
+  
+  /**
+   * Initialize the Researcher component separately
+   * @returns {boolean} True if initialization was successful
+   */
+  initializeResearcher() {
+    if (this.researcher) {
+      console.log('Researcher component already initialized');
+      return true;
+    }
+    
+    console.log('Initializing Researcher component');
+    
+    try {
+      // Import Researcher dynamically
+      const Researcher = require('./researcher/Researcher').default;
+      
+      // Create a new instance with proper configuration
+      this.researcher = new Researcher({
+        browser: this,
+        currentUrl: this.state?.url,
+        currentTitle: this.state?.title,
+        onToggle: (isActive) => {
+          console.log(`Researcher component ${isActive ? 'activated' : 'deactivated'}`);
+          this.setState({ researchMode: isActive });
+        },
+        onResearchItemClick: (item) => {
+          if (item && item.url) {
+            this.navigate(item.url);
+          }
+        }
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize Researcher component:', error);
+      return false;
+    }
   }
   
   /**
@@ -1408,33 +1170,7 @@ class Voyager extends Component {
     
     // Initialize researcher component if needed
     if (!this.researcher && this.props && this.props.enableResearch !== false) {
-      try {
-        // Import Researcher dynamically
-        const Researcher = require('./researcher/Researcher').default;
-        
-        // Create a new instance with proper configuration
-        this.researcher = new Researcher({
-          browser: this,
-          containerRef: this.researchPanel || this.containerRef.current,
-          currentUrl: this.state?.url,
-          currentTitle: this.state?.title,
-          onToggle: (isActive) => {
-            console.log(`Researcher component ${isActive ? 'activated' : 'deactivated'}`);
-          },
-          onResearchItemClick: (item) => {
-            if (item && item.url) {
-              this.navigate(item.url);
-            }
-          },
-          onResearchClear: () => {
-            console.log('Research data cleared');
-          }
-        });
-        
-        console.log('Researcher component initialized');
-      } catch (err) {
-        console.error('Failed to initialize researcher component:', err);
-      }
+      this.initializeResearcher();
     }
   }
   
@@ -1499,11 +1235,17 @@ class Voyager extends Component {
       }
     }
     
-    // Remove any stand-alone browser containers that might be in the body
-    const browserContainers = document.querySelectorAll('body > .browser-container');
-    browserContainers.forEach(container => {
-      if (container.parentNode) {
-        container.parentNode.removeChild(container);
+    // Clean up research panel if it exists
+    if (this.researchPanel && this.researchPanel.isConnected) {
+      this.researchPanel.remove();
+      this.researchPanel = null;
+    }
+    
+    // Remove any stand-alone research panels that might be in the body
+    const researchPanels = document.querySelectorAll('body > .browser-research-panel');
+    researchPanels.forEach(panel => {
+      if (panel.parentNode) {
+        panel.parentNode.removeChild(panel);
       }
     });
     
@@ -1663,7 +1405,9 @@ class Voyager extends Component {
       showToolbar = true,
       showAddressBar = true,
       showStatusBar = true,
-      height = '100%'
+      height = '100%',
+      enableResearch = true,
+      autoAnalyzeContent = false
     } = this.props || {};
     
     // Compute container styles
@@ -1809,13 +1553,25 @@ class Voyager extends Component {
         )}
 
         {/* Research component (renderless) */}
-        {this.state.isMounted && <Researcher 
-          ref={(ref) => this.researcher = ref}
-          browser={this}
-          currentUrl={this.state.url}
-          currentTitle={this.state.title}
-          autoAnalyze={this.props.autoAnalyzeContent}
-        />}
+        {this.state.isMounted && enableResearch && (
+          <Researcher 
+            ref={(ref) => this.researcher = ref}
+            browser={this}
+            containerRef={this.researchPanel}
+            currentUrl={this.state.url}
+            currentTitle={this.state.title}
+            autoAnalyze={autoAnalyzeContent}
+            onToggle={(isActive) => {
+              console.log(`Research panel ${isActive ? 'activated' : 'deactivated'}`);
+              this.setState({ researchMode: isActive });
+            }}
+            onResearchItemClick={(item) => {
+              if (item && item.url) {
+                this.navigate(item.url);
+              }
+            }}
+          />
+        )}
       </div>
     );
   }

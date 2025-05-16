@@ -604,14 +604,11 @@
 
 /* Research panel styling with glass effect */
 .browser-research-panel {
-  position: fixed;
-  right: 0;
-  top: 0;
-  width: 350px;
-  height: 100%;
+  /* Let ResearchPanel.css handle positioning and size */
+  position: absolute; /* Fallback if ResearchPanel.css is not applied */
   background-color: #fff;
   box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
-  display: none;
+  display: flex; /* Changed from "none" to "flex" to ensure content appears */
   flex-direction: column;
   z-index: 1000;
   overflow: hidden;

@@ -1,5 +1,387 @@
 # Changelog
 
+### [0.5.69] - Research Panel Event Handlers
+- Added dedicated event handlers for Researcher component:
+  - Created new ResearcherEventHandlers.js for better code organization
+  - Moved all event handling logic out of Researcher component
+  - Added handlers for chat input, panel toggle, collapse, and close
+  - Added handlers for research actions (analyze, save, clear, export)
+  - Improved event logging and error handling
+  - Simplified Researcher component by removing duplicated code
+
+### [0.5.68] - Research Panel Method Binding Fix
+- Fixed "Cannot read properties of undefined (reading 'bind')" error:
+  - Added missing method bindings in Researcher constructor
+  - Added bindings for getResearchPanel, setupResearchPanelHeader, scrollChatToBottom
+  - Added bindings for generateResearchContext and generateChatHistory
+  - Removed bindings for removed emergency UI methods
+  - Improved method organization in constructor
+  - Enhanced code reliability with proper this context binding
+
+### [0.5.67] - Research Panel Rendering Fix
+- Fixed research panel not rendering properly by simplifying the DOM manipulation approach:
+  - Removed emergency UI elements and debug buttons that were masking the core issue
+  - Moved chat input container back into the panel instead of body attachment
+  - Simplified chat interface updates to use a single, reliable container structure
+  - Removed forced visibility checks and emergency inputs that were causing z-index conflicts
+  - Enhanced core chat interface rendering with better component lifecycle management
+  - Fixed input focus handling with proper timing and container hierarchy
+  - Improved chat container cleanup to prevent duplicate elements
+  - Streamlined message rendering with better state management
+
+## 2023-09-10
+
+### [0.5.66] - Researcher Component Duplication Prevention
+- Added thorough cleanup of duplicate DOM elements in Researcher component
+- Implemented tracking system for all created input elements
+- Enhanced componentWillUnmount with comprehensive cleanup of window references
+- Added filtering of stale instances from window.researcherInstances
+- Fixed emergency chat input duplication with better instance tracking
+- Added unique instance ID to all created elements for proper cleanup
+- Created cleanupInputElements helper method for centralized element removal
+- Improved toggleActive to prevent duplicate input containers
+- Added better debug indicator management to prevent duplicates
+
+## 2023-09-09
+
+### [0.5.65] - Aggressive Research Panel Close Fix
+- Implemented direct DOM removal approach for complete panel hiding
+- Added multiple fallback strategies for research panel closing
+- Created emergency overlay mechanism as a last resort for persistent panels
+- Enhanced panel detection with comprehensive DOM queries
+- Applied multi-layered CSS approach with !important and inline styles
+- Added advanced visibility verification and emergency measures
+- Fixed issue with research panel persisting after close button click
+
+## 2023-09-08
+
+### [0.5.64] - Enhanced Research Panel Close Button Fix
+- Implemented more robust research panel hiding with multiple hiding techniques
+- Added forceful style overrides to ensure panel is completely hidden when closed
+- Enhanced logging for better debugging of panel visibility issues
+- Fixed z-index and positioning to prevent panel from remaining visible
+- Added verification check to confirm panel is properly hidden after closing
+
+## 2023-09-07
+
+### [0.5.63] - Research Panel Close Button Fix
+- Fixed research panel close button not working properly
+- Modified close button handler in Voyager.js to properly call the researcher's closeResearchPanel method
+- Enhanced close button functionality with proper fallback mechanism
+- Improved coordination between Voyager and Researcher components
+
+## 2023-09-06
+
+### [0.5.62] - Research Panel CSS Refactoring
+- Moved hardcoded styling from JavaScript files to ResearchPanel.css
+- Cleaned up inline styles in Researcher.js component
+- Improved CSS class usage in Voyager.js for research panel
+- Added dedicated CSS classes for research panel elements
+- Enhanced panel styling with consistent class-based approach
+- Fixed styling issues in welcome message and chat interface
+- Improved maintainability by centralizing styles in CSS file
+- Removed unnecessary inline styles while preserving functionality
+
+## 2023-09-05
+
+### [0.5.61] - Critical Research Panel Visibility Fix
+- Completely rewrote research panel creation with forced rendering approach
+- Fixed panel not appearing by using direct DOM creation with inline styles 
+- Enhanced z-index to ensure panel appears above all other content
+- Implemented a more robust panel creation that bypasses React rendering issues
+- Added direct styling to ensure panel is always visible when toggled
+- Fixed component communication between Voyager and Researcher
+- Improved close button behavior for better user experience
+- Fixed edge cases where panel would initialize but not display
+
+## 2023-09-04
+
+### [0.5.60] - Research Panel Rendering and Scrolling Fixes
+- Fixed Research Panel not rendering properly when toggled
+- Enhanced scrolling settings with proper container hierarchy
+- Improved panel positioning with fixed positioning and z-index
+- Fixed webview container resizing when research panel is active
+- Added isolation styling to prevent stacking context issues
+- Implemented more robust DOM attachment and visibility handling
+- Enhanced welcome message display with better styling
+- Fixed chat interface initialization in research panel
+- Added better scrollbar styling for improved usability
+
+## 2023-09-03
+
+### [0.5.59] - Research Panel Content Enhancement
+- Fixed empty research panel by properly initializing panel content
+- Implemented modern UI styling for the research panel with better visual hierarchy
+- Improved header design with custom button styling and interactive effects
+- Added welcome message when research panel is empty for better user experience
+- Enhanced message display with proper role labels and text formatting
+- Improved input styling with focus states and accessibility enhancements
+- Added styled typing indicator for loading states with animations
+- Implemented consistent styling across all panel elements
+- Fixed chat container display and structure for better content organization
+
+## 2023-09-02
+
+### [0.5.58] - Fixed Research Panel Side Panel Rendering
+- Fixed research panel not rendering as a side panel
+- Ensured proper DOM attachment of research panel with correct positioning
+- Added inline styles to enforce proper panel dimensions and placement
+- Enhanced toggleResearchMode to properly adjust webview container width
+- Added body class for better layout coordination between components
+- Implemented proper visibility handling for research panel toggle
+- Fixed panel initialization to ensure correct styling from the beginning
+
+## 2023-09-01
+
+### [0.5.57] - Fixed Research Mode Toggle Error
+- Fixed "Researcher component not available" error when clicking research button
+- Enhanced toggleResearchMode with better error handling and component initialization
+- Added initializeResearcher method for more reliable Researcher component creation
+- Ensured research panel is properly created and attached to DOM before activation
+- Improved error recovery to prevent uncaught exceptions during research mode toggle
+- Added proper fallback behavior instead of throwing errors for better UX
+
+## 2023-08-30
+
+### [0.5.56] - Fixed Research Panel Close Button Functionality
+- Fixed research panel close button not working properly
+- Enhanced close button event listener to properly communicate with Researcher component
+- Improved toggleResearchMode method for better component state tracking
+- Added additional logging to help diagnose component communication issues
+- Ensured proper cleanup of chat inputs when closing the panel
+- Added fallback close method for backwards compatibility
+
+## 2023-08-29
+
+### [0.5.55] - Fixed Duplicate Researcher Component Issue
+- Fixed critical research panel issue caused by duplicate Researcher component instances
+- Removed ReactDOM.render approach in favor of using the existing JSX-created component
+- Consolidated component lifecycle management into a single instance
+- Enhanced panel container management for better component integration
+- Added detailed logging for component instance tracking
+- Fixed component communication issues between Voyager and Researcher
+- Improved component interaction with DOM panel elements
+- Fixed chat input not appearing due to component conflicts
+
+## 2023-08-28
+
+### [0.5.54] - Critical Research Panel Rendering Fix
+- Fixed fundamental React rendering issue with Researcher component
+- Replaced incorrect direct instantiation with proper ReactDOM rendering
+- Added proper React component lifecycle management with unmounting on panel close
+- Enhanced error handling for component rendering failures
+- Fixed chat input missing issue by ensuring proper component mounting
+- Added clear panel content handling to prevent stale DOM elements
+- Improved cleanup process with explicit ReactDOM unmounting
+- Added more detailed logging for component rendering and lifecycle events
+
+## 2023-08-27
+
+### [0.5.53] - Research Panel Debugging and Diagnostics
+- Added comprehensive diagnostic tools to determine if Researcher component is mounting
+- Created permanent visual indicators to track component lifecycle
+- Added emergency floating chat input that works independently of component mounting
+- Created window-level access to Researcher instances for direct debugging
+- Added visual tracking of toggle state changes and component rendering
+- Enhanced browser console logging with descriptive icons for easier debugging
+- Improved detection of duplicate component instances
+- Created tracking system for component lifecycle events (constructor, mount, render)
+- Fixed proper cleanup of inputs when component unmounts or research mode deactivates
+
+## 2023-08-26
+
+### [0.5.52] - Research Panel Chat Input Complete Overhaul
+- Completely rewrote chat input creation for research panel with radically different approach
+- Moved chat input container to document.body instead of panel content to avoid overflow issues
+- Added emergency debug button to force show input for troubleshooting
+- Fixed close button functionality by properly removing detached input elements
+- Enhanced input positioning with fixed position instead of relative/absolute
+- Added explicit cleanup of input elements when toggling research mode
+- Implemented double-check system to verify input visibility after initialization
+- Added comprehensive debug logging throughout the chat interface lifecycle
+- Fixed possible duplicate input creation by cleaning up existing elements first
+- Created more robust event handling for the research mode button
+
+### [0.5.51] - Research Panel Chat Input Visibility Fix
+- Fixed research panel failing to initialize chat input properly
+- Added better error handling with detailed logging to diagnose chat input issues
+- Modified the chat input container to use absolute positioning for better placement
+- Improved visibility with explicit styling for input container and elements
+- Added robust panel content creation for missing containers
+- Enhanced chat interface initialization with better error recovery
+- Added delayed chat interface update to ensure visibility after panel creation
+
+## 2023-08-24
+
+### [0.5.50] - Research Chat Input Z-index Fix
+- Fixed critical z-index issue preventing research panel chat input from being visible/usable
+- Increased z-index to 10000 to ensure chat input appears above all other elements
+- Added explicit visibility and opacity rules to force input display
+- Improved input styling with better width calculation to accommodate the send button
+- Added additional inline styles to ensure consistent rendering across environments
+
+## 2023-08-23
+
+### [0.5.49] - Research Panel Chat Input Fix
+- Fixed issue with chat input not being visible in Research Panel
+- Enhanced chat input styling for better visibility and usability
+- Improved initialization of the research panel chat interface
+- Added aggressive inline styles to ensure chat input appears correctly
+- Fixed z-index issues to make sure input is always accessible
+- Added debug logging to trace panel activation and chat interface creation
+- Increased message container spacing to prevent overlap with chat input
+
+## 2023-08-22
+
+### [0.5.48] - Research Panel Chat Input Enhancement
+- Improved Research Panel chat functionality with better input visibility and positioning
+- Enhanced chat input positioning using relative instead of absolute positioning for better reliability
+- Added welcome message when research panel is first opened to improve user experience
+- Improved chat interface with better placeholder text and visual consistency
+- Fixed chat input container not displaying correctly on some screens
+- Added padding to ensure messages don't get hidden behind input area
+- Increased height allowance for chat messages container for better message visibility
+- Added min-height to chat input to ensure it's always visible and accessible
+- Enhanced overall chat UI with more robust styling for better visual consistency
+
+## 2023-08-21
+
+### [0.5.47] - Research Panel Side Panel Layout Enforcement
+- Fixed research panel still displaying as full screen with extremely specific CSS selectors
+- Applied more aggressive CSS styling with !important flags to override any conflicting styles
+- Added explicit CSS styling directly in JavaScript toggle handler for maximum specificity
+- Fixed webview container sizing and positioning relative to research panel
+- Enhanced the collapse button to maintain panel width during collapsed state
+- Improved layout recalculation with forced reflow for reliable rendering
+- Added ultra-high specificity selectors to prevent any CSS conflicts
+- Fixed z-index hierarchy with explicit values to ensure proper stacking
+- Fixed research panel spreading to full screen by adding specific body.research-panel-active class
+- Added direct layout management for both panel and main content with precise measurements
+- Enhanced sizing logic to coordinate panel width and main content position
+- Added automated adjustment of webview container when panel opens/closes
+- Added strict !important rules to prevent any style overrides
+- Improved panel integration with container layout using CSS classes instead of direct styling
+- Fixed research panel incorrectly expanding to full screen width despite CSS constraints
+- Added strict box model constraints and overflow handling to prevent expansion
+- Applied additional positioning properties to enforce side panel layout (left:auto, contain:content)
+- Added proper webview container adjustment when panel is open/closed
+- Applied CSS targeting to properly separate panel from main content
+- Fixed transform and overflow properties that were causing layout issues
+- Added body class to track research panel state across components
+- Enhanced parent-child relationships between panel and webview container
+- Fixed critical issue where research panel was attached to document.body causing fullscreen instead of side panel
+- Removed code that was moving research panel from its proper container to document.body
+- Fixed emergency recovery code to avoid document.body attachment
+- Ensured panel stays in its proper container for correct side panel display
+- Maintained all prior size constraints and styling improvements
+- Added proper container fallback logic for panel attachment\
+- Fixed research panel expanding to full screen despite width constraints
+- Added explicit flex property settings to prevent panel expansion
+- Fixed inline style configuration with explicit flex-grow, flex-shrink, and flex-basis
+- Added direct style injection in toggleResearchMode to ensure consistent panel width
+- Enhanced panel creation with proper flex property initialization
+- Fixed panel width to be consistently fixed at 340px (or 30% max-width for responsive displays)
+- Fixed research panel to properly display as a side panel instead of full screen
+- Defined explicit width constraints (30% of screen width with 340px default)
+- Removed code that was moving panel to document.body which caused layout issues
+- Added proper transitions and positioning for side panel behavior
+- Improved panel responsiveness with min and max width constraints
+- Fixed content layout when panel is open to prevent overlap
+- Enhanced expand/collapse behavior for better user experience
+- Removed conflicting CSS rules that forced fullscreen display
+- Fixed mobile-specific styles to maintain side panel behavior on small screens
+- Added proper content adjustment to ensure webview resizes correctly when panel is open
+- Research Panel Rendering Fixes
+- Fixed webview DOM attachment issues with better error handling
+- Added missing collapse/expand functionality in research panel
+- Ensured research panel is properly attached to document.body
+- Fixed research panel rendering by removing problematic inline styles
+- Added expand button for collapsed state accessibility
+- Improved research panel z-index handling to prevent full screen overlap
+- Fixed style property conflicts between JS and CSS styling
+
+## 2023-08-16
+
+### [0.5.46] - Research Panel Layout Fix
+- Fixed research panel occupying full screen by ensuring proper side panel layout
+- Limited panel width to 30% of screen width with fixed 340px default
+- Added safety checks to prevent inline styles from overriding panel width
+- Improved panel initialization to ensure correct positioning
+- Enhanced panel visibility toggling with proper right-side attachment
+- Fixed z-index to prevent panel from overlaying entire screen content
+- Added content margin to ensure main content isn't hidden behind panel
+
+## 2023-08-15
+
+### [0.5.45] - Collapsible Research Panel
+- Added collapsible side panel functionality to Research Panel
+- Implemented smooth slide-in/slide-out animation for panel
+- Added expand/collapse buttons for intuitive user interaction
+- Enhanced ResearchPanel.css with proper animation and positioning
+- Added isCollapsed state tracking in Researcher component
+- Improved UI feedback when panel is collapsed/expanded
+
+## 2023-08-14
+
+### [0.5.44] - Research Panel Critical Fixes
+- Fixed research panel rendering issues by removing forced inline styles
+- Replaced all `setAttribute('style', ...)` calls with proper class manipulation
+- Ensured chat interface is properly initialized and visible
+- Fixed chat input display and message container styling
+- Improved chat interface initialization timing
+- Updated empty state handling to not interfere with chat interface
+- Improved panel visibility toggling with class-based styling
+
+## 2023-08-13
+
+### [0.5.43] - Research Panel Implementation Fix
+- Fixed research panel to properly display as a floating panel instead of full-screen
+- Removed hard-coded inline styles from BrowserRenderer.js that were overriding CSS
+- Updated Voyager.js to use existing research panel created by BrowserRenderer
+- Ensured proper chat interface rendering with scrolling and input field
+- Fixed conflicts between Researcher.js component and BrowserRenderer.js
+- Improved panel visibility toggling with proper class-based styling
+
+## 2023-08-12
+
+### [0.5.42] - Research Panel UI Enhancement
+- Redesigned Research Panel interface with proper chat window styling
+- Improved floating panel with better size and positioning
+- Enhanced chat message styling with proper bubbles and animations
+- Added improved header design with modern styling and better controls
+- Optimized responsive layout for different screen sizes
+- Fixed scrolling behavior in the chat container
+- Improved visual consistency with the rest of the application
+- Added proper shadows and glass morphism effects
+- Enhanced typography and spacing for better readability
+- Improved loading indicator styling for better user feedback
+
+## 2023-08-11
+
+### [0.5.41] - Research Panel Redesign and Chat Integration
+- Transformed Research Panel into a floating panel instead of full height component
+- Added interactive chat interface to communicate with research agent
+- Enhanced visual styling with modern UI elements and animations
+- Improved button functionality including working close button
+- Integrated with LlmService for intelligent research assistance
+- Added proper header controls with analyze, clear, and close buttons
+- Enhanced layout with better organization of research entries and chat interface
+- Added ability to ask questions about researched content
+- Improved usability with auto-scrolling chat and better feedback
+- Fixed close window button functionality that wasn't working properly
+
+## 2023-08-10
+
+### [0.5.40] - Research Panel Refactor and Styling Enhancement
+- Created dedicated ResearchPanel.css file with proper styling guidelines
+- Refactored Voyager's researchMode toggle to delegate to Researcher component
+- Made Researcher component the single source of truth for research panel logic
+- Improved research panel rendering with consistent CSS classes
+- Enhanced panel UI with better visual hierarchy and layout
+- Added proper HTML structure for the research panel with semantic elements
+- Ensured panel renders correctly by maintaining critical DOM manipulation
+- Fixed visibility issues with standardized hidden class
+
 ## 2023-08-09
 
 ### [0.5.39] - Fixed Research Panel Visibility and Null Error Issues
@@ -1702,3 +2084,18 @@
 - Improved focus states for address bar and interactive elements
 - Added tooltip functionality for navigation and action buttons
 - Enhanced mobile responsiveness with optimized spacing and interactions
+
+## [Unreleased]
+
+### Changed
+- Centralized research panel logic in Researcher component to remove duplication
+  - Removed duplicate panel creation from BrowserRenderer.js
+  - Updated Voyager.js to delegate research handling to Researcher
+  - Fixed issues with webview container sizing when toggling research mode
+
+### Fixed
+- Research panel initialization issues:
+  - Fixed initialization of Researcher component to ensure it's available before use
+  - Removed fallback mechanisms in toggleResearchMode to properly surface errors
+  - Updated event handlers to handle errors gracefully
+  - Improved component lifecycle integration between Voyager 

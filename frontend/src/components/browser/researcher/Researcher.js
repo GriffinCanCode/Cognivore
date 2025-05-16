@@ -6,12 +6,15 @@
  * - Analyzing content with LLM models
  * - Tracking research across multiple sources
  * - Integration with knowledge base
+ * - Interactive research assistant chat
  */
 
 import React, { Component } from 'react';
 import { nanoid } from 'nanoid';
 import DOMPurify from 'dompurify';
 import LlmService from '../../../services/LlmService';
+import logger from '../../../utils/logger';
+import ResearcherEventHandlers from '../handlers/ResearcherEventHandlers';
 
 // Import extraction utilities
 import { 
@@ -25,6 +28,25 @@ class Researcher extends Component {
   constructor(props) {
     super(props);
     
+    // Initialize component logger
+    this.logger = logger.scope('Researcher');
+    this.logger.info(`Researcher constructor called with ID: ${nanoid().substring(0, 6)}`);
+    
+    // Create a global indicator to show this constructor was called
+    console.log('RESEARCHER CONSTRUCTOR CALLED', Date.now());
+    this.logger.debug('Researcher constructor execution timestamp:', Date.now());
+    
+    // Create a visible indicator in the DOM that exists outside the component
+    // First check if it already exists
+    let debugIndicator = document.getElementById('researcher-debug-indicator');
+    if (!debugIndicator) {
+      debugIndicator = document.createElement('div');
+      debugIndicator.id = 'researcher-debug-indicator';
+      debugIndicator.className = 'researcher-debug-indicator';
+      document.body.appendChild(debugIndicator);
+    }
+    debugIndicator.innerHTML = 'Researcher Init: ' + new Date().toLocaleTimeString();
+    
     this.state = {
       isActive: false,
       isProcessing: false,
@@ -34,7 +56,12 @@ class Researcher extends Component {
       autoExtract: true,
       error: null,
       llmConnected: false,
-      analysisInProgress: false
+      analysisInProgress: false,
+      chatMessages: [],
+      chatInput: '',
+      isSendingMessage: false,
+      isCollapsed: false,
+      isInitialized: false
     };
     
     // Create a unique ID for this researcher instance
@@ -43,90 +70,379 @@ class Researcher extends Component {
     // Initialize LLM service
     this.llmService = new LlmService();
     
-    // Bind methods
-    this.toggleActive = this.toggleActive.bind(this);
+    // CRITICAL: Initialize LLM service and check connection
+    this.initializeLlmService();
+    
+    // CRITICAL: Bind only the methods we're defining in this class
     this.processPage = this.processPage.bind(this);
     this.analyzeContent = this.analyzeContent.bind(this);
     this.saveToKnowledgeBase = this.saveToKnowledgeBase.bind(this);
-    this.clearResearch = this.clearResearch.bind(this);
-    this.exportResearch = this.exportResearch.bind(this);
-    this.getResearchSummary = this.getResearchSummary.bind(this);
-  }
-  
-  componentDidMount() {
-    // Check if LLM service is available
-    this.llmService.checkBackendStatus()
-      .then(isAvailable => {
-        this.setState({ llmConnected: isAvailable });
-        console.log(`LLM service ${isAvailable ? 'is' : 'is not'} available for research`);
-      })
-      .catch(error => {
-        console.error('Error checking LLM service:', error);
-        this.setState({ llmConnected: false });
-      });
+    this.updateResearchPanel = this.updateResearchPanel.bind(this);
+    this.sendChatMessage = this.sendChatMessage.bind(this);
+    this.updateChatInterface = this.updateChatInterface.bind(this);
+    this._ensureChatInterface = this._ensureChatInterface.bind(this);
+    this._handleStateChange = this._handleStateChange.bind(this);
+    this.getResearchPanel = this.getResearchPanel.bind(this);
+    this.setupResearchPanelHeader = this.setupResearchPanelHeader.bind(this);
+    this.scrollChatToBottom = this.scrollChatToBottom.bind(this);
+    this.generateResearchContext = this.generateResearchContext.bind(this);
+    this.generateChatHistory = this.generateChatHistory.bind(this);
+    this.cleanupInputElements = this.cleanupInputElements.bind(this);
+    
+    // Bind event handlers from ResearcherEventHandlers
+    this.toggleActive = ResearcherEventHandlers.handlePanelToggle.bind(null, this);
+    this.handleChatInputChange = ResearcherEventHandlers.handleChatInputChange.bind(null, this);
+    this.handleChatInputKeyPress = ResearcherEventHandlers.handleChatInputKeyPress.bind(null, this);
+    this.closeResearchPanel = ResearcherEventHandlers.handlePanelClose.bind(null, this);
+    this.toggleCollapsed = ResearcherEventHandlers.handleCollapseToggle.bind(null, this);
+    this.clearResearch = ResearcherEventHandlers.handleClearClick.bind(null, this);
+    this.exportResearch = ResearcherEventHandlers.handleExportClick.bind(null, this);
+    this.getResearchSummary = ResearcherEventHandlers.handleSummaryClick.bind(null, this);
+    
+    // Store our existing input elements to clean up later
+    this.createdInputElements = [];
+    
+    // Add this to the window for direct debugging access, but check for duplicates first
+    if (!window.researcherInstances) {
+      window.researcherInstances = [];
+    }
+    
+    // Remove any stale instances that are no longer in the DOM
+    window.researcherInstances = window.researcherInstances.filter(instance => {
+      return instance && instance.researcherId && 
+        document.getElementById('researcher-debug-indicator-' + instance.researcherId);
+    });
+    
+    window.researcherInstances.push(this);
+    window.lastResearcher = this;
+    
+    console.log('Researcher instance created with ID:', this.researcherId);
   }
   
   /**
-   * Toggle the active state of the researcher
-   * @returns {boolean} The new active state
+   * Initialize LLM service and check connection
+   * @returns {Promise<boolean>} Whether the service is available
    */
-  toggleActive() {
-    this.setState(prevState => ({
-      isActive: !prevState.isActive
-    }), () => {
-      console.log(`Researcher toggled to ${this.state.isActive ? 'active' : 'inactive'} state`);
-      
-      // Update the research panel visibility based on active state
-      let researchPanel = this.props?.containerRef?.current || this.props?.browser?.researchPanel;
-      
-      // If not found through props, try DOM query
-      if (!researchPanel || !researchPanel.isConnected) {
-        researchPanel = document.querySelector('.browser-research-panel');
-      }
-      
-      if (researchPanel && researchPanel.isConnected) {
-        if (this.state.isActive) {
-          // Make the panel visible with comprehensive styling
-          researchPanel.style.cssText = `
-            display: flex !important;
-            z-index: 1000 !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-            position: fixed !important;
-            right: 0 !important;
-            top: 0 !important;
-            height: 100% !important;
-            width: 350px !important;
-            background-color: var(--glass-bg, rgba(15, 23, 42, 0.85)) !important;
-            backdrop-filter: blur(12px) saturate(180%) !important;
-            -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
-            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2) !important;
-            transition: all 0.3s cubic-bezier(0.215, 0.61, 0.355, 1) !important;
-            pointer-events: auto !important;
-          `;
+  async initializeLlmService() {
+    try {
+        console.log('Initializing LLM service...');
+        
+        // First check if service is available
+        const isAvailable = await this.llmService.checkBackendStatus();
+        console.log('LLM service availability check:', isAvailable);
+        
+        if (isAvailable) {
+            // Load configuration
+            await this.llmService.loadConfig();
+            console.log('LLM service configuration loaded');
+            
+            // Update state with connection status - use Promise to ensure state is updated
+            await new Promise(resolve => {
+                this.setState({ llmConnected: true }, resolve);
+            });
+            
+            console.log('LLM service initialized and connected, state updated');
+            
+            // If we have a welcome message, add it now
+            if (this.state.chatMessages.length === 0) {
+                const welcomeMessage = {
+                    id: nanoid(),
+                    role: 'assistant',
+                    content: 'I am your research assistant. I can help analyze web content and answer questions about your research. You can extract content from pages or ask me research questions directly!',
+                    timestamp: new Date().toISOString()
+                };
+                
+                await new Promise(resolve => {
+                    this.setState({
+                        chatMessages: [welcomeMessage]
+                    }, () => {
+                        if (this.state.isActive) {
+                            this.updateChatInterface();
+                        }
+                        resolve();
+                    });
+                });
+            }
+            
+            return true;
         } else {
-          // Hide the panel
-          researchPanel.style.cssText = `
-            display: none !important;
-            pointer-events: none !important;
-          `;
+            console.warn('LLM service is not available');
+            await new Promise(resolve => {
+                this.setState({ llmConnected: false }, resolve);
+            });
+            return false;
         }
-      } else {
-        console.warn('Research panel not found for visibility update');
+    } catch (error) {
+        console.error('Error initializing LLM service:', error);
+        await new Promise(resolve => {
+            this.setState({ llmConnected: false }, resolve);
+        });
+        return false;
+    }
+}
+  
+  /**
+   * Handle state changes and trigger appropriate updates
+   * @private
+   */
+  _handleStateChange(newState) {
+    console.log('Handling state change:', newState);
+    
+    this.setState(prevState => {
+      const nextState = { ...prevState, ...newState };
+      
+      // Check if we should initialize the chat interface
+      const shouldInitChat = (
+        // If becoming active and LLM is connected
+        (newState.isActive && (nextState.llmConnected || prevState.llmConnected)) ||
+        // Or if LLM becomes connected and we're active
+        (newState.llmConnected && (nextState.isActive || prevState.isActive)) ||
+        // Or if both are already true and we're not initialized
+        (!prevState.isInitialized && nextState.isActive && nextState.llmConnected)
+      );
+      
+      if (shouldInitChat) {
+        console.log('State change triggers chat initialization');
+        // Use setTimeout to ensure state is updated first
+        setTimeout(() => {
+          this._ensureChatInterface();
+        }, 0);
       }
       
-      // If becoming active and we have a URL, process the current page
-      if (this.state.isActive && this.props.currentUrl && this.state.autoExtract) {
-        this.processPage(this.props.currentUrl, this.props.currentTitle);
-      }
-      
-      // Call parent callback if provided
-      if (this.props.onToggle) {
-        this.props.onToggle(this.state.isActive);
-      }
+      return {
+        ...nextState,
+        isInitialized: nextState.isInitialized || shouldInitChat
+      };
+    });
+  }
+  
+  /**
+   * Ensure chat interface is properly initialized
+   * @private
+   */
+  _ensureChatInterface() {
+    console.log('Ensuring chat interface is properly initialized');
+    
+    // Get the research panel
+    const researchPanel = this.getResearchPanel();
+    if (!researchPanel) {
+        console.warn('No research panel found for chat interface');
+        return;
+    }
+    
+    // Make sure panel is visible
+    researchPanel.classList.remove('hidden');
+    researchPanel.style.visibility = 'visible';
+    researchPanel.style.display = 'flex';
+    researchPanel.style.opacity = '1';
+    researchPanel.style.zIndex = '9999';
+    researchPanel.style.pointerEvents = 'auto';
+    
+    // Get or create panel content
+    let panelContent = researchPanel.querySelector('.research-panel-content');
+    if (!panelContent) {
+        console.log('Creating missing panel content container');
+        panelContent = document.createElement('div');
+        panelContent.className = 'research-panel-content';
+        researchPanel.appendChild(panelContent);
+    }
+    
+    // Remove empty state if it exists
+    const emptyState = panelContent.querySelector('.research-empty-state');
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    // Create chat container if it doesn't exist
+    let chatContainer = panelContent.querySelector('.research-chat-container');
+    if (!chatContainer) {
+        console.log('Creating new chat container');
+        chatContainer = document.createElement('div');
+        chatContainer.className = 'research-chat-container';
+        panelContent.appendChild(chatContainer);
+        
+        // Create messages container
+        const messagesContainer = document.createElement('div');
+        messagesContainer.className = 'research-chat-messages';
+        chatContainer.appendChild(messagesContainer);
+    }
+    
+    // Always recreate input container to ensure fresh event listeners
+    // Remove existing input container if it exists
+    const existingInput = chatContainer.querySelector('.research-chat-input');
+    if (existingInput) {
+        existingInput.remove();
+    }
+    
+    // Create new input container
+    const inputContainer = document.createElement('div');
+    inputContainer.className = 'research-chat-input';
+    inputContainer.setAttribute('data-testid', 'research-chat-input');
+    const uniqueId = Date.now();
+    inputContainer.id = 'research-chat-input-' + uniqueId;
+    
+    // Create input element with direct event binding
+    const inputEl = document.createElement('input');
+    inputEl.type = 'text';
+    inputEl.placeholder = 'Ask about this content or ask research questions...';
+    inputEl.value = this.state.chatInput || '';
+    inputEl.id = 'research-chat-input-field-' + uniqueId;
+    
+    // Add input event listener
+    inputEl.addEventListener('input', (e) => {
+        console.log('Input changed:', e.target.value);
+        this.setState({ chatInput: e.target.value });
     });
     
-    return this.state.isActive;
+    // Add keypress event listener
+    inputEl.addEventListener('keypress', (e) => {
+        console.log('Key pressed:', e.key);
+        if (e.key === 'Enter' && !e.shiftKey) {
+            console.log('Enter pressed, sending message');
+            e.preventDefault();
+            const message = e.target.value.trim();
+            if (message) {
+                this.sendChatMessage(message);
+            }
+        }
+    });
+    
+    // Create send button with direct click handler
+    const sendButton = document.createElement('button');
+    sendButton.className = 'research-send-btn';
+    sendButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
+    sendButton.setAttribute('title', 'Send message');
+    
+    // Add click event listener to send button
+    sendButton.addEventListener('click', () => {
+        console.log('Send button clicked');
+        const message = inputEl.value.trim();
+        if (message) {
+            this.sendChatMessage(message);
+        }
+    });
+    
+    // Add elements to containers
+    inputContainer.appendChild(inputEl);
+    inputContainer.appendChild(sendButton);
+    chatContainer.appendChild(inputContainer);
+    
+    // Track this input element for cleanup
+    this.createdInputElements.push(inputContainer);
+    
+    // Focus the input
+    setTimeout(() => {
+        inputEl.focus();
+    }, 100);
+    
+    // Force update the interface
+    this.updateChatInterface();
+}
+  
+  componentDidMount() {
+    this.logger.info(`Researcher componentDidMount running for instance ${this.researcherId}`);
+    console.log('▶️ Researcher componentDidMount RUNNING', this.researcherId);
+    
+    // Update debug indicator to show mounting
+    const debugIndicator = document.getElementById('researcher-debug-indicator');
+    if (debugIndicator) {
+      debugIndicator.innerHTML += '<br>Mounted: ' + new Date().toLocaleTimeString();
+      debugIndicator.style.backgroundColor = 'green';
+      this.logger.debug('Updated debug indicator to show mounting');
+    }
+    
+    // Initialize LLM service
+    this.initializeLlmService();
+    
+    // Initialize panel if active
+    if (this.state.isActive) {
+      console.log('Research panel is active, initializing...');
+      this._ensureChatInterface();
+    }
+    
+    // Create a visible DOM element to show mount occurred
+    const mountIndicator = document.createElement('div');
+    mountIndicator.style.position = 'fixed';
+    mountIndicator.style.top = '40px';
+    mountIndicator.style.left = '10px';
+    mountIndicator.style.backgroundColor = 'blue';
+    mountIndicator.style.color = 'white';
+    mountIndicator.style.padding = '5px 10px';
+    mountIndicator.style.borderRadius = '4px';
+    mountIndicator.style.zIndex = '999999';
+    mountIndicator.style.fontFamily = 'sans-serif';
+    mountIndicator.style.fontSize = '12px';
+    mountIndicator.innerHTML = 'Component Mounted';
+    document.body.appendChild(mountIndicator);
+  }
+  
+  componentDidUpdate(prevProps, prevState) {
+    // Log state changes for debugging
+    console.log('Researcher componentDidUpdate', {
+      prevActive: prevState.isActive,
+      currentActive: this.state.isActive,
+      prevLLM: prevState.llmConnected,
+      currentLLM: this.state.llmConnected,
+      isInitialized: this.state.isInitialized
+    });
+    
+    // Handle state changes that might have been missed
+    const stateChanges = {};
+    
+    if (prevState.isActive !== this.state.isActive) {
+      stateChanges.isActive = this.state.isActive;
+    }
+    
+    if (prevState.llmConnected !== this.state.llmConnected) {
+      stateChanges.llmConnected = this.state.llmConnected;
+    }
+    
+    // If we have state changes, handle them
+    if (Object.keys(stateChanges).length > 0) {
+      console.log('Handling missed state changes in componentDidUpdate:', stateChanges);
+      this._handleStateChange(stateChanges);
+    }
+    
+    // If panel becomes active, ensure it's properly initialized
+    if (!prevState.isActive && this.state.isActive) {
+      console.log('Panel became active, ensuring proper initialization');
+      const researchPanel = this.getResearchPanel();
+      if (researchPanel) {
+        researchPanel.classList.remove('hidden');
+        researchPanel.style.visibility = 'visible';
+        researchPanel.style.display = 'flex';
+        this.setupResearchPanelHeader(researchPanel);
+      }
+    }
+  }
+  
+  /**
+   * Get the research panel DOM element
+   * @returns {HTMLElement|null} The research panel element or null if not found
+   */
+  getResearchPanel() {
+    this.logger.debug('Attempting to get research panel');
+    
+    // First check if we already have a reference
+    if (this.researchPanel && document.body.contains(this.researchPanel)) {
+      return this.researchPanel;
+    }
+    
+    // Try to find existing panel
+    let panel = document.querySelector('.browser-research-panel');
+    
+    // If no panel exists, create one
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'browser-research-panel hidden';
+      document.body.appendChild(panel);
+      this.logger.debug('Created new research panel');
+    }
+    
+    // Store reference
+    this.researchPanel = panel;
+    
+    return panel;
   }
   
   /**
@@ -356,247 +672,31 @@ class Researcher extends Component {
   }
   
   /**
-   * Clear all research entries
-   */
-  clearResearch() {
-    this.setState({
-      researchEntries: []
-    });
-    
-    // Clear the research panel UI
-    const researchPanel = document.querySelector('.browser-research-panel');
-    const researchContent = researchPanel?.querySelector('.research-panel-content');
-    
-    if (researchContent) {
-      researchContent.innerHTML = `
-        <div class="research-empty-state">
-          <p>No research data available yet.</p>
-          <p>Enable research mode to automatically save pages as you browse.</p>
-        </div>
-      `;
-    }
-    
-    // Notify parent if callback provided
-    if (this.props.onResearchCleared) {
-      this.props.onResearchCleared();
-    }
-  }
-  
-  /**
-   * Export research as a document
-   * @param {string} format - The format to export as ('markdown', 'json', or 'html')
-   * @returns {Promise<string>} Promise that resolves to the exported content
-   */
-  exportResearch(format = 'markdown') {
-    return new Promise((resolve, reject) => {
-      try {
-        const { researchEntries } = this.state;
-        
-        if (researchEntries.length === 0) {
-          reject(new Error('No research entries to export'));
-          return;
-        }
-        
-        let exportContent = '';
-        
-        if (format === 'markdown') {
-          exportContent = `# Research Export\n\nGenerated on ${new Date().toLocaleString()}\n\n`;
-          
-          researchEntries.forEach(entry => {
-            exportContent += `## ${entry.title}\n\n`;
-            exportContent += `URL: ${entry.url}\n`;
-            exportContent += `Captured: ${new Date(entry.timestamp).toLocaleString()}\n\n`;
-            
-            if (entry.analysis?.text) {
-              exportContent += `### Analysis\n\n${entry.analysis.text}\n\n`;
-            }
-            
-            exportContent += `### Content\n\n`;
-            
-            // Add cleaned text content
-            const textContent = entry.content.text || 
-                              (entry.content.mainContent && entry.content.mainContent.replace(/<[^>]*>/g, ' ').trim());
-            
-            exportContent += textContent ? textContent.substring(0, 1000) + '...\n\n' : 'No content available\n\n';
-            
-            exportContent += `---\n\n`;
-          });
-        } else if (format === 'json') {
-          exportContent = JSON.stringify({
-            metadata: {
-              generated: new Date().toISOString(),
-              entryCount: researchEntries.length
-            },
-            entries: researchEntries
-          }, null, 2);
-        } else if (format === 'html') {
-          exportContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <title>Research Export</title>
-              <style>
-                body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
-                h1 { border-bottom: 1px solid #ddd; padding-bottom: 10px; }
-                .entry { margin-bottom: 40px; border: 1px solid #ddd; border-radius: 5px; padding: 20px; }
-                .entry-title { margin-top: 0; }
-                .entry-meta { color: #666; font-size: 0.9em; margin-bottom: 15px; }
-                .entry-analysis { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 15px; }
-                .entry-content { max-height: 300px; overflow-y: auto; border: 1px solid #eee; padding: 15px; }
-              </style>
-            </head>
-            <body>
-              <h1>Research Export</h1>
-              <p>Generated on ${new Date().toLocaleString()}</p>
-          `;
-          
-          researchEntries.forEach(entry => {
-            exportContent += `
-              <div class="entry">
-                <h2 class="entry-title">${DOMPurify.sanitize(entry.title)}</h2>
-                <div class="entry-meta">
-                  <div>URL: <a href="${DOMPurify.sanitize(entry.url)}" target="_blank">${DOMPurify.sanitize(entry.url)}</a></div>
-                  <div>Captured: ${new Date(entry.timestamp).toLocaleString()}</div>
-                </div>
-            `;
-            
-            if (entry.analysis?.text) {
-              exportContent += `
-                <div class="entry-analysis">
-                  <h3>Analysis</h3>
-                  <div>${DOMPurify.sanitize(entry.analysis.text).replace(/\n/g, '<br>')}</div>
-                </div>
-              `;
-            }
-            
-            exportContent += `
-                <h3>Content</h3>
-                <div class="entry-content">
-                  ${DOMPurify.sanitize(entry.content.mainContent || '<p>No content available</p>')}
-                </div>
-              </div>
-            `;
-          });
-          
-          exportContent += `
-            </body>
-            </html>
-          `;
-        } else {
-          reject(new Error(`Unsupported export format: ${format}`));
-          return;
-        }
-        
-        resolve(exportContent);
-        
-        // Notify parent if callback provided
-        if (this.props.onResearchExported) {
-          this.props.onResearchExported(exportContent, format);
-        }
-      } catch (error) {
-        console.error('Error exporting research:', error);
-        reject(error);
-      }
-    });
-  }
-  
-  /**
-   * Get a research summary from the LLM
-   * @returns {Promise<string>} Promise that resolves to the summary
-   */
-  getResearchSummary() {
-    const { researchEntries } = this.state;
-    
-    if (researchEntries.length === 0) {
-      return Promise.reject(new Error('No research entries to summarize'));
-    }
-    
-    if (!this.state.llmConnected) {
-      return Promise.reject(new Error('LLM service not available'));
-    }
-    
-    // Set analysis in progress
-    this.setState({ analysisInProgress: true });
-    
-    // Prepare research data for the LLM
-    let researchData = '';
-    
-    researchEntries.forEach((entry, index) => {
-      researchData += `ENTRY ${index + 1}: ${entry.title}\n`;
-      researchData += `URL: ${entry.url}\n`;
-      
-      if (entry.analysis?.text) {
-        researchData += `ANALYSIS: ${entry.analysis.text.substring(0, 500)}\n\n`;
-      } else {
-        // If no analysis, use a snippet of content
-        const textContent = entry.content.text || 
-                           (entry.content.mainContent && entry.content.mainContent.replace(/<[^>]*>/g, ' ').trim()) || 
-                           '';
-        
-        researchData += `CONTENT SNIPPET: ${textContent.substring(0, 300)}\n\n`;
-      }
-    });
-    
-    // Create a prompt for the LLM
-    const prompt = `I've been researching a topic and have gathered information from ${researchEntries.length} sources.
-    
-    Please provide:
-    1. A comprehensive summary of the research
-    2. Key insights or patterns across the sources
-    3. Potential questions for further research
-    4. Any notable connections between the sources
-    
-    Here are the research entries:
-    
-    ${researchData}
-    `;
-    
-    // Send to LLM service
-    return this.llmService.sendMessage(prompt, [], {
-      temperature: 0.3,
-      maxTokens: 1500
-    })
-      .then(response => {
-        this.setState({ analysisInProgress: false });
-        
-        // Notify parent if callback provided
-        if (this.props.onResearchSummarized) {
-          this.props.onResearchSummarized(response.content || response.text);
-        }
-        
-        return response.content || response.text;
-      })
-      .catch(error => {
-        console.error('Error generating research summary:', error);
-        this.setState({
-          analysisInProgress: false,
-          error: error.message || 'Error generating research summary'
-        });
-        
-        return Promise.reject(error);
-      });
-  }
-  
-  /**
    * Update the research panel UI with entry content
    * @param {Object} entry - The research entry to display
    */
   updateResearchPanel(entry) {
-    if (!entry) return;
-    
-    // First look for the panel using props/context if available
-    let researchPanel = this.props?.containerRef?.current || this.props?.browser?.researchPanel;
-    
-    // If not found through props, try DOM query
-    if (!researchPanel || !researchPanel.isConnected) {
-      researchPanel = document.querySelector('.browser-research-panel');
+    if (!entry) {
+      this.logger.warn('updateResearchPanel called without valid entry');
+      return;
     }
     
+    this.logger.info(`Updating research panel with entry: ${entry.id} - ${entry.title}`);
+    
+    // Get the research panel
+    const researchPanel = this.getResearchPanel();
+    
     if (!researchPanel || !researchPanel.isConnected) {
+      this.logger.error('Research panel not found or not connected to DOM');
       console.warn('Research panel not found or not connected to DOM');
       return;
     }
+    
+    // Make sure the panel is visible
+    researchPanel.classList.remove('hidden');
+    
+    // Setup header with controls
+    this.setupResearchPanelHeader(researchPanel);
     
     const researchContent = researchPanel.querySelector('.research-panel-content');
     
@@ -605,33 +705,22 @@ class Researcher extends Component {
       return;
     }
     
-    // Make sure the panel is fully visible with comprehensive styling
-    researchPanel.style.cssText = `
-      display: flex !important;
-      z-index: 1000 !important;
-      opacity: 1 !important;
-      visibility: visible !important;
-      position: fixed !important;
-      right: 0 !important;
-      top: 0 !important;
-      height: 100% !important;
-      width: 350px !important;
-      background-color: var(--glass-bg, rgba(15, 23, 42, 0.85)) !important;
-      backdrop-filter: blur(12px) saturate(180%) !important;
-      -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
-      box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2) !important;
-      transition: all 0.3s cubic-bezier(0.215, 0.61, 0.355, 1) !important;
-      pointer-events: auto !important;
-    `;
-    
     // Remove empty state if present
     const emptyState = researchContent.querySelector('.research-empty-state');
     if (emptyState) {
       emptyState.remove();
     }
     
+    // Create entries container if not present
+    let entriesContainer = researchContent.querySelector('.research-entries-container');
+    if (!entriesContainer) {
+      entriesContainer = document.createElement('div');
+      entriesContainer.className = 'research-entries-container';
+      researchContent.insertBefore(entriesContainer, researchContent.firstChild);
+    }
+    
     // Check if entry already exists in panel
-    const existingEntry = researchContent.querySelector(`[data-entry-id="${entry.id}"]`);
+    const existingEntry = entriesContainer.querySelector(`[data-entry-id="${entry.id}"]`);
     
     if (existingEntry) {
       // Update existing entry
@@ -720,14 +809,631 @@ class Researcher extends Component {
         });
       }
       
-      // Add to panel
-      researchContent.prepend(entryElement);
+      // Add to entries container
+      entriesContainer.prepend(entryElement);
+    }
+    
+    // Initialize or update chat interface if LLM is connected
+    if (this.state.llmConnected) {
+      this.updateChatInterface();
+    }
+  }
+  
+  /**
+   * Clean up when component unmounts
+   */
+  componentWillUnmount() {
+    this.logger.info(`Researcher component unmounting: ${this.researcherId}`);
+    console.log(`Researcher component unmounting: ${this.researcherId}`);
+    
+    // Clean up all inputs we created
+    this.logger.debug('Calling cleanupInputElements during unmount');
+    this.cleanupInputElements();
+    
+    // Remove any other inputs that might be related to us
+    const inputs = document.querySelectorAll('.research-chat-input, .emergency-chat-input');
+    this.logger.debug(`Found ${inputs.length} additional input elements to remove during unmount`);
+    inputs.forEach(input => {
+      this.logger.debug(`Removing input during unmount: ${input.id || 'unnamed input'}`);
+      console.log('Removing input during unmount');
+      input.remove();
+    });
+    
+    // Remove debug indicator
+    const debugIndicator = document.getElementById('researcher-debug-indicator-' + this.researcherId);
+    if (debugIndicator) {
+      debugIndicator.remove();
+    }
+    
+    // Remove the research panel if we created it
+    if (this.researchPanel && document.body.contains(this.researchPanel)) {
+      this.researchPanel.remove();
+    }
+    
+    // Remove this instance from the global array
+    if (window.researcherInstances) {
+      window.researcherInstances = window.researcherInstances.filter(
+        instance => instance !== this
+      );
+      
+      // Update lastResearcher if needed
+      if (window.lastResearcher === this) {
+        window.lastResearcher = window.researcherInstances.length > 0 ? 
+          window.researcherInstances[window.researcherInstances.length - 1] : null;
+      }
+    }
+  }
+  
+  /**
+   * Send a chat message to the research agent
+   * @param {string} message - The message to send
+   * @returns {Promise<void>}
+   */
+  async sendChatMessage(message = null) {
+    console.log('sendChatMessage called with message:', message || this.state.chatInput);
+    
+    // Use provided message or get from state
+    const messageText = message || this.state.chatInput;
+    
+    if (!messageText || messageText.trim() === '') {
+        console.log('No message to send - empty input');
+        return;
+    }
+    
+    // Clear input field immediately
+    const inputEl = document.querySelector('.research-chat-input input');
+    if (inputEl) {
+        inputEl.value = '';
+    }
+    
+    // Create message object for history
+    const userMessage = {
+        id: nanoid(),
+        role: 'user',
+        content: messageText.trim(),
+        timestamp: new Date().toISOString()
+    };
+    
+    console.log('Created user message:', userMessage);
+    
+    // Add to chat history - CRITICAL: Use Promise to ensure state is updated
+    await new Promise(resolve => {
+        this.setState(prevState => {
+            console.log('Previous state messages:', prevState.chatMessages);
+            const newMessages = [...(prevState.chatMessages || []), userMessage];
+            console.log('New messages array:', newMessages);
+            return {
+                chatMessages: newMessages,
+                chatInput: '',
+                isSendingMessage: true
+            };
+        }, () => {
+            console.log('State updated, current messages:', this.state.chatMessages);
+            // Update UI after state change
+            this.updateChatInterface();
+            this.scrollChatToBottom();
+            resolve();
+        });
+    });
+    
+    try {
+        // Check LLM connection and try to initialize if not connected
+        if (!this.state.llmConnected) {
+            console.log('LLM not connected, attempting to initialize...');
+            const isAvailable = await this.initializeLlmService();
+            
+            if (!isAvailable) {
+                throw new Error('LLM service not available. Please try again in a moment.');
+            }
+        }
+        
+        // Double check connection after initialization
+        if (!this.state.llmConnected) {
+            throw new Error('LLM service failed to initialize. Please try again.');
+        }
+        
+        console.log('Preparing to send message to LLM');
+        const researchContext = this.generateResearchContext();
+        const systemInstructions = `You are Voyager, a research assistant helping with web browsing. 
+        Your goal is to provide helpful insights based on the extracted content from web pages.
+        
+        ${researchContext}
+        
+        Please be concise, helpful and accurate in your responses.`;
+        
+        const chatHistory = this.generateChatHistory();
+        console.log('Sending message to LLM with history:', chatHistory);
+        
+        const response = await this.llmService.sendMessage(messageText, chatHistory, {
+            systemPrompt: systemInstructions,
+            temperature: 0.3,
+            maxTokens: 1000
+        });
+        
+        console.log('Received LLM response:', response);
+        
+        if (response.error) {
+            throw new Error(response.text || 'Error getting response from LLM');
+        }
+        
+        const assistantMessage = {
+            id: nanoid(),
+            role: 'assistant',
+            content: response.content || response.text,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Add assistant message to chat history - use Promise to ensure state is updated
+        await new Promise(resolve => {
+            this.setState(prevState => {
+                console.log('Previous state messages before assistant response:', prevState.chatMessages);
+                const newMessages = [...prevState.chatMessages, assistantMessage];
+                console.log('New messages array with assistant response:', newMessages);
+                return {
+                    chatMessages: newMessages,
+                    isSendingMessage: false
+                };
+            }, () => {
+                console.log('State updated with assistant response, current messages:', this.state.chatMessages);
+                this.updateChatInterface();
+                this.scrollChatToBottom();
+                resolve();
+            });
+        });
+    } catch (error) {
+        console.error('Error sending chat message:', error);
+        
+        const errorMessage = {
+            id: nanoid(),
+            role: 'assistant',
+            content: `Sorry, I encountered an error: ${error.message}. Please try again later.`,
+            timestamp: new Date().toISOString(),
+            isError: true
+        };
+        
+        // Add error message to chat history - use Promise to ensure state is updated
+        await new Promise(resolve => {
+            this.setState(prevState => {
+                console.log('Previous state messages before error:', prevState.chatMessages);
+                const newMessages = [...prevState.chatMessages, errorMessage];
+                console.log('New messages array with error:', newMessages);
+                return {
+                    chatMessages: newMessages,
+                    isSendingMessage: false
+                };
+            }, () => {
+                console.log('State updated with error, current messages:', this.state.chatMessages);
+                this.updateChatInterface();
+                this.scrollChatToBottom();
+                resolve();
+            });
+        });
+    }
+}
+  
+  /**
+   * Generate context from research entries for the LLM
+   * @returns {string} - Context string
+   */
+  generateResearchContext() {
+    const { researchEntries } = this.state;
+    
+    if (researchEntries.length === 0) {
+      return 'No research entries available yet.';
+    }
+    
+    let context = `RESEARCH CONTEXT:\nYou have access to ${researchEntries.length} research entries:\n\n`;
+    
+    // Include up to 3 most recent entries for context
+    const recentEntries = researchEntries.slice(0, 3);
+    
+    recentEntries.forEach((entry, index) => {
+      context += `ENTRY ${index + 1}: ${entry.title}\n`;
+      context += `URL: ${entry.url}\n`;
+      
+      if (entry.analysis?.text) {
+        context += `ANALYSIS: ${entry.analysis.text.substring(0, 300)}...\n\n`;
+      } else {
+        // If no analysis, use a snippet of content
+        const textContent = entry.content.text || 
+                          (entry.content.mainContent && entry.content.mainContent.replace(/<[^>]*>/g, ' ').trim()) || 
+                          '';
+        
+        context += `CONTENT SNIPPET: ${textContent.substring(0, 200)}...\n\n`;
+      }
+    });
+    
+    return context;
+  }
+  
+  /**
+   * Generate chat history in format expected by LlmService
+   * @returns {Array} - Formatted chat history
+   */
+  generateChatHistory() {
+    const { chatMessages } = this.state;
+    
+    // Limit to last 10 messages to prevent context overflow
+    const recentMessages = chatMessages.slice(-10);
+    
+    // Convert to format expected by LlmService
+    return recentMessages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+  }
+  
+  /**
+   * Auto-scroll chat to bottom
+   */
+  scrollChatToBottom() {
+    // Get the chat messages container
+    const messagesContainer = document.querySelector('.research-chat-messages');
+    
+    if (messagesContainer) {
+      // Scroll to bottom with animation
+      messagesContainer.scrollTo({
+        top: messagesContainer.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }
+  
+  /**
+   * Update the chat interface in the panel
+   */
+  updateChatInterface() {
+    console.log('Updating chat interface with messages:', this.state.chatMessages);
+    
+    // Get the research panel
+    const researchPanel = this.getResearchPanel();
+    if (!researchPanel || !researchPanel.isConnected) {
+        console.warn('Research panel not found or not connected to DOM');
+        return;
+    }
+
+    // CRITICAL: Force panel to be visible and properly styled
+    researchPanel.classList.remove('hidden');
+    researchPanel.style.visibility = 'visible';
+    researchPanel.style.display = 'flex';
+    researchPanel.style.opacity = '1';
+    researchPanel.style.zIndex = '9999';
+    researchPanel.style.pointerEvents = 'auto';
+
+    // Create header if it doesn't exist
+    this.setupResearchPanelHeader(researchPanel);
+
+    // Get or create panel content
+    let panelContent = researchPanel.querySelector('.research-panel-content');
+    if (!panelContent) {
+        console.log('Creating panel content container');
+        panelContent = document.createElement('div');
+        panelContent.className = 'research-panel-content';
+        researchPanel.appendChild(panelContent);
+    }
+
+    // Get or create chat container
+    let chatContainer = panelContent.querySelector('.research-chat-container');
+    if (!chatContainer) {
+        console.log('Creating chat container');
+        chatContainer = document.createElement('div');
+        chatContainer.className = 'research-chat-container';
+        panelContent.appendChild(chatContainer);
+    }
+
+    // Get or create messages container
+    let messagesContainer = chatContainer.querySelector('.research-chat-messages');
+    if (!messagesContainer) {
+        console.log('Creating messages container');
+        messagesContainer = document.createElement('div');
+        messagesContainer.className = 'research-chat-messages';
+        chatContainer.appendChild(messagesContainer);
+    }
+
+    // Clear existing messages
+    messagesContainer.innerHTML = '';
+
+    // Add each message
+    this.state.chatMessages.forEach(message => {
+        console.log('Adding message to interface:', message);
+        
+        const messageEl = document.createElement('div');
+        messageEl.className = `research-message ${message.role}`;
+        if (message.isError) {
+            messageEl.classList.add('error');
+        }
+        
+        // Add message wrapper
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'message-content';
+        
+        // Add role label
+        const roleLabel = document.createElement('div');
+        roleLabel.className = 'message-role';
+        roleLabel.textContent = message.role === 'user' ? 'You' : 'Research Assistant';
+        contentWrapper.appendChild(roleLabel);
+        
+        // Add content
+        const contentEl = document.createElement('div');
+        contentEl.className = 'message-text';
+        contentEl.innerHTML = DOMPurify.sanitize(message.content).replace(/\n/g, '<br>');
+        contentWrapper.appendChild(contentEl);
+        
+        // Add timestamp as tooltip
+        if (message.timestamp) {
+            const time = new Date(message.timestamp).toLocaleTimeString();
+            messageEl.setAttribute('title', time);
+        }
+        
+        messageEl.appendChild(contentWrapper);
+        messagesContainer.appendChild(messageEl);
+    });
+
+    // Add loading indicator if sending
+    if (this.state.isSendingMessage) {
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'research-message assistant loading';
+        loadingEl.innerHTML = `
+            <div class="typing-indicator">
+                <div class="message-role">Research Assistant</div>
+                <div style="display: flex; align-items: center;">
+                    <span>Thinking</span>
+                    <span style="display: inline-block; margin-left: 4px; animation: blink 1.4s infinite both;">.</span>
+                    <span style="display: inline-block; margin-left: 0; animation: blink 1.4s 0.2s infinite both;">.</span>
+                    <span style="display: inline-block; margin-left: 0; animation: blink 1.4s 0.4s infinite both;">.</span>
+                </div>
+            </div>
+        `;
+        messagesContainer.appendChild(loadingEl);
+    }
+
+    // Get or create input container if it doesn't exist
+    let inputContainer = chatContainer.querySelector('.research-chat-input');
+    if (!inputContainer) {
+        console.log('Creating input container');
+        inputContainer = document.createElement('div');
+        inputContainer.className = 'research-chat-input';
+        inputContainer.setAttribute('data-testid', 'research-chat-input');
+        const uniqueId = Date.now();
+        inputContainer.id = 'research-chat-input-' + uniqueId;
+
+        // Create input element
+        const inputEl = document.createElement('input');
+        inputEl.type = 'text';
+        inputEl.placeholder = 'Ask about this content or ask research questions...';
+        inputEl.value = this.state.chatInput || '';
+        inputEl.id = 'research-chat-input-field-' + uniqueId;
+
+        // Add input event listener
+        inputEl.addEventListener('input', (e) => {
+            console.log('Input changed:', e.target.value);
+            this.setState({ chatInput: e.target.value });
+        });
+
+        // Add keypress event listener
+        inputEl.addEventListener('keypress', (e) => {
+            console.log('Key pressed:', e.key);
+            if (e.key === 'Enter' && !e.shiftKey) {
+                console.log('Enter pressed, sending message');
+                e.preventDefault();
+                const message = e.target.value.trim();
+                if (message) {
+                    this.sendChatMessage(message);
+                }
+            }
+        });
+
+        // Create send button
+        const sendButton = document.createElement('button');
+        sendButton.className = 'research-send-btn';
+        sendButton.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
+        sendButton.setAttribute('title', 'Send message');
+
+        // Add click event listener
+        sendButton.addEventListener('click', () => {
+            console.log('Send button clicked');
+            const message = inputEl.value.trim();
+            if (message) {
+                this.sendChatMessage(message);
+            }
+        });
+
+        // Add elements to container
+        inputContainer.appendChild(inputEl);
+        inputContainer.appendChild(sendButton);
+        chatContainer.appendChild(inputContainer);
+
+        // Track this input element for cleanup
+        this.createdInputElements.push(inputContainer);
+    } else {
+        // Update existing input value
+        const inputEl = inputContainer.querySelector('input');
+        if (inputEl) {
+            inputEl.value = this.state.chatInput || '';
+        }
+    }
+
+    // Scroll to bottom
+    this.scrollChatToBottom();
+
+    // Focus input
+    const inputEl = inputContainer.querySelector('input');
+    if (inputEl) {
+        setTimeout(() => inputEl.focus(), 100);
+    }
+}
+  
+  /**
+   * Setup research panel header with title and controls
+   * @param {HTMLElement} panel - The research panel element
+   */
+  setupResearchPanelHeader(panel) {
+    if (!panel) return;
+    
+    // Get or create header
+    let header = panel.querySelector('.research-panel-header');
+    
+    if (!header) {
+      // Create header
+      header = document.createElement('div');
+      header.className = 'research-panel-header';
+      
+      const title = document.createElement('h3');
+      title.className = 'research-panel-title';
+      title.textContent = 'Research Assistant';
+      
+      // Add icon to title
+      const titleIcon = document.createElement('span');
+      titleIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>';
+      titleIcon.style.display = 'flex';
+      titleIcon.style.alignItems = 'center';
+      titleIcon.style.justifyContent = 'center';
+      titleIcon.style.color = '#38BDF8';
+      
+      title.insertBefore(titleIcon, title.firstChild);
+      
+      const controls = document.createElement('div');
+      controls.className = 'research-panel-controls';
+      
+      // Create analyze button with icon
+      const analyzeBtn = document.createElement('button');
+      analyzeBtn.className = 'research-panel-btn';
+      analyzeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>';
+      analyzeBtn.setAttribute('title', 'Analyze current page');
+      
+      analyzeBtn.addEventListener('click', () => {
+        if (this.props.currentUrl) {
+          this.processPage(this.props.currentUrl, this.props.currentTitle);
+        }
+      });
+      
+      // Create clear button with icon
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'research-panel-btn';
+      clearBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+      clearBtn.setAttribute('title', 'Clear research data');
+      
+      clearBtn.addEventListener('click', () => this.clearResearch());
+      
+      // Create close button with proper icon
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'research-close-btn';
+      closeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+      closeBtn.setAttribute('title', 'Close research panel');
+      
+      closeBtn.addEventListener('click', () => this.closeResearchPanel());
+      
+      // Add buttons to controls
+      controls.appendChild(analyzeBtn);
+      controls.appendChild(clearBtn);
+      controls.appendChild(closeBtn);
+      
+      // Add title and controls to header
+      header.appendChild(title);
+      header.appendChild(controls);
+      
+      // Add header to panel
+      if (panel.firstChild) {
+        panel.insertBefore(header, panel.firstChild);
+      } else {
+        panel.appendChild(header);
+      }
+      
+      // Create or ensure content container exists
+      let content = panel.querySelector('.research-panel-content');
+      if (!content) {
+        content = document.createElement('div');
+        content.className = 'research-panel-content';
+        panel.appendChild(content);
+      }
+      
+      // Create expand button (visible when collapsed)
+      let expandBtn = panel.querySelector('.research-expand-btn');
+      if (!expandBtn) {
+        expandBtn = document.createElement('button');
+        expandBtn.className = 'research-expand-btn';
+        expandBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+        expandBtn.setAttribute('title', 'Expand panel');
+        expandBtn.addEventListener('click', () => this.toggleCollapsed());
+        panel.appendChild(expandBtn);
+      }
+    } else {
+      // Ensure collapse button exists in header
+      let collapseBtn = header.querySelector('.research-collapse-btn');
+      if (!collapseBtn) {
+        collapseBtn = document.createElement('button');
+        collapseBtn.className = 'research-collapse-btn';
+        collapseBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+        collapseBtn.setAttribute('title', 'Collapse panel');
+        collapseBtn.addEventListener('click', () => this.toggleCollapsed());
+        
+        const controls = header.querySelector('.research-panel-controls');
+        if (controls) {
+          // Insert before the close button if it exists
+          const closeBtn = controls.querySelector('.research-close-btn');
+          if (closeBtn) {
+            controls.insertBefore(collapseBtn, closeBtn);
+          } else {
+            controls.appendChild(collapseBtn);
+          }
+        }
+      }
+      
+      // Ensure expand button exists
+      let expandBtn = panel.querySelector('.research-expand-btn');
+      if (!expandBtn) {
+        expandBtn = document.createElement('button');
+        expandBtn.className = 'research-expand-btn';
+        expandBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+        expandBtn.setAttribute('title', 'Expand panel');
+        expandBtn.addEventListener('click', () => this.toggleCollapsed());
+        panel.appendChild(expandBtn);
+      }
+    }
+  }
+  
+  /**
+   * Clean up any input elements this component has created
+   */
+  cleanupInputElements() {
+    if (this.createdInputElements && this.createdInputElements.length > 0) {
+      this.logger.info(`Cleaning up ${this.createdInputElements.length} input elements`);
+      console.log(`Cleaning up ${this.createdInputElements.length} input elements`);
+      
+      this.createdInputElements.forEach((element, index) => {
+        if (element && element.parentNode) {
+          this.logger.debug(`Removing input element ${index} with id: ${element.id || 'unnamed'}`);
+          element.parentNode.removeChild(element);
+        } else if (element) {
+          this.logger.warn(`Element ${index} exists but has no parentNode`);
+        } else {
+          this.logger.warn(`Element at index ${index} is null or undefined`);
+        }
+      });
+      
+      this.createdInputElements = [];
+      this.logger.debug('Input elements tracking array reset');
+    } else {
+      this.logger.debug('No input elements to clean up');
     }
   }
   
   render() {
+    this.logger.info(`Researcher RENDER method called for instance ${this.researcherId}`);
+    console.log('👁️ Researcher RENDER method called', this.researcherId);
+    
+    // Update any existing debug indicator
+    const debugIndicator = document.getElementById('researcher-debug-indicator');
+    if (debugIndicator) {
+      debugIndicator.innerHTML += '<br>Rendered: ' + new Date().toLocaleTimeString();
+      this.logger.debug('Updated debug indicator with render timestamp');
+    } else {
+      this.logger.warn('Debug indicator element not found during render');
+    }
+    
     // This component doesn't render its own UI
     // It manipulates the DOM directly via the research panel
+    this.logger.debug('Returning null from render method - component uses direct DOM manipulation');
     return null;
   }
 }
