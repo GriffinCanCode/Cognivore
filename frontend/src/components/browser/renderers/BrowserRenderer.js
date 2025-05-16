@@ -11,6 +11,86 @@ import EventHandlers from '../handlers/EventHandlers.js';
  * @returns {HTMLElement} Header element
  */
 export function createBrowserHeader(browser) {
+  // Create container for all header elements
+  const headerContainer = document.createElement('div');
+  headerContainer.className = 'browser-header-container';
+  
+  // Create address bar container (now at the top)
+  const addressContainer = document.createElement('div');
+  addressContainer.className = 'voyager-address-container';
+  addressContainer.style.cssText = `
+    display: flex !important;
+    align-items: center !important;
+    padding: 8px 16px !important;
+    background-color: var(--card-bg, #252525) !important;
+    border-bottom: 1px solid var(--border-color, #333) !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+    z-index: 3 !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  `;
+  
+  // Create address form
+  const addressForm = document.createElement('form');
+  addressForm.className = 'browser-search-form';
+  addressForm.style.flex = '1';
+  addressForm.style.display = 'flex';
+  
+  // Handle form submission with proper browser context
+  addressForm.addEventListener('submit', (event) => {
+    if (typeof browser.handleAddressSubmit === 'function') {
+      browser.handleAddressSubmit(event);
+    } else {
+      event.preventDefault();
+      console.warn('handleAddressSubmit not available on browser object');
+    }
+  });
+  
+  // Create address input
+  const addressInput = document.createElement('input');
+  addressInput.type = 'text';
+  addressInput.className = 'voyager-address-bar';
+  addressInput.placeholder = 'Search or enter website name';
+  addressInput.spellcheck = false;
+  addressInput.autocomplete = 'off';
+  addressInput.style.cssText = `
+    flex: 1 !important;
+    height: 36px !important;
+    padding: 0 12px !important;
+    border-radius: 20px !important;
+    border: 1px solid var(--border-color, #333) !important;
+    background-color: var(--input-bg, #2a2a2a) !important;
+    color: var(--text-color, #e0e0e0) !important;
+    font-size: 14px !important;
+    outline: none !important;
+    width: 100% !important;
+  `;
+  
+  // Handle input changes
+  addressInput.addEventListener('change', (event) => {
+    if (typeof browser.handleAddressChange === 'function') {
+      browser.handleAddressChange(event);
+    } else {
+      console.warn('handleAddressChange not available on browser object');
+    }
+  });
+  
+  // Store reference to address input on browser object
+  browser.addressInput = addressInput;
+  browser.searchInput = addressInput; // For backward compatibility
+  
+  // Add input to form
+  addressForm.appendChild(addressInput);
+  
+  // Add form to container
+  addressContainer.appendChild(addressForm);
+  
+  // Add address container to header container
+  headerContainer.appendChild(addressContainer);
+  
+  // Create traditional header with navigation controls
   const header = document.createElement('div');
   header.className = 'browser-header';
   
@@ -69,32 +149,6 @@ export function createBrowserHeader(browser) {
   
   header.appendChild(navControls);
   
-  // URL/search input
-  const searchForm = document.createElement('form');
-  searchForm.className = 'browser-search-form';
-  searchForm.addEventListener('submit', browser.handleSearch);
-  
-  browser.searchInput = document.createElement('input');
-  browser.searchInput.type = 'text';
-  browser.searchInput.className = 'browser-search-input';
-  browser.searchInput.placeholder = 'Search or enter website name';
-  browser.searchInput.spellcheck = false;
-  browser.searchInput.autocomplete = 'off';
-  searchForm.appendChild(browser.searchInput);
-  
-  const searchButton = document.createElement('button');
-  searchButton.type = 'submit';
-  searchButton.className = 'browser-search-btn';
-  searchButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="11" cy="11" r="8"></circle>
-      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-    </svg>
-  `;
-  searchForm.appendChild(searchButton);
-  
-  header.appendChild(searchForm);
-  
   // Action buttons
   const actionButtons = document.createElement('div');
   actionButtons.className = 'browser-action-buttons';
@@ -137,7 +191,10 @@ export function createBrowserHeader(browser) {
   
   header.appendChild(actionButtons);
   
-  return header;
+  // Add header to container
+  headerContainer.appendChild(header);
+  
+  return headerContainer;
 }
 
 /**
@@ -243,15 +300,15 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
             z-index: 1 !important;
             position: fixed !important;
             top: 52px !important;
-            left: 0 !important;
+            left: var(--sidebar-width, 260px) !important;
             right: 0 !important;
             bottom: 0 !important;
-            width: 100vw !important;
+            width: calc(100vw - var(--sidebar-width, 260px)) !important;
             height: calc(100vh - 52px) !important;
             min-height: calc(100vh - 52px) !important;
             max-height: calc(100vh - 52px) !important;
-            min-width: 100vw !important;
-            max-width: 100vw !important;
+            min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+            max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
             border: none !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -543,6 +600,12 @@ export function createWebview(browser, implementation, sandboxLevel) {
   // Force webview for reliability
   implementation = 'webview';
   
+  // Verify browser container exists in DOM
+  if (!browser.containerRef || !browser.containerRef.current || !browser.containerRef.current.isConnected) {
+    console.error('Browser container not connected to DOM, cannot create webview');
+    return { container: null, webview: null };
+  }
+  
   const container = document.createElement('div');
   container.className = 'browser-webview-container';
   
@@ -569,6 +632,12 @@ export function createWebview(browser, implementation, sandboxLevel) {
   // Use our enhanced webview creation function
   let webview = createWebviewElement(browser);
   
+  // Verify webview was created correctly
+  if (!webview) {
+    console.error('Failed to create webview element');
+    return { container, webview: null };
+  }
+  
   // Apply styling to webview for proper containment
   webview.style.cssText = `
     display: flex !important;
@@ -577,15 +646,15 @@ export function createWebview(browser, implementation, sandboxLevel) {
     z-index: 1 !important;
     position: fixed !important;
     top: 52px !important;
-    left: 0 !important;
+    left: var(--sidebar-width, 260px) !important;
     right: 0 !important;
     bottom: 0 !important;
-    width: 100vw !important;
+    width: calc(100vw - var(--sidebar-width, 260px)) !important;
     height: calc(100vh - 52px) !important;
     min-height: calc(100vh - 52px) !important;
     max-height: calc(100vh - 52px) !important;
-    min-width: 100vw !important;
-    max-width: 100vw !important;
+    min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+    max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
     border: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -595,8 +664,19 @@ export function createWebview(browser, implementation, sandboxLevel) {
     flex: 1 1 auto !important;
   `;
   
-  // Add to browser container
-  container.appendChild(webview);
+  // Force attachment to DOM
+  try {
+    // Add to browser container
+    container.appendChild(webview);
+    
+    // Ensure element gets attached by forcing a reflow
+    void container.offsetHeight;
+    void webview.offsetHeight;
+    
+    console.log('Webview attached to DOM container');
+  } catch (err) {
+    console.error('Error attaching webview to container:', err);
+  }
   
   // Create placeholder for browser limitations message
   const placeholder = createBrowserPlaceholder(browser);
@@ -605,7 +685,7 @@ export function createWebview(browser, implementation, sandboxLevel) {
   // Hide placeholder upfront
   placeholder.style.display = 'none';
   
-  // Set reference on browser object
+  // Set reference on browser objects
   browser.webview = webview;
   
   // For iframe implementation, we'll keep a separate reference to the "contentFrame"
@@ -760,15 +840,15 @@ export function showLoadingContent(browser, url) {
       z-index: 0 !important;
       position: fixed !important;
       top: 52px !important;
-      left: 0 !important;
+      left: var(--sidebar-width, 260px) !important;
       right: 0 !important;
       bottom: 0 !important;
-      width: 100vw !important;
+      width: calc(100vw - var(--sidebar-width, 260px)) !important;
       height: calc(100vh - 52px) !important;
       min-height: calc(100vh - 52px) !important;
       max-height: calc(100vh - 52px) !important;
-      min-width: 100vw !important;
-      max-width: 100vw !important;
+      min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+      max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
       border: none !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -882,15 +962,15 @@ function _hideLoadingContent(loadingContent, browser) {
       z-index: 1 !important;
       position: fixed !important;
       top: 52px !important;
-      left: 0 !important;
+      left: var(--sidebar-width, 260px) !important;
       right: 0 !important;
       bottom: 0 !important;
-      width: 100vw !important;
+      width: calc(100vw - var(--sidebar-width, 260px)) !important;
       height: calc(100vh - 52px) !important;
       min-height: calc(100vh - 52px) !important;
       max-height: calc(100vh - 52px) !important;
-      min-width: 100vw !important;
-      max-width: 100vw !important;
+      min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+      max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
       border: none !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -1021,15 +1101,15 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         z-index: 1 !important;
         position: fixed !important;
         top: 52px !important;
-        left: 0 !important;
+        left: var(--sidebar-width, 260px) !important;
         right: 0 !important;
         bottom: 0 !important;
-        width: 100vw !important;
+        width: calc(100vw - var(--sidebar-width, 260px)) !important;
         height: calc(100vh - 52px) !important;
         min-height: calc(100vh - 52px) !important;
         max-height: calc(100vh - 52px) !important;
-        min-width: 100vw !important;
-        max-width: 100vw !important;
+        min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+        max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
         border: none !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -1051,10 +1131,10 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         container.style.cssText = `
           position: fixed !important;
           top: 52px !important;
-          left: 0 !important;
+          left: var(--sidebar-width, 260px) !important;
           right: 0 !important;
           bottom: 0 !important;
-          width: 100vw !important;
+          width: calc(100vw - var(--sidebar-width, 260px)) !important;
           height: calc(100vh - 52px) !important;
           margin: 0 !important;
           padding: 0 !important;
@@ -1477,15 +1557,15 @@ export function applyPreNavigationStyles(browser) {
       z-index: 1 !important;
       position: fixed !important;
       top: 52px !important;
-      left: 0 !important;
+      left: var(--sidebar-width, 260px) !important;
       right: 0 !important;
       bottom: 0 !important;
-      width: 100vw !important;
+      width: calc(100vw - var(--sidebar-width, 260px)) !important;
       height: calc(100vh - 52px) !important;
       min-height: calc(100vh - 52px) !important;
       max-height: calc(100vh - 52px) !important;
-      min-width: 100vw !important;
-      max-width: 100vw !important;
+      min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+      max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
       border: none !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -1640,15 +1720,15 @@ export function scheduleStyleChecks(browser) {
         z-index: 1 !important;
         position: fixed !important;
         top: 52px !important;
-        left: 0 !important;
+        left: var(--sidebar-width, 260px) !important;
         right: 0 !important;
         bottom: 0 !important;
-        width: 100vw !important;
+        width: calc(100vw - var(--sidebar-width, 260px)) !important;
         height: calc(100vh - 52px) !important;
         min-height: calc(100vh - 52px) !important;
         max-height: calc(100vh - 52px) !important;
-        min-width: 100vw !important;
-        max-width: 100vw !important;
+        min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+        max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
         border: none !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -1922,9 +2002,30 @@ export function setupBrowserLayout(browser) {
 
   const container = browser.containerRef.current;
   
-  // Create header
-  const header = createBrowserHeader(browser);
-  container.appendChild(header);
+  // Clear any existing content
+  console.log('Setting up browser layout in container:', container);
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+  
+  // Set container style to ensure proper display
+  container.style.cssText = `
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+  `;
+  
+  // Create header container with address bar at the top
+  const headerContainer = createBrowserHeader(browser);
+  container.appendChild(headerContainer);
+  
+  // Store references to the components
+  const addressContainer = headerContainer.querySelector('.voyager-address-container');
+  const header = headerContainer.querySelector('.browser-header');
   
   // Create progress bar
   const progressBar = createProgressBar();
@@ -1944,10 +2045,15 @@ export function setupBrowserLayout(browser) {
   
   // Store references
   browser.header = header;
+  browser.addressContainer = addressContainer;
+  browser.headerContainer = headerContainer;
   browser.progressBar = progressBar.querySelector('.browser-progress-bar');
   browser.progressContainer = progressBar;
   browser.webviewContainer = webviewContainer;
   browser.researchPanel = researchPanel;
+  
+  // Log layout creation for debugging
+  console.log('Browser layout created with address bar at the top');
 }
 
 /**
@@ -1955,41 +2061,89 @@ export function setupBrowserLayout(browser) {
  * @param {Object} browser - The browser instance
  */
 export function setupNavigationBar(browser) {
-  if (!browser || !browser.header) {
-    console.error('Cannot set up navigation bar - header is missing');
+  if (!browser || !browser.containerRef || !browser.containerRef.current) {
+    console.error('Cannot set up navigation bar - container reference is missing');
     return;
   }
   
-  // Find navigation buttons
-  const backButton = browser.header.querySelector('.browser-back-btn');
-  const forwardButton = browser.header.querySelector('.browser-forward-btn');
-  const refreshButton = browser.header.querySelector('.browser-refresh-btn');
-  const stopButton = browser.header.querySelector('.browser-stop-btn');
-  const searchForm = browser.header.querySelector('.browser-search-form');
-  const searchInput = browser.header.querySelector('.browser-search-input');
+  const container = browser.containerRef.current;
+  
+  // Find address container and input first (now separate from header)
+  const addressContainer = container.querySelector('.voyager-address-container');
+  const addressInput = addressContainer?.querySelector('.voyager-address-bar');
+  const addressForm = addressContainer?.querySelector('form');
+  
+  // Then find navigation buttons in the header
+  const header = container.querySelector('.browser-header');
+  const backButton = header?.querySelector('.browser-back-btn');
+  const forwardButton = header?.querySelector('.browser-forward-btn');
+  const refreshButton = header?.querySelector('.browser-refresh-btn');
+  const stopButton = header?.querySelector('.browser-stop-btn');
+  
+  // Verify we have all elements
+  if (!addressInput || !addressForm) {
+    console.warn('Could not find address input or form in the container');
+  }
+  
+  if (!backButton || !forwardButton || !refreshButton || !stopButton) {
+    console.warn('Could not find navigation buttons in the header');
+  }
   
   // Set references
-  browser.backButton = backButton;
-  browser.forwardButton = forwardButton;
-  browser.refreshButton = refreshButton;
-  browser.stopButton = stopButton;
-  browser.searchForm = searchForm;
-  browser.searchInput = searchInput;
+  if (backButton) browser.backButton = backButton;
+  if (forwardButton) browser.forwardButton = forwardButton;
+  if (refreshButton) browser.refreshButton = refreshButton;
+  if (stopButton) browser.stopButton = stopButton;
+  if (addressForm) browser.searchForm = addressForm;
+  if (addressInput) {
+    browser.addressInput = addressInput;
+    browser.searchInput = addressInput; // For backward compatibility
+  }
   
   // Initialize button states
-  backButton.disabled = true;
-  forwardButton.disabled = true;
+  if (backButton) backButton.disabled = true;
+  if (forwardButton) forwardButton.disabled = true;
   
-  // Set input reference
-  browser.addressInput = searchInput;
+  // Set up event handlers if not already set up
+  if (addressForm && typeof browser.handleAddressSubmit === 'function') {
+    // Clean up any existing handlers to prevent duplicates
+    const newAddressForm = addressForm.cloneNode(true);
+    addressForm.parentNode.replaceChild(newAddressForm, addressForm);
+    browser.searchForm = newAddressForm;
+    
+    // Add the input reference again since we replaced the form
+    const newAddressInput = newAddressForm.querySelector('.voyager-address-bar');
+    if (newAddressInput) {
+      browser.addressInput = newAddressInput;
+      browser.searchInput = newAddressInput;
+    }
+    
+    // Add event listeners
+    newAddressForm.addEventListener('submit', browser.handleAddressSubmit);
+    
+    if (newAddressInput && typeof browser.handleAddressChange === 'function') {
+      newAddressInput.addEventListener('change', browser.handleAddressChange);
+    }
+  }
   
-  // Set up event handlers
-  searchForm.addEventListener('submit', browser.handleAddressSubmit);
-  searchInput.addEventListener('change', browser.handleAddressChange);
-  backButton.addEventListener('click', () => browser.handleBackAction(browser));
-  forwardButton.addEventListener('click', () => browser.handleForwardAction(browser));
-  refreshButton.addEventListener('click', browser.refreshPage);
-  stopButton.addEventListener('click', browser.stopLoading);
+  // Set up navigation button handlers
+  if (backButton && typeof browser.handleBackAction === 'function') {
+    backButton.addEventListener('click', () => browser.handleBackAction(browser));
+  }
+  
+  if (forwardButton && typeof browser.handleForwardAction === 'function') {
+    forwardButton.addEventListener('click', () => browser.handleForwardAction(browser));
+  }
+  
+  if (refreshButton && typeof browser.refreshPage === 'function') {
+    refreshButton.addEventListener('click', () => browser.refreshPage());
+  }
+  
+  if (stopButton && typeof browser.stopLoading === 'function') {
+    stopButton.addEventListener('click', () => browser.stopLoading());
+  }
+  
+  console.log('Navigation bar setup complete with address bar at the top');
 }
 
 /**
@@ -2159,17 +2313,36 @@ export function updateAddressBar(browser, url) {
     return;
   }
 
-  // Find input if not directly referenced
-  const addressInput = browser.addressInput || 
-                      browser.searchInput || 
-                      browser.container?.querySelector('.browser-search-input');
+  // Find input using a more robust approach with multiple fallbacks
+  const addressInput = 
+    // First try the direct addressInput reference
+    browser.addressInput || 
+    // Then try searchInput for backward compatibility
+    browser.searchInput || 
+    // Then look for the address bar in the DOM
+    browser.containerRef?.current?.querySelector('.voyager-address-bar') ||
+    // For older implementations, try the search input
+    browser.containerRef?.current?.querySelector('.browser-search-input') ||
+    // Last resort, look for any element with voyager-address-container parent
+    browser.containerRef?.current?.querySelector('.voyager-address-container input');
   
   if (!addressInput) {
-    console.warn('Cannot update address bar - input is missing');
+    console.warn('Cannot update address bar - input not found through any method');
     return;
   }
   
+  // Update the input value
   addressInput.value = url;
+  
+  // Also update the state if applicable
+  if (typeof browser.setState === 'function') {
+    browser.setState({ 
+      url: url,
+      typedUrlValue: url 
+    });
+  }
+  
+  console.log('Updated address bar with URL:', url);
 }
 
 /**

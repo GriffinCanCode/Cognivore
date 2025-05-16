@@ -1000,9 +1000,23 @@ export function handlePageNavigation(browser, e) {
   // Update current URL
   browser.currentUrl = e.url;
   
-  // Update address bar
+  // Update address bar - look for both searchInput and addressInput
+  // searchInput is the old property name, addressInput is the new one
   if (browser.searchInput) {
     browser.searchInput.value = e.url;
+  }
+  
+  // Directly check for addressInput in case the property name has changed
+  const addressInput = browser.addressInput || 
+                      browser.container?.querySelector('.voyager-address-bar');
+  if (addressInput) {
+    addressInput.value = e.url;
+    console.log('Updated address bar input with new URL:', e.url);
+  }
+  
+  // Update UI state if it exists
+  if (browser.setState) {
+    browser.setState({ url: e.url });
   }
   
   // Add to history if this is a new navigation and history is properly initialized

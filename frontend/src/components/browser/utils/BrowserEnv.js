@@ -215,20 +215,28 @@ export function applySandboxSettings(element, sandboxLevel) {
 export function formatUrl(url) {
   if (!url) return '';
   
-  // Add http:// prefix if needed
-  let formattedUrl = url;
-  if (!/^https?:\/\//i.test(url)) {
-    // Check if it's a search or a URL
-    if (url.includes(' ') || !url.includes('.')) {
-      // Treat as search query
-      formattedUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-    } else {
-      // Treat as URL
-      formattedUrl = `https://${url}`;
-    }
+  // Trim whitespace
+  url = url.trim();
+  
+  // If URL already has a protocol, leave it as is
+  if (/^https?:\/\//i.test(url)) {
+    return url;
   }
   
-  return formattedUrl;
+  // Check for common TLDs or localhost to determine if it's a URL
+  const commonTLDs = ['.com', '.org', '.net', '.edu', '.gov', '.io', '.co', '.us', '.uk', '.ca', '.de', '.jp', '.fr', '.au', '.ru'];
+  const isLikelyURL = commonTLDs.some(tld => url.includes(tld)) || 
+                     url.includes('localhost') || 
+                     url.includes('127.0.0.1') || 
+                     (url.includes('.') && !url.includes(' '));
+  
+  // If it looks like a URL, add https:// prefix
+  if (isLikelyURL) {
+    return `https://${url}`;
+  } 
+  
+  // Otherwise, treat as a search query
+  return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
 }
 
 /**

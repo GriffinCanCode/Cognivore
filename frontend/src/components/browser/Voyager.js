@@ -166,6 +166,11 @@ class Voyager extends Component {
     // Format the URL (add protocol if needed)
     const formattedUrl = formatUrl(url);
     
+    // Store the original URL for logging
+    const originalUrl = url;
+    
+    console.log(`Navigating from "${originalUrl}" to formatted URL: "${formattedUrl}"`);
+    
     // Apply site-specific settings
     applySiteSpecificSettings.call(this, formattedUrl);
     
@@ -460,8 +465,20 @@ class Voyager extends Component {
    */
   handleAddressSubmit(event) {
     event.preventDefault();
-    const url = this.addressInput ? this.addressInput.value : '';
+    
+    // Get URL from address input
+    const url = this.addressInput ? this.addressInput.value.trim() : '';
+    
+    // Only navigate if URL is not empty
     if (url) {
+      console.log('Navigating to URL from address bar:', url);
+      
+      // Update the address bar immediately to give user feedback
+      if (this.addressInput) {
+        this.addressInput.value = url;
+      }
+      
+      // Call navigate with the user-entered URL
       this.navigate(url);
     }
   }
@@ -471,8 +488,18 @@ class Voyager extends Component {
    * @param {Event} event - Input change event
    */
   handleAddressChange(event) {
-    // Just update the input field, don't navigate yet
+    // Store the current input value but don't navigate yet
     // Navigation happens on form submission
+    const inputValue = event.target.value;
+    
+    // Track value change for immediate feedback
+    this.setState({ typedUrlValue: inputValue });
+    
+    // This helps with proper state management
+    if (this._lastTypedUrl !== inputValue) {
+      this._lastTypedUrl = inputValue;
+      console.log('Address bar input changed:', inputValue);
+    }
   }
   
   /**
@@ -485,6 +512,29 @@ class Voyager extends Component {
     // Update UI state
     this.setState({ isLoading: false });
     updateLoadingIndicator(this, false);
+    
+    // Update address bar with the actual URL from the webview
+    try {
+      if (this.webview && typeof this.webview.getURL === 'function') {
+        const currentURL = this.webview.getURL();
+        if (currentURL && currentURL !== 'about:blank') {
+          // Update URL in state
+          this.setState({ url: currentURL });
+          
+          // Update address bar input
+          if (this.addressInput) {
+            this.addressInput.value = currentURL;
+          }
+          
+          // Update current URL tracking
+          this.currentUrl = currentURL;
+          
+          console.log(`Address bar updated to actual URL: ${currentURL}`);
+        }
+      }
+    } catch (error) {
+      console.warn('Error updating address bar with actual URL:', error);
+    }
     
     // Capture page content and title for memory
     this.capturePageContent();
@@ -610,7 +660,7 @@ class Voyager extends Component {
     }
     
     // Make sure component is mounted
-    if (!this.containerRef?.current) {
+    if (!this.containerRef?.current || !this.containerRef.current.isConnected) {
       console.warn('Cannot initialize Voyager - container not mounted');
       
       // Try to initialize again after a short delay with increasing backoff
@@ -619,11 +669,13 @@ class Voyager extends Component {
       }
       
       this._initAttempts++;
-      const delay = Math.min(this._initAttempts * 100, 1000); // Increasing delay with cap at 1000ms
+      const delay = Math.min(this._initAttempts * 200, 2000); // Increasing delay with cap at 2000ms (up from 1000ms)
       
       if (this._initAttempts < 20) { // Limit retries to prevent infinite loop
+        console.log(`Retry #${this._initAttempts} scheduled in ${delay}ms`);
         setTimeout(() => {
-          if (this.containerRef?.current) {
+          // Double-check if component wasn't cleaned up in the meantime
+          if (!this._isUnloading) {
             this.initialize();
           }
         }, delay);
@@ -638,6 +690,13 @@ class Voyager extends Component {
     
     // Mark as initialized to prevent duplicate setup
     this._isInitialized = true;
+    
+    // Log container details for debugging
+    console.log('Container ready for setup:', {
+      id: this.containerRef.current.id,
+      isConnected: this.containerRef.current.isConnected,
+      dimensions: `${this.containerRef.current.offsetWidth}x${this.containerRef.current.offsetHeight}`
+    });
     
     // Set up browser layout
     setupBrowserLayout(this);
@@ -708,26 +767,35 @@ class Voyager extends Component {
       }
     }
     
-    // Bind button event handlers in the header
-    const backButton = this.header?.querySelector('.browser-back-btn');
-    const forwardButton = this.header?.querySelector('.browser-forward-btn');
-    const refreshButton = this.header?.querySelector('.browser-refresh-btn');
-    const stopButton = this.header?.querySelector('.browser-stop-btn');
+    // Bind button event handlers in the header with additional checks
+    const header = this.containerRef.current?.querySelector('.browser-header');
+    const backButton = header?.querySelector('.browser-back-btn');
+    const forwardButton = header?.querySelector('.browser-forward-btn');
+    const refreshButton = header?.querySelector('.browser-refresh-btn');
+    const stopButton = header?.querySelector('.browser-stop-btn');
     
     if (backButton) backButton.addEventListener('click', this.handleBackAction);
     if (forwardButton) forwardButton.addEventListener('click', this.handleForwardAction);
     if (refreshButton) refreshButton.addEventListener('click', this.refreshPage);
     if (stopButton) stopButton.addEventListener('click', this.stopLoading);
     
-    // Set initial URL if provided - with a delay to ensure webview is fully mounted
+    // Set initial URL if provided - with a longer delay to ensure webview is fully mounted
     if (this.props?.initialUrl && this.props.initialUrl !== 'about:blank') {
       // Enhanced timing to ensure webview is properly set up before navigation
       setTimeout(() => {
         // Double-check that webview still exists and is connected to DOM
         if (this.webview && this.webview.isConnected) {
           this.navigate(this.props.initialUrl);
+        } else {
+          console.warn('Webview not connected to DOM, delaying navigation');
+          // Try one more time with longer delay
+          setTimeout(() => {
+            if (this.webview && this.webview.isConnected) {
+              this.navigate(this.props.initialUrl);
+            }
+          }, 500);
         }
-      }, 500);
+      }, 800); // Increased from 500ms to 800ms for better reliability
     }
   }
   
@@ -772,13 +840,11 @@ class Voyager extends Component {
       this.iframe.style.opacity = '0';
     }
     
-    // Unmount React component if ReactDOM is available
-    const browserMount = document.getElementById('browser-mount');
-    if (browserMount && window.ReactDOM && window.ReactDOM.unmountComponentAtNode) {
-      try {
-        window.ReactDOM.unmountComponentAtNode(browserMount);
-      } catch (err) {
-        console.warn('Error unmounting browser component:', err);
+    // Clean up container contents if available
+    if (this.containerRef && this.containerRef.current) {
+      // Clear container contents
+      while (this.containerRef.current.firstChild) {
+        this.containerRef.current.removeChild(this.containerRef.current.firstChild);
       }
     }
     
@@ -967,7 +1033,10 @@ class Voyager extends Component {
         ref={this.containerRef}
         id={`voyager-${this.browserId}`}
       >
-        {/* Browser chrome (toolbar, address bar) */}
+        {/* Note: Address bar is now created by BrowserRenderer.createBrowserHeader */}
+        {/* and is positioned at the top of the component */}
+
+        {/* Browser chrome (toolbar) */}
         {showToolbar && (
           <div className="voyager-toolbar" style={{
             display: 'flex',
@@ -980,20 +1049,6 @@ class Voyager extends Component {
             <button onClick={() => handleForwardAction(this)} style={{ marginRight: '8px' }}>▶</button>
             <button onClick={this.refreshPage} style={{ marginRight: '8px' }}>↻</button>
             <button onClick={this.stopLoading} style={{ marginRight: '8px' }}>✕</button>
-            
-            {/* Address bar */}
-            {showAddressBar && (
-              <form onSubmit={this.handleAddressSubmit} style={{ flex: 1, display: 'flex' }}>
-                <input 
-                  type="text"
-                  className="voyager-address-bar"
-                  defaultValue={this.state.url}
-                  onChange={this.handleAddressChange}
-                  style={{ flex: 1, padding: '4px 8px' }}
-                  ref={el => this.addressInput = el}
-                />
-              </form>
-            )}
             
             {/* Reader mode toggle */}
             <button onClick={this.toggleReaderMode} style={{ marginLeft: '8px' }}>

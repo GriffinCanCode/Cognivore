@@ -488,64 +488,70 @@ class App extends Component {
         
       case 'browser':
       case 'voyager':
-        // Create mount point if it doesn't exist
-        let browserMount = document.getElementById('browser-mount');
-        if (!browserMount) {
-          browserMount = document.createElement('div');
-          browserMount.id = 'browser-mount';
-          document.body.appendChild(browserMount);
-        }
+        // Don't create a separate mount point - use the main content container
+        appLogger.info('Rendering browser in main content container');
         
-        try {
-          // Render using ReactDOM to attach component properly
-          if (ReactDOM) {
-            console.log('[App] Rendering Voyager using ReactDOM');
-            ReactDOM.render(
-              <Browser 
-                ref={this.browserRef}
-                initialUrl="https://www.google.com"
-                onContentCapture={this.handleContentCapture}
-              />, 
-              browserMount
-            );
-            
-            // Initialize the browser component after mounting
-            setTimeout(() => {
-              if (this.browserRef && this.browserRef.current) {
-                if (typeof this.browserRef.current.initialize === 'function') {
-                  this.browserRef.current.initialize();
-                }
-              } else {
-                console.warn('[App] Browser reference not available yet, will try again');
-                
-                // Try again with a longer delay
-                setTimeout(() => {
-                  if (this.browserRef && this.browserRef.current && 
-                      typeof this.browserRef.current.initialize === 'function') {
-                    this.browserRef.current.initialize();
-                  } else {
-                    console.error('[App] Browser initialization failed - component reference not available');
-                  }
-                }, 500);
-              }
-            }, 100);
-            
-            return null; // Already rendered using ReactDOM
-          } else {
-            console.error('[App] ReactDOM not available for rendering the browser component');
+        // Create browser component directly in main content
+        const browserElement = document.createElement('div');
+        browserElement.id = 'browser-container';
+        browserElement.style.cssText = `
+          width: 100% !important;
+          height: 100% !important;
+          display: flex !important;
+          flex-direction: column !important;
+          position: relative !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
+        `;
+        mainContent.appendChild(browserElement);
+        
+        // Make sure browser element is properly in the DOM before initialization
+        // Force a layout recalculation to ensure the element is attached
+        void browserElement.offsetHeight;
+        
+        // Store reference to container for browser component initialization
+        this.browserContainer = browserElement;
+        
+        // Clean up any existing browser-mount to prevent duplicates
+        const oldBrowserMount = document.getElementById('browser-mount');
+        if (oldBrowserMount && oldBrowserMount.parentNode) {
+          if (ReactDOM && ReactDOM.unmountComponentAtNode) {
+            try {
+              ReactDOM.unmountComponentAtNode(oldBrowserMount);
+            } catch (err) {
+              console.warn('Error unmounting old browser component:', err);
+            }
           }
-        } catch (error) {
-          console.error('[App] Error rendering browser component:', error);
+          oldBrowserMount.parentNode.removeChild(oldBrowserMount);
         }
         
-        // Fallback return if ReactDOM rendering fails
-        return (
-          <Browser 
-            ref={this.browserRef}
-            initialUrl="https://www.google.com"
-            onContentCapture={this.handleContentCapture}
-          />
-        );
+        // Initialize browser with a longer delay to ensure container is ready
+        setTimeout(() => {
+          if (this.browser) {
+            // Check if container is properly in the DOM
+            if (this.browserContainer && this.browserContainer.isConnected) {
+              // Set the container reference for the browser
+              this.browser.containerRef = { current: this.browserContainer };
+              console.log('Initializing browser with container:', this.browserContainer);
+              this.browser.initialize();
+            } else {
+              console.warn('Browser container not connected to DOM, cannot initialize');
+            }
+          } else if (this.browserRef && this.browserRef.current) {
+            // Check if container is properly in the DOM
+            if (this.browserContainer && this.browserContainer.isConnected) {
+              // Set the container reference for the browser
+              this.browserRef.current.containerRef = { current: this.browserContainer };
+              console.log('Initializing browser with container:', this.browserContainer);
+              this.browserRef.current.initialize();
+            } else {
+              console.warn('Browser container not connected to DOM, cannot initialize');
+            }
+          } else {
+            console.warn('Browser reference not available for initialization');
+          }
+        }, 300); // Increased from 100ms to 300ms
+        break;
         
       case 'anthology':
         // Render Anthology component
