@@ -305,7 +305,7 @@ export function cleanupHtmlForMemory(html) {
     return doc.body ? doc.body.innerHTML : '';
   } catch (err) {
     console.warn('Error cleaning HTML for memory:', err);
-    return sanitizeHtml(html);
+    return sanitizeHTML(html);
   }
 }
 
@@ -347,11 +347,420 @@ export function sanitizeUrlForAnalysis(url) {
   }
 }
 
+export function applyContentScripts(webview) {
+  if (!webview || typeof webview.executeJavaScript !== 'function') {
+    console.warn('Cannot apply content scripts - invalid webview or missing executeJavaScript');
+    return Promise.resolve(false);
+  }
+  
+  console.log('Applying content enhancement scripts');
+  
+  const enhancementScript = `
+    (function() {
+      // Avoid duplicate execution
+      if (window._contentScriptsApplied) {
+        console.log('Content scripts already applied, skipping');
+        return true;
+      }
+      
+      // Mark as applied
+      window._contentScriptsApplied = true;
+      
+      try {
+        // Create and append stylesheet for better readability
+        const styleElement = document.createElement('style');
+        styleElement.id = 'cognivore-reader-styles';
+        styleElement.textContent = \`
+          /* Reader mode styles */
+          body.cognivore-reader-mode {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
+            font-size: 18px !important;
+            line-height: 1.6 !important;
+            max-width: 800px !important;
+            margin: 0 auto !important;
+            padding: 20px !important;
+            color: #333 !important;
+            background-color: #fff !important;
+          }
+          
+          body.cognivore-reader-mode h1, 
+          body.cognivore-reader-mode h2, 
+          body.cognivore-reader-mode h3 {
+            line-height: 1.3 !important;
+            margin-top: 1.5em !important;
+            margin-bottom: 0.5em !important;
+          }
+          
+          body.cognivore-reader-mode p, 
+          body.cognivore-reader-mode li {
+            margin-bottom: 1em !important;
+          }
+          
+          body.cognivore-reader-mode img {
+            max-width: 100% !important;
+            height: auto !important;
+            margin: 1em 0 !important;
+          }
+          
+          /* Dark mode styles */
+          body.cognivore-reader-mode.dark-mode {
+            color: #eee !important;
+            background-color: #222 !important;
+          }
+          
+          body.cognivore-reader-mode.dark-mode a {
+            color: #6bf !important;
+          }
+        \`;
+        
+        document.head.appendChild(styleElement);
+        
+        // Create reader mode toggle button
+        const toggleButton = document.createElement('button');
+        toggleButton.textContent = 'Reader Mode';
+        toggleButton.id = 'cognivore-reader-toggle';
+        toggleButton.style.cssText = \`
+          position: fixed;
+          top: 10px;
+          right: 10px;
+          z-index: 99999;
+          background: #4a86e8;
+          color: white;
+          border: none;
+          border-radius: 3px;
+          padding: 8px 12px;
+          font-size: 14px;
+          cursor: pointer;
+          opacity: 0.8;
+          transition: opacity 0.2s;
+        \`;
+        
+        toggleButton.addEventListener('mouseenter', () => {
+          toggleButton.style.opacity = '1';
+        });
+        
+        toggleButton.addEventListener('mouseleave', () => {
+          toggleButton.style.opacity = '0.8';
+        });
+        
+        toggleButton.addEventListener('click', () => {
+          document.body.classList.toggle('cognivore-reader-mode');
+          
+          // If entering reader mode, also clean the page
+          if (document.body.classList.contains('cognivore-reader-mode')) {
+            // Find main content area
+            const contentSelectors = [
+              'article', 'main', '#main', '.main', '.article', '.post', 
+              '[role="main"]', '.content', '#content', '.page-content'
+            ];
+            
+            let mainContent = null;
+            
+            // Try to find main content
+            for (const selector of contentSelectors) {
+              const element = document.querySelector(selector);
+              if (element && element.textContent.trim().length > 200) {
+                mainContent = element;
+                break;
+              }
+            }
+            
+            // If main content found, clean the page
+            if (mainContent) {
+              // Hide all elements except main content and its ancestors
+              const allElements = document.body.querySelectorAll('*');
+              let currentNode = mainContent;
+              const ancestors = [];
+              
+              // Build list of ancestors
+              while (currentNode && currentNode !== document.body) {
+                ancestors.push(currentNode);
+                currentNode = currentNode.parentNode;
+              }
+              
+              // Hide elements not in the main content branch
+              for (const element of allElements) {
+                if (!ancestors.includes(element) && element !== mainContent && !mainContent.contains(element)) {
+                  element.style.display = 'none';
+                }
+              }
+              
+              // Ensure main content is visible and centered
+              mainContent.style.cssText = \`
+                display: block !important;
+                margin: 0 auto !important;
+                width: 100% !important;
+                max-width: 800px !important;
+              \`;
+            }
+          } else {
+            // If exiting reader mode, restore all elements
+            const allElements = document.body.querySelectorAll('*');
+            for (const element of allElements) {
+              if (element.style.display === 'none') {
+                element.style.display = '';
+              }
+            }
+          }
+        });
+        
+        // Add toggle button to page
+        document.body.appendChild(toggleButton);
+        
+        // Add dark mode toggle
+        const darkModeToggle = document.createElement('button');
+        darkModeToggle.textContent = 'Dark Mode';
+        darkModeToggle.id = 'cognivore-dark-toggle';
+        darkModeToggle.style.cssText = \`
+          position: fixed;
+          top: 10px;
+          right: 120px;
+          z-index: 99999;
+          background: #333;
+          color: white;
+          border: none;
+          border-radius: 3px;
+          padding: 8px 12px;
+          font-size: 14px;
+          cursor: pointer;
+          opacity: 0.8;
+          transition: opacity 0.2s;
+        \`;
+        
+        darkModeToggle.addEventListener('mouseenter', () => {
+          darkModeToggle.style.opacity = '1';
+        });
+        
+        darkModeToggle.addEventListener('mouseleave', () => {
+          darkModeToggle.style.opacity = '0.8';
+        });
+        
+        darkModeToggle.addEventListener('click', () => {
+          document.body.classList.toggle('dark-mode');
+        });
+        
+        // Add dark mode toggle to page
+        document.body.appendChild(darkModeToggle);
+        
+        console.log('Content enhancement scripts applied successfully');
+        return true;
+      } catch (error) {
+        console.error('Error applying content scripts:', error);
+        return false;
+      }
+    })();
+  `;
+  
+  return webview.executeJavaScript(enhancementScript)
+    .then(result => {
+      console.log('Content scripts applied:', result);
+      return result;
+    })
+    .catch(error => {
+      console.error('Error executing content enhancement scripts:', error);
+      return false;
+    });
+}
+
+export function applyUrlSpecificTweaks(webview, url) {
+  if (!webview || !url || typeof webview.executeJavaScript !== 'function') {
+    console.warn('Cannot apply URL-specific tweaks - invalid parameters');
+    return Promise.resolve(false);
+  }
+  
+  // Check if URL is from certain sites that need tweaks
+  const isGoogleSearch = /google\.[a-z]+\/search/.test(url);
+  const isYouTube = /youtube\.com/.test(url);
+  const isTwitter = /twitter\.com/.test(url) || /x\.com/.test(url);
+  
+  if (!isGoogleSearch && !isYouTube && !isTwitter) {
+    // No specific tweaks needed
+    return Promise.resolve(false);
+  }
+  
+  console.log(`Applying URL-specific tweaks for: ${url}`);
+  
+  let tweakScript = '';
+  
+  if (isGoogleSearch) {
+    tweakScript = `
+      (function() {
+        // Avoid duplicate execution
+        if (window._googleTweaksApplied) {
+          return true;
+        }
+        
+        // Mark as applied
+        window._googleTweaksApplied = true;
+        
+        try {
+          // Create style element for Google-specific tweaks
+          const styleElement = document.createElement('style');
+          styleElement.id = 'cognivore-google-tweaks';
+          styleElement.textContent = \`
+            /* Make search results wider */
+            #center_col, #rso, .g {
+              width: 100% !important;
+              max-width: none !important;
+            }
+            
+            /* Increase readability of search results */
+            .g {
+              padding: 15px !important;
+              margin-bottom: 10px !important;
+              background: rgba(0,0,0,0.02) !important;
+              border-radius: 8px !important;
+            }
+            
+            /* Make the font size larger */
+            .g .yuRUbf a h3 {
+              font-size: 1.2em !important;
+            }
+            
+            /* Improve result spacing */
+            .g .yuRUbf {
+              margin-bottom: 5px !important;
+            }
+            
+            /* Ensure proper spacing between results */
+            #rso > div {
+              margin-bottom: 20px !important;
+            }
+          \`;
+          
+          document.head.appendChild(styleElement);
+          
+          console.log('Google search tweaks applied');
+          return true;
+        } catch (error) {
+          console.error('Error applying Google tweaks:', error);
+          return false;
+        }
+      })();
+    `;
+  } else if (isYouTube) {
+    tweakScript = `
+      (function() {
+        // Avoid duplicate execution
+        if (window._youtubeTweaksApplied) {
+          return true;
+        }
+        
+        // Mark as applied
+        window._youtubeTweaksApplied = true;
+        
+        try {
+          // Create style element for YouTube-specific tweaks
+          const styleElement = document.createElement('style');
+          styleElement.id = 'cognivore-youtube-tweaks';
+          styleElement.textContent = \`
+            /* Hide distracting elements */
+            ytd-mini-guide-renderer, 
+            #guide-content,
+            ytd-comment-thread-renderer,
+            #related {
+              display: none !important;
+            }
+            
+            /* Make video player larger */
+            #primary, #player, video {
+              width: 100% !important;
+              max-width: none !important;
+              height: auto !important;
+            }
+            
+            /* Center the player */
+            #primary {
+              margin: 0 auto !important;
+              float: none !important;
+            }
+            
+            /* Hide comments section */
+            #comments {
+              display: none !important;
+            }
+          \`;
+          
+          document.head.appendChild(styleElement);
+          
+          console.log('YouTube tweaks applied');
+          return true;
+        } catch (error) {
+          console.error('Error applying YouTube tweaks:', error);
+          return false;
+        }
+      })();
+    `;
+  } else if (isTwitter) {
+    tweakScript = `
+      (function() {
+        // Avoid duplicate execution
+        if (window._twitterTweaksApplied) {
+          return true;
+        }
+        
+        // Mark as applied
+        window._twitterTweaksApplied = true;
+        
+        try {
+          // Create style element for Twitter-specific tweaks
+          const styleElement = document.createElement('style');
+          styleElement.id = 'cognivore-twitter-tweaks';
+          styleElement.textContent = \`
+            /* Hide sidebar elements */
+            [data-testid="sidebarColumn"],
+            [data-testid="primaryColumn"] > div:first-child {
+              display: none !important;
+            }
+            
+            /* Make main content wider */
+            [data-testid="primaryColumn"] {
+              width: 100% !important;
+              max-width: 800px !important;
+              margin: 0 auto !important;
+            }
+            
+            /* Increase tweet text size */
+            article {
+              font-size: 1.1em !important;
+            }
+            
+            /* Hide explore section */
+            [aria-label="Timeline: Explore"] {
+              display: none !important;
+            }
+          \`;
+          
+          document.head.appendChild(styleElement);
+          
+          console.log('Twitter tweaks applied');
+          return true;
+        } catch (error) {
+          console.error('Error applying Twitter tweaks:', error);
+          return false;
+        }
+      })();
+    `;
+  }
+  
+  return webview.executeJavaScript(tweakScript)
+    .then(result => {
+      console.log('URL-specific tweaks applied:', result);
+      return result;
+    })
+    .catch(error => {
+      console.error('Error executing URL-specific tweaks:', error);
+      return false;
+    });
+}
+
 export default {
-  sanitizeHtml,
+  sanitizeHTML,
   applyRenderingFixes,
   handleContentCSS,
   handleContentJavaScript,
   cleanupHtmlForMemory,
-  sanitizeUrlForAnalysis
+  sanitizeUrlForAnalysis,
+  applyContentScripts,
+  applyUrlSpecificTweaks
 }; 

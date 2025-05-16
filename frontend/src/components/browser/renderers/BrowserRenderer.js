@@ -192,746 +192,96 @@ export function createResearchPanel() {
 }
 
 /**
- * Create webview element for Electron
+ * Create a webview element for browser content
  * @param {Object} browser - Browser instance
- * @returns {HTMLElement} The webview element
+ * @param {string} implementation - Implementation type ('webview' or 'iframe')
+ * @param {string} sandboxLevel - Sandbox level for the webview
+ * @returns {HTMLElement} Created webview or iframe
  */
-export function createWebviewElement(browser) {
+export function createWebviewElement(browser, implementation = 'webview', sandboxLevel = 'full') {
   console.log('Creating webview element for browser with enhanced scrolling settings');
   
-  // First try to create <webview> tag for Electron environment
-  let webview = document.createElement('webview');
+  const partition = `persist:voyager-${Date.now()}`; // Create unique partition name
   
-  // Configure webview with improved initialization and error handling
-  try {
-    console.log('Initial webview element created:', webview.tagName);
-    
-    // IMPORTANT: Apply all critical styling BEFORE creating and attaching the element
-    // This comprehensive initial styling ensures the webview appears correctly from the start
-    const criticalStyles = `
-      display: flex !important;
-      visibility: visible !important; /* Initially visible but translucent for faster perception */
-      opacity: 0.9 !important; /* Slightly translucent for loading state */
-      z-index: 1 !important;
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      min-height: 100% !important;
-      min-width: 100% !important;
-      max-width: 100% !important;
-      max-height: 100% !important;
-      border: none !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      box-sizing: border-box !important;
-      background-color: white !important;
-      transform: none !important;
-      overflow: hidden !important;
-      flex: 1 1 auto !important;
-      transition: opacity 0.3s ease-in-out !important; /* Smooth transition for opacity changes */
-      will-change: opacity !important; /* Performance hint for the browser */
-      pointer-events: auto !important;
-      user-select: auto !important;
-      touch-action: auto !important;
-      backdrop-filter: none !important; /* Ensure no filters are applied */
-      filter: none !important; /* Ensure no filters are applied */
-    `;
-    
-    // CRITICAL: Apply essential styling BEFORE any attributes are set to ensure proper display
-    webview.style.cssText = criticalStyles;
-    
-    // Start with readyToShow=false to ensure we control visibility
-    webview.readyToShow = false;
-    
-    // Add classes for styling before setting any attributes
-    webview.classList.add('browser-webview');
-    webview.classList.add('browser-content-frame');
-    
-    // CRITICAL: Set partition for persistence BEFORE any attributes that might trigger navigation
-    // FIX: Set this first to avoid "object has already navigated" error
-    webview.setAttribute('partition', 'persist:main');
-    
-    // Set important webview properties for Electron
-    webview.setAttribute('allowpopups', 'true');
-    webview.setAttribute('disablewebsecurity', 'true');
-    webview.setAttribute('webpreferences', 'allowRunningInsecureContent=true, javascript=true, webSecurity=false, plugins=true, images=true, textAreasAreResizable=true, experimentalFeatures=true, allowFileAccessFromFileURLs=true, allowUniversalAccessFromFileURLs=true, devTools=false');
-    
-    // Add comprehensive sandbox permissions to prevent ERR_BLOCKED_BY_RESPONSE errors
-    const sandbox = 'allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation allow-top-navigation-by-user-activation';
-    webview.setAttribute('sandbox', sandbox);
-    
-    // Additional attributes to ensure proper webview functionality
-    webview.setAttribute('useragent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36');
-    webview.setAttribute('autosize', 'true');
-    webview.setAttribute('nodeintegration', 'true'); // Enable Node.js integration
-    webview.setAttribute('nodeintegrationinsubframes', 'true'); // Enable Node.js integration in sub-frames
-    webview.setAttribute('plugins', 'true'); // Enable plugins
-    webview.setAttribute('disabledevtools', 'true'); // Disable developer tools to prevent them from taking up space
-    
-    // CRITICAL: Flag for preventing double style application during initialization
-    webview._stylesInitialized = false;
-    
-    // Store readiness state on the webview object
-    webview.isReady = false;
-    webview.isAttached = false;
-    
-    // Add a safety property to avoid guest view manager issues
-    webview.safeMessagingEnabled = false;
-    
-    // Set up header modification before any navigation
-    setupHeaderBypass(webview);
-
-    // Pre-compiled style script to apply immediately when the webview loads
-    // This comprehensive style application ensures content appears correctly
-    const precompiledStyleScript = `
-      (function() {
-        // --- PART 1: Create and apply base styles ---
-        // Create style element for essential fixes with the highest priority
-        let style = document.createElement('style');
-        style.id = 'cognivore-essential-styles';
-        style.textContent = \`
-          /* Base HTML/Body fixes */
-          html, body {
-            width: 100% !important; 
-            height: 100% !important; 
-            margin: 0 !important; 
-            padding: 0 !important;
-            overflow-x: hidden !important;
-            min-width: 100% !important;
-            min-height: 100% !important;
-            position: relative !important;
-          }
+  if (implementation === 'webview') {
+    try {
+      const webview = document.createElement('webview');
+      
+      // Set class name for styling
+      webview.className = 'browser-webview';
+      
+      // Set a unique ID for easier DOM lookup
+      webview.id = `webview-${browser.browserId || Math.floor(Math.random() * 100000)}`;
+      
+      // Set critical attributes
+      webview.setAttribute('partition', partition); // Set partition BEFORE navigation
+      webview.setAttribute('allowpopups', 'true');
+      webview.setAttribute('disablewebsecurity', 'true');
+      webview.setAttribute('allowfullscreen', 'true');
+      webview.setAttribute('autosize', 'true');
+      webview.setAttribute('nodeintegration', 'no');
+      webview.setAttribute('plugins', 'true');
+      webview.setAttribute('disabledevtools', 'true');
+      webview.setAttribute('webpreferences', 'contextIsolation=yes, sandbox=yes, devTools=no');
+      
+      // Set comprehensive sandbox permissions to allow most operations while maintaining security
+      webview.setAttribute('sandbox', 'allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts allow-top-navigation');
+      
+      console.log('Initial webview element created: WEBVIEW');
+      
+      // Add utility methods to the webview for functionality that needs to be accessed from multiple places
+      webview.applyAllCriticalStyles = (forcedApply = false) => {
+        // Apply styles directly to avoid recursive call to enforceWebviewStyles
+        try {
+          if (!webview.isConnected) return;
           
-          /* Prevent horizontal overflow */
-          * {
-            max-width: 100vw !important;
-            box-sizing: border-box !important;
-          }
-          
-          /* Main containers */
-          main, #main, [role="main"], .main, .content, #content, article,
-          #page, .page, .wrapper, #wrapper, .container, #container {
-            width: 100% !important; 
-            margin: 0 !important; 
-            padding: 0 !important;
-            overflow: auto !important;
-            min-width: 100% !important;
-            min-height: 100% !important;
-            position: relative !important;
-            box-sizing: border-box !important;
-          }
-          
-          /* Prevent fixed/absolute elements from causing overflow */
-          [style*="position: fixed"], [style*="position:fixed"],
-          [style*="position: absolute"], [style*="position:absolute"] {
-            max-width: 100vw !important;
-            max-height: 100vh !important;
-          }
-          
-          /* DevTools prevention */
-          #devtools, #inspector-toolbar-container, .devtools, 
-          div[id^="devtools-"], div[class^="devtools-"],
-          [class*="console"], [class*="inspector"], [class*="panel"], 
-          [class*="drawer"], [id*="console"], [id*="inspector"], 
-          [id*="panel"], [id*="drawer"] {
-            display: none !important;
-            visibility: hidden !important;
-            width: 0 !important;
-            height: 0 !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            position: absolute !important;
-            left: -9999px !important;
-            top: -9999px !important;
-            z-index: -9999 !important;
-          }
-          
-          /* Google specific fixes */
-          /* Main containers */
-          #main, #cnt, #rcnt, #center_col, #rso, .RVEQke, .minidiv, .sfbg, .o44hBf {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 100% !important;
-            margin: 0 auto !important;
-            box-sizing: border-box !important;
-          }
-          
-          /* Logo and search centering */
-          .lJ9FBc, .jGGQ5e, .jsb, .sfbg, .minidiv, .RNNXgb, .o44hBf, .a4bIc, .k1zIA {
+          // Apply comprehensive styling directly
+          webview.style.cssText = `
             display: flex !important;
-            justify-content: center !important;
-            margin: 0 auto !important;
-            width: 100% !important;
-            max-width: 584px !important;
-          }
-          
-          /* Search content containers */
-          main, [role="main"], .main, #main, .content, #content {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 auto !important;
-          }
-          
-          /* Home page elements */
-          .k1zIA {
-            height: auto !important;
-            min-height: 140px !important; 
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: center !important;
-            align-items: center !important;
-          }
-          
-          .L3eUgb, .o3j99 {
-            flex-direction: column !important;
-            justify-content: center !important;
-            align-items: center !important;
-            width: 100% !important;
-          }
-          
-          /* Fix footer to prevent horizontal scrollbars */
-          footer, .fbar, #footcnt {
-            width: 100% !important;
-            max-width: 100% !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 1 !important;
+            position: fixed !important;
+            top: 52px !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: calc(100vh - 52px) !important;
+            min-height: calc(100vh - 52px) !important;
+            max-height: calc(100vh - 52px) !important;
+            min-width: 100vw !important;
+            max-width: 100vw !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
             box-sizing: border-box !important;
+            background-color: white !important;
+            transform: none !important;
             overflow: hidden !important;
-          }
+            flex: 1 1 auto !important;
+          `;
           
-          /* Additional fixes for Google Search results */
-          .bRsWnc, #search {
-            max-width: 652px !important;
-            margin: 0 auto !important;
-          }
-        
-          /* Fix for search box */
-          .RNNXgb, form.tsf, #searchform {
-            max-width: 584px !important;
-            width: 100% !important;
-            margin: 0 auto !important;
-          }
-          
-          /* Fix for main content area in search results */
-          #appbar, #extabar, #bottombar, .GyAeWb, .hlcw0c, .ULSxyf {
-            max-width: 1100px !important;
-            margin: 0 auto !important;
-            width: 100% !important;
-          }
-          
-          /* Search results themselves */
-          .g, .MjjYud, .cUnQKe, .yXK7lf, .Ww4FFb {
-            max-width: 652px !important;
-            margin: 0 auto !important;
-            width: 100% !important;
-          }
-        \`;
-        
-        // Append to head to ensure it takes effect immediately
-        if (document.head) {
-          document.head.appendChild(style);
-        } else if (document.documentElement) {
-          // Create head if it doesn't exist
-          const head = document.createElement('head');
-          head.appendChild(style);
-          document.documentElement.appendChild(head);
-        }
-        
-        // --- PART 2: Apply direct styles to critical elements ---
-        // For essential elements apply direct inline styles
-        if (document.documentElement) {
-          document.documentElement.style.cssText = 
-            "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; min-width: 100% !important; min-height: 100% !important;";
-        }
-        
-        if (document.body) {
-          document.body.style.cssText = 
-            "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; min-width: 100% !important; min-height: 100% !important;";
-        }
-        
-        // Apply styles to other critical elements
-        const criticalSelectors = [
-          'main', '#main', '[role="main"]', '.main', '.content', '#content', 'article',
-          '#page', '.page', '.wrapper', '#wrapper', '.container', '#container'
-        ];
-        
-        criticalSelectors.forEach(selector => {
-          try {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(el => {
-              if (el) {
-                el.style.cssText += "width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; overflow-x: hidden !important;";
-              }
-            });
-          } catch (e) {}
-        });
-        
-        // --- PART 3: Remove any DevTools ---
-        const devToolsElements = document.querySelectorAll('[class*="devtools-"], [id*="devtools-"], .drawer-content, .panel, .console-view');
-        devToolsElements.forEach(el => {
-          if (el && el.parentNode) {
-            try {
-              el.parentNode.removeChild(el);
-            } catch(e) {}
-          }
-        });
-        
-        // --- PART 4: Google-specific fixes ---
-        if (window.location.hostname.includes('google.com')) {
-          // Force proper sizing for Google's main elements
-          const mainElements = document.querySelectorAll('#main, #cnt, #rcnt, #center_col, #rso, .g, .MjjYud, .cUnQKe, .hlcw0c, .ULSxyf');
-          mainElements.forEach(el => {
-            if (el) {
-              el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; padding: 0 !important; box-sizing: border-box !important; overflow-x: hidden !important;";
-            }
-          });
-          
-          // Fix any search results container
-          const searchContainer = document.querySelector('#center_col, #rso, #search');
-          if (searchContainer) {
-            searchContainer.style.cssText += "width: 100% !important; max-width: 900px !important; margin: 0 auto !important; overflow-x: hidden !important;";
-          }
-          
-          // Fix main logo and search box positioning
-          const header = document.querySelector('#searchform, .RNNXgb, .o44hBf, .a4bIc');
-          if (header) {
-            header.style.cssText += "max-width: 584px !important; margin: 0 auto !important; width: 100% !important;";
-          }
-          
-          // Make sure search results have proper width
-          const searchResults = document.querySelectorAll('.g, .Ww4FFb, .MjjYud, .tF2Cxc');
-          searchResults.forEach(el => {
-            if (el) {
-              el.style.cssText += "width: 100% !important; max-width: 652px !important; margin: 0 auto !important; box-sizing: border-box !important;";
-            }
-          });
-        }
-        
-        // --- PART 5: Prevent keyboard shortcuts for DevTools ---
-        window.addEventListener('keydown', (e) => {
-          if (e.key === 'F12' || ((e.metaKey || e.ctrlKey) && (e.shiftKey || e.altKey) && e.key === 'i')) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }, true);
-        
-        // --- PART 6: Setup mutation observer ---
-        if (!window._comprehensiveStyleObserver) {
-          // Create mutation observer that applies styles whenever needed
-          const observer = new MutationObserver((mutations) => {
-            // Only process a maximum of 10 mutations to prevent excessive CPU usage
-            const mutationsToProcess = mutations.slice(0, 10);
-            
-            // Check if any critical elements need style fixes
-            let needsBodyFix = false;
-            let needsHtmlFix = false;
-            let needsSearchFix = false;
-            
-            mutationsToProcess.forEach(mutation => {
-              if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                if (mutation.target === document.documentElement) {
-                  needsHtmlFix = true;
-                } else if (mutation.target === document.body) {
-                  needsBodyFix = true;
-                } else if (window.location.hostname.includes('google.com') && 
-                          (mutation.target.id === 'main' || 
-                           mutation.target.id === 'rcnt' || 
-                           mutation.target.id === 'center_col')) {
-                  needsSearchFix = true;
-                }
-              }
-            });
-            
-            // Apply fixes as needed
-            if (needsHtmlFix) {
-              document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
-            }
-            
-            if (needsBodyFix) {
-              document.body.style.cssText += "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
-            }
-            
-            if (needsSearchFix && window.location.hostname.includes('google.com')) {
-              // Re-apply Google-specific fixes
-              const mainElements = document.querySelectorAll('#main, #cnt, #rcnt, #center_col, #rso, .g, .MjjYud');
-              mainElements.forEach(el => {
-                if (el) {
-                  el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important; overflow-x: hidden !important;";
-                }
-              });
-              
-              const searchContainer = document.querySelector('#center_col, #rso, #search');
-              if (searchContainer) {
-                searchContainer.style.cssText += "width: 100% !important; max-width: 900px !important; margin: 0 auto !important; overflow-x: hidden !important;";
-              }
-            }
-          });
-          
-          // Observe both document and body with attributes and child changes
-          observer.observe(document.documentElement, { 
-            attributes: true, 
-            attributeFilter: ['style', 'class'],
-            subtree: false
-          });
-          
-          if (document.body) {
-            observer.observe(document.body, { 
-              attributes: true, 
-              attributeFilter: ['style', 'class'],
-              subtree: false
-            });
-          }
-          
-          // Store observer reference
-          window._comprehensiveStyleObserver = observer;
-          
-          // Set up a content-loaded style fix that runs once when content is fully loaded
-          if (document.readyState === 'complete') {
-            // Document already loaded, apply fixes immediately
-            applyFinalStyleFixes();
-          } else {
-            // Wait for load event
-            window.addEventListener('load', applyFinalStyleFixes, { once: true });
-          }
-          
-          // Function to apply final style fixes after content is loaded
-          function applyFinalStyleFixes() {
-            // Re-apply all critical styles to ensure they weren't overridden
-            document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
-            document.body.style.cssText += "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
-            
-            // Apply Google-specific fixes if on Google
-            if (window.location.hostname.includes('google.com')) {
-              const mainElements = document.querySelectorAll('#main, #cnt, #rcnt, #center_col, #rso, .g, .MjjYud, .cUnQKe, .hlcw0c');
-              mainElements.forEach(el => {
-                if (el) {
-                  el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important; overflow-x: hidden !important;";
-                }
-              });
-              
-              // Fix any search results container
-              const searchContainer = document.querySelector('#center_col, #rso, #search');
-              if (searchContainer) {
-                searchContainer.style.cssText += "width: 100% !important; max-width: 900px !important; margin: 0 auto !important; overflow-x: hidden !important;";
-              }
-            }
-            
-            console.log("Final style fixes applied after content loaded");
-          }
-        }
-        
-        // Set a flag to indicate comprehensive styling is complete
-        window._initialStylesFullyApplied = true;
-        console.log("Comprehensive styles fully applied");
-        
-        // Return true to indicate success
-        return window._initialStylesFullyApplied;
-      })();
-    `;
-    
-    // Store the precompiled script on the webview for immediate execution during navigation
-    webview.precompiledStyleScript = precompiledStyleScript;
-    
-    // Create a single comprehensive style application function that applies all styles at once
-    const applyAllCriticalStyles = (forcedApply = false) => {
-      // Create style application lock if not exists
-      if (!webview._styleApplicationLock) {
-        webview._styleApplicationLock = {
-          locked: false,
-          lastApplied: Date.now(),
-          pendingApplication: false
-        };
-      }
-      
-      // Don't reapply if already initialized and not forced
-      if (!forcedApply) {
-        const now = Date.now();
-        const timeSinceLastApplication = now - webview._styleApplicationLock.lastApplied;
-        
-        // Skip application if we applied styles recently (within 1 second) and webview is already initialized
-        if (timeSinceLastApplication < 1000 && webview._stylesInitialized && webview.readyToShow) {
-          console.log('Skipping style reapplication - webview already initialized');
-          return;
-        }
-        
-        // Skip if already locked to prevent concurrent applications
-        if (webview._styleApplicationLock.locked) {
-          webview._styleApplicationLock.pendingApplication = true;
-          return;
-        }
-      }
-      
-      // Lock style application to prevent multiple concurrent applications
-      webview._styleApplicationLock.locked = true;
-      webview._styleApplicationLock.lastApplied = Date.now();
-      webview._styleApplicationLock.pendingApplication = false;
-      
-      console.log('Applying all critical webview styles at once');
-      
-      // Re-apply critical container styling with full visibility
-      webview.style.cssText = criticalStyles;
-      
-      // Apply content styling if webview is ready
-      if (webview.isReady && typeof webview.executeJavaScript === 'function') {
-        try {
-          // Don't execute if styles already initialized unless forced
-          if (webview._contentStylesApplied && !forcedApply) {
-            console.log('Content styles already applied, skipping to prevent flicker');
-            
-            // Unlock style application after skipping
-            setTimeout(() => {
-              webview._styleApplicationLock.locked = false;
-              
-              // If there's a pending application, apply it now
-              if (webview._styleApplicationLock.pendingApplication) {
-                applyAllCriticalStyles(true);
-              }
-            }, 100);
-            
-            return;
-          }
-          
-          // Execute all styles at once for maximum performance
-          webview.executeJavaScript(webview.precompiledStyleScript)
-            .then(() => {
-              console.log('Comprehensive webview content styles successfully applied');
-              
-              // Mark webview as ready to show immediately
-              webview.readyToShow = true;
-              webview._stylesInitialized = true;
-              webview._contentStylesApplied = true;
-              
-              // Make webview fully visible with all styles applied
-              webview.style.cssText = `
-                display: flex !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-                z-index: 1 !important;
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                right: 0 !important;
-                bottom: 0 !important;
-                width: 100% !important;
-                height: 100% !important;
-                min-height: 100% !important;
-                min-width: 100% !important;
-                max-width: 100% !important;
-                max-height: 100% !important;
-                border: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                box-sizing: border-box !important;
-                background-color: white !important;
-                transform: none !important;
-                flex: 1 1 auto !important;
-                overflow: hidden !important;
-                pointer-events: auto !important;
-                user-select: auto !important;
-                touch-action: auto !important;
-              `;
-              
-              // Unlock style application after completion
-              setTimeout(() => {
-                webview._styleApplicationLock.locked = false;
-                
-                // If there's a pending application, apply it now
-                if (webview._styleApplicationLock.pendingApplication) {
-                  applyAllCriticalStyles(true);
-                }
-              }, 100);
-            })
-            .catch(err => {
-              console.warn('Error applying content styles:', err);
-              
-              // Mark as ready anyway to ensure content becomes visible
-              webview.readyToShow = true;
-              webview.style.visibility = 'visible';
-              webview.style.opacity = '1';
-              
-              // Unlock style application even on error
-              webview._styleApplicationLock.locked = false;
-            });
-        } catch (err) {
-          console.warn('Exception applying content styles:', err);
-          
-          // Ensure webview is visible despite errors
+          // Mark as ready to show
           webview.readyToShow = true;
-          webview.style.visibility = 'visible';
-          webview.style.opacity = '1';
-          
-          // Unlock style application on error
-          webview._styleApplicationLock.locked = false;
-        }
-      } else {
-        // Force visibility even if not fully ready
-        webview.style.visibility = 'visible';
-        webview.style.opacity = '1';
-        
-        // Unlock style application when not ready
-        setTimeout(() => {
-          webview._styleApplicationLock.locked = false;
-          
-          // If there's a pending application, apply it now
-          if (webview._styleApplicationLock.pendingApplication) {
-            applyAllCriticalStyles(true);
-          }
-        }, 100);
-      }
-    };
-
-    // Store function reference on webview for easy access
-    webview.applyAllCriticalStyles = applyAllCriticalStyles;
-    
-    // Add event listeners to execute style functions at the appropriate time
-    webview.addEventListener('dom-ready', () => {
-      console.log('Webview DOM ready - applying critical styles');
-      webview.isReady = true;
-      
-      // Allow a microsecond for the DOM to settle before applying styles
-      setTimeout(() => {
-        applyAllCriticalStyles(true);
-      }, 0);
-    });
-    
-    // Apply styles again when did-start-loading fires for immediate styling during navigation
-    webview.addEventListener('did-start-loading', () => {
-      console.log('Webview started loading - applying immediate styles');
-      
-      // Start with lower opacity for smoother transition
-      webview.style.visibility = 'visible';
-      webview.style.opacity = '0.4';
-      
-      // Immediately apply basic styles to avoid blank page
-      setTimeout(() => {
-        // Force reapplication of styles at navigation start
-        if (typeof webview.executeJavaScript === 'function') {
-          try {
-            // Apply basic styles immediately at navigation start
-            webview.executeJavaScript(`
-              // Apply immediate styles to ensure proper display during loading
-              if (document.documentElement) {
-                document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
-              }
-              if (document.body) {
-                document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
-              }
-              
-              // Add a style tag with higher specificity
-              if (document.head && !document.getElementById('cognivore-immediate-fix')) {
-                const style = document.createElement('style');
-                style.id = 'cognivore-immediate-fix';
-                style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; } * { max-width: 100vw !important; }";
-                document.head.appendChild(style);
-              }
-              
-              true;
-            `).catch(() => {});
-          } catch (err) {
-            // Ignore errors during loading - we'll retry at dom-ready
-          }
-        }
-      }, 10);
-      
-      // Gradually increase opacity as content loads
-      setTimeout(() => {
-        if (webview && webview.isConnected) {
-          webview.style.opacity = '0.6';
-        }
-      }, 100);
-    });
-    
-    // Also apply styles when the page finishes loading
-    webview.addEventListener('did-finish-load', () => {
-      console.log('Webview finished loading - applying final styles');
-      
-      // Incrementally increase opacity before applying final styles
-      webview.style.opacity = '0.8';
-      
-      // Re-apply all styles once loading completes
-      setTimeout(() => {
-        applyAllCriticalStyles(true);
-        
-        // Make fully visible with a slight delay to allow styles to take effect
-        setTimeout(() => {
-          webview.style.visibility = 'visible';
-          webview.style.opacity = '1';
-          webview.readyToShow = true;
-        }, 50);
-      }, 10);
-    });
-    
-    // Finally, apply styles once more when did-stop-loading fires as a safety measure
-    webview.addEventListener('did-stop-loading', () => {
-      console.log('Webview stopped loading - applying final styles and marking ready');
-      
-      // Apply styles one final time to ensure everything is perfect
-      applyAllCriticalStyles(true);
-      
-      // Make fully visible
-      webview.style.visibility = 'visible';
-      webview.style.opacity = '1';
-      webview.readyToShow = true;
-      
-      // Set up a MutationObserver to maintain styles if they change
-      if (typeof webview.executeJavaScript === 'function') {
-        try {
-          webview.executeJavaScript(`
-            // Ensure we have a style maintenance observer
-            if (!window._styleMaintainer) {
-              window._styleMaintainer = new MutationObserver((mutations) => {
-                // Check for style or class changes to critical elements
-                const criticalChanges = mutations.filter(m => 
-                  (m.target === document.documentElement || m.target === document.body) &&
-                  (m.attributeName === 'style' || m.attributeName === 'class')
-                );
-                
-                if (criticalChanges.length > 0) {
-                  // Reapply critical styles
-                  document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
-                  document.body.style.cssText += "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
-                }
-              });
-              
-              // Observe both document element and body
-              window._styleMaintainer.observe(document.documentElement, { 
-                attributes: true, attributeFilter: ['style', 'class'] 
-              });
-              window._styleMaintainer.observe(document.body, { 
-                attributes: true, attributeFilter: ['style', 'class'] 
-              });
-              
-              console.log("Style maintenance observer installed");
-            }
-          `).catch(() => {});
         } catch (err) {
-          console.warn('Error setting up style maintenance observer:', err);
+          console.error('Error applying critical styles:', err);
         }
-      }
-    });
-    
-    // Apply initial styles
-    applyAllCriticalStyles(true);
-    
-    // Return the configured webview
-    return webview;
-  } catch (error) {
-    console.error('Error creating webview element:', error);
-    
-    // Fall back to iframe if webview creation fails
-    console.log('Falling back to iframe element');
-    const iframe = document.createElement('iframe');
-    iframe.className = 'browser-content-frame';
-    iframe.style.cssText = `
-      width: 100%;
-      height: 100%;
-      border: none;
-      display: block;
-    `;
-    
-    return iframe;
+      };
+      
+      // Add a flag to track whether the webview is ready to show content
+      webview.readyToShow = false;
+      
+      // Setup a preload script for header manipulation if needed
+      setupHeaderBypass(webview);
+      
+      return webview;
+    } catch (err) {
+      console.error('Error creating webview element:', err);
+      return createFallbackIframeElement(browser);
+    }
+  } else {
+    return createFallbackIframeElement(browser);
   }
 }
 
@@ -1590,10 +940,53 @@ function _hideLoadingContent(loadingContent, browser) {
  * @param {boolean} [forcedApply=false] - If true, ignores the throttle check for immediate application
  */
 export function enforceWebviewStyles(browser, forcedApply = false) {
-  // Only proceed if it's been at least 2 seconds since the last enforcement or if forced
+  // Prevent redundant style applications by adding a rate limiter
   const now = Date.now();
-  if (!forcedApply && browser._lastStyleEnforcement && (now - browser._lastStyleEnforcement < 2000)) {
-    return;
+  
+  // Skip if we've just applied styles recently and not forcing
+  if (!forcedApply) {
+    // Cache last application time if not already set
+    if (!browser._styleApplicationTimes) {
+      browser._styleApplicationTimes = {
+        lastApplicationTime: 0,
+        styleApplicationCount: 0,
+        lastLogTime: 0
+      };
+    }
+    
+    const timeElapsed = now - browser._styleApplicationTimes.lastApplicationTime;
+    
+    // Rate limit to max once per 300ms (up from 100ms) unless forced
+    if (timeElapsed < 300) {
+      // Count skipped applications but don't log every skip to reduce console noise
+      browser._styleApplicationTimes.styleApplicationCount++;
+      
+      // Only log the skip at most once per second to reduce console noise
+      const timeSinceLastLog = now - browser._styleApplicationTimes.lastLogTime;
+      if (timeSinceLastLog > 1000) {
+        console.log(`Skipped ${browser._styleApplicationTimes.styleApplicationCount} redundant style applications in the last ${timeSinceLastLog}ms`);
+        browser._styleApplicationTimes.lastLogTime = now;
+        browser._styleApplicationTimes.styleApplicationCount = 0;
+      }
+      
+      return;
+    }
+  }
+  
+  // Update last application time
+  if (browser._styleApplicationTimes) {
+    browser._styleApplicationTimes.lastApplicationTime = now;
+  } else {
+    browser._styleApplicationTimes = {
+      lastApplicationTime: now,
+      styleApplicationCount: 0,
+      lastLogTime: now
+    };
+  }
+  
+  // Only log style application if forced or not applied recently
+  if (forcedApply || !browser._lastStyleEnforcement || (now - browser._lastStyleEnforcement >= 2000)) {
+    console.log('Applying all critical webview styles at once');
   }
   
   // Don't apply if initial styles are applied properly and we're not forcing
@@ -1690,10 +1083,9 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
     // Ensure webview is marked as ready to show
     browser.webview.readyToShow = true;
     
-    // Application of content styles is now handled by applyAllCriticalStyles
-    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
-      browser.webview.applyAllCriticalStyles(forcedApply);
-    }
+    // Do not call applyAllCriticalStyles to avoid infinite recursion
+    // This would cause a call cycle since applyAllCriticalStyles calls enforceWebviewStyles
+    // and we're already in enforceWebviewStyles
   } catch (err) {
     console.error('Error enforcing webview styles:', err);
   }
@@ -1714,82 +1106,121 @@ function setupHeaderBypass(webview) {
     // This script will run in the context of the webview and remove restrictive headers
     const bypassScript = `
       // Bypass X-Frame-Options and CSP using DOM methods
-      const bypassRestrictions = () => {
-        try {
-          // Remove CSP meta tags
-          const cspTags = document.querySelectorAll('meta[http-equiv="Content-Security-Policy"], meta[http-equiv="content-security-policy"]');
-          cspTags.forEach(tag => tag.remove());
-          
-          // Add permissive CSP
-          const meta = document.createElement('meta');
-          meta.httpEquiv = 'Content-Security-Policy';
-          meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;";
-          document.head.appendChild(meta);
-          
-          // Prevent frame busting scripts
-          if (window.top !== window.self) {
-            try {
-              // Override frame busting properties
-              Object.defineProperty(window, 'top', { value: window.self, configurable: true });
-              Object.defineProperty(window, 'parent', { value: window.self, configurable: true });
-              Object.defineProperty(window, 'frameElement', { value: null, configurable: true });
-            } catch(e) {}
-          }
-          
-          console.log('Applied header bypass via preload script');
-        } catch(e) {
-          console.warn('Error in header bypass:', e);
+      (function() {
+        // Prevent duplicate execution with a global flag
+        if (window._headerBypassApplied) {
+          return;
         }
-      };
-      
-      // Execute when DOM is ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bypassRestrictions);
-      } else {
-        bypassRestrictions();
-      }
-      
-      // Also hook into any future document writes
-      const originalWrite = document.write;
-      document.write = function(...args) {
-        const result = originalWrite.apply(this, args);
-        bypassRestrictions();
-        return result;
-      };
+        
+        // Mark as applied immediately to prevent duplicate execution
+        window._headerBypassApplied = true;
+        
+        const applyBypassRestrictions = function() {
+          try {
+            // Remove CSP meta tags
+            const cspTags = document.querySelectorAll('meta[http-equiv="Content-Security-Policy"], meta[http-equiv="content-security-policy"]');
+            cspTags.forEach(tag => tag.remove());
+            
+            // Add permissive CSP
+            const meta = document.createElement('meta');
+            meta.httpEquiv = 'Content-Security-Policy';
+            meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;";
+            document.head.appendChild(meta);
+            
+            // Prevent frame busting scripts
+            if (window.top !== window.self) {
+              try {
+                // Override frame busting properties
+                Object.defineProperty(window, 'top', { value: window.self, configurable: true });
+                Object.defineProperty(window, 'parent', { value: window.self, configurable: true });
+                Object.defineProperty(window, 'frameElement', { value: null, configurable: true });
+              } catch(e) {}
+            }
+            
+            console.log('Applied header bypass via preload script');
+          } catch(e) {
+            console.warn('Error in header bypass:', e);
+          }
+        };
+        
+        // Execute when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', applyBypassRestrictions);
+        } else {
+          applyBypassRestrictions();
+        }
+        
+        // Also hook into any future document writes
+        const originalWrite = document.write;
+        document.write = function(...args) {
+          const result = originalWrite.apply(this, args);
+          applyBypassRestrictions();
+          return result;
+        };
+      })();
     `;
     
     // Try multiple bypass methods for redundancy
     
-    // Method 1: Try to set preload script if possible
+    // No longer attempting to use preload attribute with blob URL as Electron only supports file: protocol
+    // We'll rely on the executeJavaScript methods instead which are more reliable
     try {
-      // Create a Blob URL for the preload script (works in recent Electron versions)
-      const blob = new Blob([bypassScript], { type: 'application/javascript' });
-      const preloadUrl = URL.createObjectURL(blob);
-      webview.setAttribute('preload', preloadUrl);
+      // Store the script directly on the webview for later execution
+      webview.bypassScript = bypassScript;
+      
+      // Note: We intentionally don't set the preload attribute here to avoid the warning:
+      // "Only 'file:' protocol is supported in 'preload' attribute"
     } catch (err) {
-      console.warn('Could not set preload via URL.createObjectURL:', err);
+      console.warn('Could not store bypass script on webview:', err);
     }
     
     // Method 2: Apply directly via executeJavaScript when navigation starts
     webview.addEventListener('did-start-loading', () => {
       if (typeof webview.executeJavaScript === 'function') {
         try {
-          webview.executeJavaScript(bypassScript)
-            .catch(err => console.warn('ExecuteJavaScript bypass error:', err));
+          // Use a simple check first to see if webview is ready for script execution
+          webview.executeJavaScript('true')
+            .then(() => {
+              // If successful, execute the actual bypass script
+              webview.executeJavaScript(webview.bypassScript || bypassScript)
+                .catch(err => {
+                  // Log but don't throw to prevent stopping the chain
+                  console.warn('ExecuteJavaScript bypass error:', err);
+                });
+            })
+            .catch(() => {
+              // If not ready yet, we'll retry during dom-ready event
+              console.log('Webview not ready for script execution, will retry on dom-ready');
+            });
         } catch (err) {
-          console.warn('Error executing bypass script:', err);
+          console.warn('Error executing bypass script on load start:', err);
         }
       }
     });
     
-    // Method 3: Apply when DOM is ready
+    // Method 3: Apply when DOM is ready (most reliable point)
     webview.addEventListener('dom-ready', () => {
       if (typeof webview.executeJavaScript === 'function') {
         try {
-          webview.executeJavaScript(bypassScript)
-            .catch(err => console.warn('DOM ready bypass error:', err));
+          // Short delay to ensure webview is fully ready
+          setTimeout(() => {
+            webview.executeJavaScript(webview.bypassScript || bypassScript)
+              .catch(err => {
+                console.warn('DOM ready bypass error:', err);
+                
+                // If we still get an error, try one more time with a longer delay
+                setTimeout(() => {
+                  try {
+                    webview.executeJavaScript(webview.bypassScript || bypassScript)
+                      .catch(finalErr => console.warn('Final bypass attempt failed:', finalErr));
+                  } catch (finalAttemptErr) {
+                    console.warn('Error in final bypass script execution:', finalAttemptErr);
+                  }
+                }, 500);
+              });
+          }, 50);
         } catch (err) {
-          console.warn('Error executing bypass script:', err);
+          console.warn('Error setting up bypass script execution:', err);
         }
       }
     });
@@ -1857,37 +1288,49 @@ function attemptAlternativeHeadersBypass(webview) {
     // Execute JavaScript to bypass Content-Security-Policy
     const bypassScript = `
       (function() {
-        // Prevent duplicate logging
+        // Prevent duplicate execution with a global flag
         if (window._headerBypassApplied) {
           return true;
         }
-
+        
+        window._headerBypassApplied = true;
+        
         // Function to remove CSP restrictions
-        function removeCSP() {
+        const removeCSP = function() {
           try {
             // Remove existing CSP meta tags
-            const cspMetaTags = document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]');
-            cspMetaTags.forEach(tag => tag.remove());
-            
-            // Create meta tag to override CSP
-            const meta = document.createElement('meta');
-            meta.httpEquiv = 'Content-Security-Policy';
-            meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;";
-            document.head.appendChild(meta);
-            
-            // Override frame busting scripts
-            try {
-              // Common frame busting variables
-              if (window.top !== window.self) {
-                // Prevent frame busting scripts
-                window.top = window.self;
-                window.parent = window.self;
-                window.frameElement = null;
+            const cspMetaTags = document.querySelectorAll('meta[http-equiv="Content-Security-Policy"], meta[http-equiv="content-security-policy"]');
+            if (cspMetaTags && cspMetaTags.length > 0) {
+              for (let i = 0; i < cspMetaTags.length; i++) {
+                if (cspMetaTags[i] && cspMetaTags[i].parentNode) {
+                  cspMetaTags[i].parentNode.removeChild(cspMetaTags[i]);
+                }
               }
-            } catch(e) {}
+            }
             
+            // Create meta tag to override CSP with permissive policy
+            if (document.head) {
+              const meta = document.createElement('meta');
+              meta.setAttribute('http-equiv', 'Content-Security-Policy');
+              meta.setAttribute('content', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;");
+              document.head.appendChild(meta);
+            }
+            
+            // Override frame busting scripts by redefining properties
+            if (window.self !== window.top) {
+              try {
+                // Use proper Object.defineProperty for better protection
+                Object.defineProperty(window, 'top', { value: window.self, configurable: true });
+                Object.defineProperty(window, 'parent', { value: window.self, configurable: true });
+                Object.defineProperty(window, 'frameElement', { value: null, configurable: true });
+              } catch(e) {
+                console.warn('Frame busting prevention failed:', e);
+              }
+            }
+            
+            // Log only once
             if (!window._headerBypassLogged) {
-              console.log('Applied alternative header bypass via content script');
+              console.log('Applied CSP and header bypass via content script');
               window._headerBypassLogged = true;
             }
           } catch(e) {
@@ -1895,60 +1338,64 @@ function attemptAlternativeHeadersBypass(webview) {
           }
           
           return true;
-        }
+        };
         
         // Execute immediately
         removeCSP();
         
-        // Also set up an observer to handle dynamically added CSP elements
-        // but with throttling to prevent excessive execution
+        // Set up a throttled mutation observer if it doesn't exist
         if (!window._bypassObserver) {
           let pendingMutations = false;
           let throttleTimer = null;
           
-          const handleMutations = () => {
+          const handleMutations = function() {
             if (pendingMutations) {
               removeCSP();
               pendingMutations = false;
             }
           };
           
-          const observer = new MutationObserver(function(mutations) {
-            // Check if any CSP elements were added
-            const hasCSPElements = mutations.some(mutation => {
-              if (mutation.type === 'childList' && mutation.addedNodes.length) {
-                return Array.from(mutation.addedNodes).some(node => {
-                  return node.nodeName === 'META' && 
-                         node.getAttribute('http-equiv') === 'Content-Security-Policy';
-                });
+          try {
+            const observer = new MutationObserver(function(mutations) {
+              // Check if any CSP elements were added (throttled)
+              const hasCSPElements = mutations.some(function(mutation) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length) {
+                  return Array.from(mutation.addedNodes).some(function(node) {
+                    return node.nodeName === 'META' && 
+                          (node.getAttribute('http-equiv') === 'Content-Security-Policy' ||
+                           node.getAttribute('http-equiv') === 'content-security-policy');
+                  });
+                }
+                return false;
+              });
+              
+              if (hasCSPElements) {
+                pendingMutations = true;
+                
+                // Throttle to prevent excessive executions
+                if (!throttleTimer) {
+                  throttleTimer = setTimeout(function() {
+                    handleMutations();
+                    throttleTimer = null;
+                  }, 500);
+                }
               }
-              return false;
             });
             
-            if (hasCSPElements) {
-              pendingMutations = true;
+            // Start observing the document with throttling
+            if (document && document.documentElement) {
+              observer.observe(document.documentElement, { 
+                childList: true, 
+                subtree: true 
+              });
               
-              // Throttle to prevent excessive executions
-              if (!throttleTimer) {
-                throttleTimer = setTimeout(() => {
-                  handleMutations();
-                  throttleTimer = null;
-                }, 500);
-              }
+              window._bypassObserver = observer;
             }
-          });
-          
-          // Start observing the document with throttling
-          observer.observe(document.documentElement, { 
-            childList: true, 
-            subtree: true 
-          });
-          
-          window._bypassObserver = observer;
+          } catch(e) {
+            console.warn('CSP observer setup failed:', e);
+          }
         }
         
-        // Mark as applied to prevent duplicate execution
-        window._headerBypassApplied = true;
         return true;
       })();
     `;
@@ -2010,11 +1457,18 @@ function useAlternativeHeaderBypass(webview) {
  * @param {Object} browser - Browser instance
  */
 export function applyPreNavigationStyles(browser) {
-  if (!browser.webview || browser.webview.tagName.toLowerCase() !== 'webview') {
+  // Add better null/undefined checking
+  if (!browser.webview || !browser.webview.tagName || browser.webview.tagName.toLowerCase() !== 'webview') {
     return;
   }
   
   try {
+    // Check if webview is actually connected to DOM before trying to use it
+    if (!browser.webview.isConnected) {
+      console.log('Webview not yet connected to DOM, skipping pre-navigation styles');
+      return;
+    }
+    
     // Apply direct styling to the webview element with transition support
     browser.webview.style.cssText = `
       display: flex !important;
@@ -2057,41 +1511,57 @@ export function applyPreNavigationStyles(browser) {
       browser.webview.applyAllCriticalStyles(true);
     }
     
-    // Apply critical content styles immediately if possible
+    // Only try executeJavaScript with a safe verification method first
     if (typeof browser.webview.executeJavaScript === 'function') {
-      browser.webview.executeJavaScript(`
-        (function() {
-          // Function to apply essential styles
-          function applyEssentialStyles() {
-            // Apply immediate styles to html/body with !important to override site styles
-            if (document && document.documentElement) {
-              document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
-            }
-            if (document && document.body) {
-              document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
-            }
-            
-            // Add a persistent style element with high specificity
-            if (document && document.head && !document.getElementById('cognivore-essential-fix')) {
-              const style = document.createElement('style');
-              style.id = 'cognivore-essential-fix';
-              style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; }";
-              document.head.appendChild(style);
-            }
-          }
-          
-          // Try to apply immediately
-          applyEssentialStyles();
-          
-          // Also set up to apply on DOMContentLoaded
-          if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
-            document.addEventListener('DOMContentLoaded', applyEssentialStyles);
-          }
-          
-          window.__styleFixApplied = true;
-          return true;
-        })();
-      `).catch(() => {});
+      try {
+        // Try a simple test script first to verify the webview is ready
+        browser.webview.executeJavaScript('true')
+          .then(() => {
+            // If successful, then try the actual style script
+            browser.webview.executeJavaScript(`
+              (function() {
+                // Function to apply essential styles
+                function applyEssentialStyles() {
+                  // Apply immediate styles to html/body with !important to override site styles
+                  if (document && document.documentElement) {
+                    document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
+                  }
+                  if (document && document.body) {
+                    document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important;";
+                  }
+                  
+                  // Add a persistent style element with high specificity
+                  if (document && document.head && !document.getElementById('cognivore-essential-fix')) {
+                    const style = document.createElement('style');
+                    style.id = 'cognivore-essential-fix';
+                    style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; }";
+                    document.head.appendChild(style);
+                  }
+                }
+                
+                // Try to apply immediately
+                applyEssentialStyles();
+                
+                // Also set up to apply on DOMContentLoaded
+                if (document.readyState !== 'complete' && document.readyState !== 'interactive') {
+                  document.addEventListener('DOMContentLoaded', applyEssentialStyles);
+                }
+                
+                window.__styleFixApplied = true;
+                return true;
+              })();
+            `).catch(() => {
+              // Silently catch errors - we'll retry on DOM ready event
+            });
+          })
+          .catch(() => {
+            // Not ready for script execution yet, will try during did-start-loading or dom-ready events
+            console.log('Webview not ready for executeJavaScript, will retry during webview events');
+          });
+      } catch (innerError) {
+        // Catching DOM attachment errors without failing the entire function
+        console.log('Webview not ready for script execution:', innerError.message);
+      }
     }
   } catch (e) {
     console.warn('Error applying pre-navigation styles:', e);
@@ -2533,7 +2003,7 @@ export function setupWebViewContainer(browser) {
   }
   
   // Determine browser implementation based on environment
-  const { webviewImplementation } = browser.state.environment;
+  const { webviewImplementation } = browser.state?.environment || { webviewImplementation: 'webview' };
   
   // Create webview
   const { container, webview } = createWebview(browser, webviewImplementation, 'standard');
@@ -2542,18 +2012,132 @@ export function setupWebViewContainer(browser) {
   browser.webviewContainer.innerHTML = '';
   browser.webviewContainer.appendChild(container);
   
+  // Add flags to track proper event firing
+  if (webview) {
+    // Initialize tracking flags to prevent excessive polling
+    webview._loadEventsFired = {
+      didStartLoading: false,
+      didStopLoading: false,
+      didFinishLoad: false,
+      domReady: false
+    };
+  }
+  
   // Set up event handlers
   if (webview) {
     // For Electron webview
-    if (webview.tagName.toLowerCase() === 'webview') {
-      webview.addEventListener('did-start-loading', () => handleLoadStart(browser));
-      webview.addEventListener('did-stop-loading', () => handleLoadStop(browser));
-      webview.addEventListener('did-navigate', (e) => handlePageNavigation(browser, e));
-      webview.addEventListener('did-finish-load', browser.handleWebviewLoad);
+    if (webview.tagName?.toLowerCase() === 'webview') {
+      webview.addEventListener('did-start-loading', () => {
+        // Mark this event as fired
+        webview._loadEventsFired.didStartLoading = true;
+        
+        // Inline implementation of handleLoadStart
+        if (browser && typeof browser.setState === 'function') {
+          browser.setState({ isLoading: true });
+        }
+        if (typeof browser.showLoadingProgress === 'function') {
+          browser.showLoadingProgress();
+        }
+        // Apply immediate styles for better user experience
+        if (webview && typeof webview.style !== 'undefined') {
+          webview.style.visibility = 'visible';
+          webview.style.opacity = '0.4';
+        }
+      });
+      
+      webview.addEventListener('did-stop-loading', () => {
+        // Mark this event as fired
+        webview._loadEventsFired.didStopLoading = true;
+        
+        // Inline implementation of handleLoadStop
+        if (browser && typeof browser.setState === 'function') {
+          browser.setState({ isLoading: false });
+        }
+        if (typeof browser.hideLoadingProgress === 'function') {
+          browser.hideLoadingProgress();
+        }
+        // Make fully visible
+        if (webview && typeof webview.style !== 'undefined') {
+          webview.style.visibility = 'visible';
+          webview.style.opacity = '1';
+          if (typeof webview.readyToShow !== 'undefined') {
+            webview.readyToShow = true;
+          }
+        }
+      });
+      
+      webview.addEventListener('dom-ready', () => {
+        // Mark this event as fired
+        webview._loadEventsFired.domReady = true;
+      });
+      
+      webview.addEventListener('did-navigate', (e) => {
+        // Inline implementation of handlePageNavigation
+        if (browser && typeof browser.updateAddressBar === 'function') {
+          browser.updateAddressBar(e.url);
+        }
+        if (browser && typeof browser.setState === 'function') {
+          browser.setState({ currentUrl: e.url });
+        }
+        // Update navigation buttons if history is available
+        if (browser && browser.updateNavigationButtons) {
+          browser.updateNavigationButtons();
+        }
+      });
+      
+      webview.addEventListener('did-finish-load', () => {
+        // Mark this event as fired
+        webview._loadEventsFired.didFinishLoad = true;
+        
+        // Call the original handler
+        if (typeof browser.handleWebviewLoad === 'function') {
+          browser.handleWebviewLoad();
+        }
+      });
     } 
     // For iframe
     else {
-      webview.onload = browser.handleWebviewLoad;
+      webview.onload = () => {
+        webview._loadEventsFired = {
+          didStartLoading: true,
+          didStopLoading: true,
+          didFinishLoad: true,
+          domReady: true
+        };
+        browser.handleWebviewLoad();
+      };
+    }
+    
+    // Store reference to check if page loaded
+    browser._loadEventPollingCount = 0;
+    
+    // Replace default checkIfPageIsLoaded with a smarter version
+    if (typeof browser.checkIfPageIsLoaded === 'function') {
+      const originalCheck = browser.checkIfPageIsLoaded;
+      browser.checkIfPageIsLoaded = function() {
+        // Skip polling if events have properly fired
+        if (webview && webview._loadEventsFired) {
+          const allEventsReceived = 
+            webview._loadEventsFired.didStartLoading && 
+            (webview._loadEventsFired.didStopLoading || webview._loadEventsFired.didFinishLoad);
+            
+          if (allEventsReceived) {
+            // All events properly received, no need for polling
+            return;
+          }
+          
+          // Limit polling to reasonable number of attempts (max 3)
+          if (browser._loadEventPollingCount >= 3) {
+            console.log('Maximum polling attempts reached, stopping page load checks');
+            return;
+          }
+          
+          browser._loadEventPollingCount++;
+        }
+        
+        // Fall back to original implementation if needed
+        originalCheck.call(browser);
+      };
     }
   }
   
@@ -2570,12 +2154,22 @@ export function setupWebViewContainer(browser) {
  * @param {string} url - The URL to display
  */
 export function updateAddressBar(browser, url) {
-  if (!browser || !browser.addressInput) {
-    console.error('Cannot update address bar - input is missing');
+  if (!browser) {
+    console.error('Cannot update address bar - browser instance is missing');
+    return;
+  }
+
+  // Find input if not directly referenced
+  const addressInput = browser.addressInput || 
+                      browser.searchInput || 
+                      browser.container?.querySelector('.browser-search-input');
+  
+  if (!addressInput) {
+    console.warn('Cannot update address bar - input is missing');
     return;
   }
   
-  browser.addressInput.value = url;
+  addressInput.value = url;
 }
 
 /**
@@ -2584,30 +2178,55 @@ export function updateAddressBar(browser, url) {
  * @param {boolean} isLoading - Whether the browser is currently loading
  */
 export function updateLoadingIndicator(browser, isLoading) {
-  if (!browser || !browser.progressBar || !browser.refreshButton || !browser.stopButton) {
-    console.error('Cannot update loading indicator - elements missing');
+  if (!browser) {
+    console.error('Cannot update loading indicator - browser instance is missing');
     return;
   }
+
+  // Find elements if not directly referenced
+  const progressBar = browser.progressBar || 
+                     browser.container?.querySelector('.browser-progress-bar');
   
-  if (isLoading) {
-    // Show progress bar
-    browser.progressBar.style.display = 'block';
-    browser.progressBar.style.width = '80%';
-    
-    // Show stop button, hide refresh button
-    browser.refreshButton.style.display = 'none';
-    browser.stopButton.style.display = 'block';
-  } else {
-    // Finish progress animation then hide
-    browser.progressBar.style.width = '100%';
-    setTimeout(() => {
-      browser.progressBar.style.display = 'none';
-      browser.progressBar.style.width = '0%';
-    }, 300);
-    
-    // Show refresh button, hide stop button
-    browser.refreshButton.style.display = 'block';
-    browser.stopButton.style.display = 'none';
+  const refreshButton = browser.refreshButton || 
+                       browser.container?.querySelector('.browser-refresh-btn');
+  
+  const stopButton = browser.stopButton || 
+                    browser.container?.querySelector('.browser-stop-btn');
+  
+  // Check if elements exist before proceeding
+  if (!progressBar) {
+    console.warn('Cannot update loading indicator - progress bar element missing');
+  }
+  
+  if (!refreshButton || !stopButton) {
+    console.warn('Cannot update loading indicator - button elements missing');
+  }
+  
+  // Update progress bar if available
+  if (progressBar) {
+    if (isLoading) {
+      progressBar.style.display = 'block';
+      progressBar.style.width = '80%';
+    } else {
+      progressBar.style.width = '100%';
+      setTimeout(() => {
+        if (progressBar.isConnected) {
+          progressBar.style.display = 'none';
+          progressBar.style.width = '0%';
+        }
+      }, 300);
+    }
+  }
+  
+  // Update buttons if available
+  if (refreshButton && stopButton) {
+    if (isLoading) {
+      refreshButton.style.display = 'none';
+      stopButton.style.display = 'block';
+    } else {
+      refreshButton.style.display = 'block';
+      stopButton.style.display = 'none';
+    }
   }
 }
 

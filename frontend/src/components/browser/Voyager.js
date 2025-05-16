@@ -67,7 +67,10 @@ import {
 import {
   handleLoadStart,
   handleLoadStop,
-  handlePageNavigation
+  handlePageNavigation,
+  handleWebviewLoad,
+  handleWebviewError,
+  updateNavigationButtons
 } from './handlers/EventHandlers';
 
 class Voyager extends Component {
@@ -75,7 +78,7 @@ class Voyager extends Component {
     super(props);
     
     this.state = {
-      url: props.initialUrl || 'about:blank',
+      url: props?.initialUrl || 'https://www.google.com',
       title: 'Loading...',
       isLoading: false,
       history: [],
@@ -99,6 +102,12 @@ class Voyager extends Component {
     this.iframe = null;
     this.addressInput = null;
     
+    // Track if we've already done the initial navigation
+    this.hasNavigatedInitially = false;
+    
+    // Track if the component has been initialized
+    this._isInitialized = false;
+    
     // Bind methods
     this.navigate = this.navigate.bind(this);
     this.refreshPage = this.refreshPage.bind(this);
@@ -108,26 +117,15 @@ class Voyager extends Component {
     this.handleWebviewLoad = this.handleWebviewLoad.bind(this);
     this.capturePageContent = this.capturePageContent.bind(this);
     this.toggleReaderMode = this.toggleReaderMode.bind(this);
+    this.initialize = this.initialize.bind(this);
+    this.cleanup = this.cleanup.bind(this);
   }
   
   componentDidMount() {
-    this.setState({ isMounted: true });
-    
-    // Set up browser layout
-    setupBrowserLayout(this);
-    
-    // Set up navigation bar
-    setupNavigationBar(this);
-    
-    // Set up webview container
-    setupWebViewContainer(this);
-    
-    // Set initial URL if provided
-    if (this.props.initialUrl && this.props.initialUrl !== 'about:blank') {
-      setTimeout(() => {
-        this.navigate(this.props.initialUrl);
-      }, 500);
-    }
+    this.setState({ isMounted: true }, () => {
+      // Now that state is updated, we can initialize
+      this.initialize();
+    });
   }
   
   componentWillUnmount() {
@@ -144,7 +142,8 @@ class Voyager extends Component {
   
   componentDidUpdate(prevProps) {
     // Handle URL updates from parent component
-    if (prevProps.initialUrl !== this.props.initialUrl && 
+    if (this.props && prevProps && 
+        prevProps.initialUrl !== this.props.initialUrl && 
         this.props.initialUrl && 
         this.props.initialUrl !== 'about:blank') {
       this.navigate(this.props.initialUrl);
@@ -157,6 +156,12 @@ class Voyager extends Component {
    */
   navigate(url) {
     if (!url) return;
+    
+    // Clear any existing navigation timeouts
+    if (this._navigationTimeout) {
+      clearTimeout(this._navigationTimeout);
+      this._navigationTimeout = null;
+    }
     
     // Format the URL (add protocol if needed)
     const formattedUrl = formatUrl(url);
@@ -177,11 +182,90 @@ class Voyager extends Component {
     // Update loading indicator
     updateLoadingIndicator(this, true);
     
+    // Set current URL for tracking
+    this.currentUrl = formattedUrl;
+    
+    // Create a more reliable navigation timeout with progressive fallbacks
+    // Start with a longer timeout period (8 seconds instead of 5)
+    const navigationTimeoutPeriod = 8000;
+    
+    this._navigationTimeout = setTimeout(() => {
+      console.log('Navigation timeout reached, hiding loading content');
+      
+      // Set a flag that we're handling a timeout
+      this._handlingNavigationTimeout = true;
+      
+      // Check if we need to handle the timeout (if page is not already loaded)
+      if (this.state.isLoading) {
+        // First, try to see if the page actually loaded despite not triggering load events
+        this.checkIfPageIsLoaded(() => {
+          // If checking loaded state didn't resolve the issue, show a message
+          if (this.state.isLoading && this._handlingNavigationTimeout) {
+            // Update loading state to help UI recover
+            this.setState({ isLoading: false });
+            updateLoadingIndicator(this, false);
+            
+            // Try a fallback approach - sometimes the load event doesn't fire
+            if (this.webview) {
+              try {
+                // For webview implementations, try to force completion
+                if (this.webview.tagName.toLowerCase() === 'webview') {
+                  // Apply full styles to ensure visibility
+                  if (typeof this.webview.applyAllCriticalStyles === 'function') {
+                    this.webview.applyAllCriticalStyles(true);
+                  }
+                  
+                  // Make sure webview is visible
+                  this.webview.style.visibility = 'visible';
+                  this.webview.style.opacity = '1';
+                  this.webview.readyToShow = true;
+                  
+                  // Update UI to reflect completion
+                  updateLoadingIndicator(this, false);
+                  
+                  // Try to gracefully extract information from the page
+                  if (typeof this.webview.executeJavaScript === 'function') {
+                    this.webview.executeJavaScript(`
+                      {
+                        title: document.title || 'Unknown Page',
+                        url: window.location.href,
+                        loaded: true
+                      }
+                    `).then(result => {
+                      if (result) {
+                        console.log('Retrieved page info despite timeout:', result);
+                        
+                        // Update title if available
+                        if (result.title) {
+                          this.setState({ title: result.title });
+                          updatePageTitle(this, result.title);
+                        }
+                        
+                        // Capture content if possible
+                        this.capturePageContent();
+                      }
+                    }).catch(err => {
+                      console.warn('Failed to get page info after timeout:', err);
+                    });
+                  }
+                }
+              } catch (err) {
+                console.warn('Error recovering from navigation timeout:', err);
+              }
+            }
+          }
+        });
+      }
+    }, navigationTimeoutPeriod);
+    
     // Navigate based on implementation type
     if (this.webview && this.state.environment.webviewImplementation === 'webview') {
       try {
         console.log(`🌐 Navigating webview to: ${formattedUrl}`);
         this.webview.src = formattedUrl;
+        
+        // Set up redundant load detection for better reliability
+        this.setupRedundantLoadDetection(formattedUrl);
       } catch (err) {
         console.error('WebView navigation error:', err);
         renderErrorPage(this, {
@@ -225,6 +309,122 @@ class Voyager extends Component {
     
     // Update history
     updateVisitedUrls(this, formattedUrl);
+  }
+  
+  /**
+   * Setup redundant load detection for more reliable navigation
+   * @param {string} targetUrl - The URL being loaded
+   */
+  setupRedundantLoadDetection(targetUrl) {
+    // We'll poll periodically to check if the page has navigated successfully
+    // This works around cases where the load events don't fire properly
+    
+    // Clear any existing detection intervals
+    if (this._loadDetectionInterval) {
+      clearInterval(this._loadDetectionInterval);
+    }
+    
+    // Start time for tracking duration
+    const startTime = Date.now();
+    const maxDetectionTime = 8000; // Max 8 seconds of detection
+    
+    // Use a relatively fast polling interval (250ms)
+    this._loadDetectionInterval = setInterval(() => {
+      // Check if we've been polling too long
+      if (Date.now() - startTime > maxDetectionTime) {
+        clearInterval(this._loadDetectionInterval);
+        return;
+      }
+      
+      // Skip checks if we're not loading anymore
+      if (!this.state.isLoading) {
+        clearInterval(this._loadDetectionInterval);
+        return;
+      }
+      
+      // Call our check method
+      this.checkIfPageIsLoaded();
+    }, 250);
+  }
+  
+  /**
+   * Check if the page is actually loaded based on URL changes or other signals
+   * @param {Function} callback - Optional callback after check completes
+   */
+  checkIfPageIsLoaded(callback) {
+    if (!this.webview || !this.state?.isLoading) {
+      if (callback) callback();
+      return;
+    }
+    
+    console.log('Checking if page is actually loaded despite missing events');
+    
+    try {
+      // For webview, we'll use executeJavaScript to check current URL
+      if (this.webview.tagName?.toLowerCase() === 'webview' && 
+          typeof this.webview.executeJavaScript === 'function') {
+        
+        this.webview.executeJavaScript(`
+          {
+            currentUrl: window.location.href,
+            readyState: document.readyState,
+            title: document.title
+          }
+        `).then(result => {
+          if (!result) {
+            if (callback) callback();
+            return;
+          }
+          
+          // Check if URL has changed, indicating successful navigation
+          if (result.currentUrl && result.currentUrl !== 'about:blank' && 
+              result.currentUrl !== this.currentUrl &&
+              result.readyState === 'complete') {
+            
+            console.log(`Page appears to be loaded based on URL change: ${result.currentUrl}`);
+            
+            // Update title if available
+            if (result.title) {
+              this.setState({ title: result.title });
+              updatePageTitle(this, result.title);
+            }
+            
+            // Update loading state
+            this.setState({ isLoading: false });
+            updateLoadingIndicator(this, false);
+            
+            // Make webview fully visible
+            if (typeof this.webview.applyAllCriticalStyles === 'function') {
+              this.webview.applyAllCriticalStyles(true);
+            }
+            
+            // Capture content
+            this.capturePageContent();
+            
+            // Clear navigation timeout
+            if (this._navigationTimeout) {
+              clearTimeout(this._navigationTimeout);
+              this._navigationTimeout = null;
+            }
+            
+            // Clear detection interval
+            if (this._loadDetectionInterval) {
+              clearInterval(this._loadDetectionInterval);
+            }
+          }
+          
+          if (callback) callback();
+        }).catch(err => {
+          console.warn('Error checking if page is loaded:', err);
+          if (callback) callback();
+        });
+      } else if (callback) {
+        callback();
+      }
+    } catch (err) {
+      console.warn('Error in checkIfPageIsLoaded:', err);
+      if (callback) callback();
+    }
   }
   
   /**
@@ -396,6 +596,348 @@ class Voyager extends Component {
     }
   }
   
+  /**
+   * Initialize the browser component
+   * Called by the parent App component when navigating to browser view
+   */
+  initialize() {
+    console.log('Initializing Voyager browser component');
+    
+    // Check if component is already initialized
+    if (this._isInitialized) {
+      console.log('Voyager browser already initialized, skipping');
+      return;
+    }
+    
+    // Make sure component is mounted
+    if (!this.containerRef?.current) {
+      console.warn('Cannot initialize Voyager - container not mounted');
+      
+      // Try to initialize again after a short delay with increasing backoff
+      if (!this._initAttempts) {
+        this._initAttempts = 0;
+      }
+      
+      this._initAttempts++;
+      const delay = Math.min(this._initAttempts * 100, 1000); // Increasing delay with cap at 1000ms
+      
+      if (this._initAttempts < 20) { // Limit retries to prevent infinite loop
+        setTimeout(() => {
+          if (this.containerRef?.current) {
+            this.initialize();
+          }
+        }, delay);
+      } else {
+        console.error('Failed to initialize Voyager after multiple attempts');
+      }
+      return;
+    }
+    
+    // Reset initialization attempts counter
+    this._initAttempts = 0;
+    
+    // Mark as initialized to prevent duplicate setup
+    this._isInitialized = true;
+    
+    // Set up browser layout
+    setupBrowserLayout(this);
+    
+    // Set up navigation bar
+    setupNavigationBar(this);
+    
+    // Set up webview container
+    setupWebViewContainer(this);
+    
+    // Properly bind event handlers to the browser instance
+    this.handleBackAction = (e) => {
+      if (this.webview && typeof this.webview.goBack === 'function') {
+        this.webview.goBack();
+        updateNavigationButtons(this);
+      }
+    };
+    
+    this.handleForwardAction = (e) => {
+      if (this.webview && typeof this.webview.goForward === 'function') {
+        this.webview.goForward();
+        updateNavigationButtons(this);
+      }
+    };
+    
+    // Bind event handlers directly to webview if it exists
+    if (this.webview) {
+      if (this.webview.tagName?.toLowerCase() === 'webview') {
+        // Remove any existing event listeners to prevent duplicates
+        this.webview.removeEventListener('did-start-loading', this.handleLoadStart);
+        this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
+        this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
+        this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
+        
+        // Ensure partition is set before any navigation happens
+        if (!this.webview.hasAttribute('partition')) {
+          // Set a unique partition to prevent "already navigated" errors
+          const uniquePartition = `persist:voyager-${Date.now()}`;
+          this.webview.setAttribute('partition', uniquePartition);
+        }
+        
+        // Bind event handlers properly
+        this.handleLoadStart = (e) => {
+          this.setState({ isLoading: true });
+          updateLoadingIndicator(this, true);
+        };
+        
+        this.handleLoadStop = (e) => {
+          this.setState({ isLoading: false });
+          updateLoadingIndicator(this, false);
+        };
+        
+        this.handlePageNavigation = (e) => {
+          if (e && e.url) {
+            updateAddressBar(this, e.url);
+            this.setState({ currentUrl: e.url });
+            updateNavigationButtons(this);
+          }
+        };
+        
+        // Add event listeners with properly bound handlers
+        this.webview.addEventListener('did-start-loading', this.handleLoadStart);
+        this.webview.addEventListener('did-stop-loading', this.handleLoadStop);
+        this.webview.addEventListener('did-navigate', this.handlePageNavigation);
+        this.webview.addEventListener('did-finish-load', event => handleWebviewLoad(this, event));
+        
+        console.log('Event handlers properly bound to webview');
+      }
+    }
+    
+    // Bind button event handlers in the header
+    const backButton = this.header?.querySelector('.browser-back-btn');
+    const forwardButton = this.header?.querySelector('.browser-forward-btn');
+    const refreshButton = this.header?.querySelector('.browser-refresh-btn');
+    const stopButton = this.header?.querySelector('.browser-stop-btn');
+    
+    if (backButton) backButton.addEventListener('click', this.handleBackAction);
+    if (forwardButton) forwardButton.addEventListener('click', this.handleForwardAction);
+    if (refreshButton) refreshButton.addEventListener('click', this.refreshPage);
+    if (stopButton) stopButton.addEventListener('click', this.stopLoading);
+    
+    // Set initial URL if provided - with a delay to ensure webview is fully mounted
+    if (this.props?.initialUrl && this.props.initialUrl !== 'about:blank') {
+      // Enhanced timing to ensure webview is properly set up before navigation
+      setTimeout(() => {
+        // Double-check that webview still exists and is connected to DOM
+        if (this.webview && this.webview.isConnected) {
+          this.navigate(this.props.initialUrl);
+        }
+      }, 500);
+    }
+  }
+  
+  /**
+   * Clean up browser resources
+   * Called by the parent App component when navigating away from browser view
+   */
+  cleanup() {
+    console.log('Cleaning up Voyager browser component');
+    
+    // Reset initialization flags
+    this._isInitialized = false;
+    this.hasNavigatedInitially = false;
+    
+    // Remove any event listeners
+    if (this.webview) {
+      this.webview.removeEventListener('did-start-loading', this.handleLoadStart);
+      this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
+      this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
+      this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
+    }
+    
+    // Clear any active timers and intervals
+    if (this._navigationTimeout) {
+      clearTimeout(this._navigationTimeout);
+      this._navigationTimeout = null;
+    }
+    
+    if (this._loadDetectionInterval) {
+      clearInterval(this._loadDetectionInterval);
+      this._loadDetectionInterval = null;
+    }
+    
+    // Hide browser elements
+    if (this.webview) {
+      this.webview.style.visibility = 'hidden';
+      this.webview.style.opacity = '0';
+    }
+    
+    if (this.iframe) {
+      this.iframe.style.visibility = 'hidden';
+      this.iframe.style.opacity = '0';
+    }
+    
+    // Unmount React component if ReactDOM is available
+    const browserMount = document.getElementById('browser-mount');
+    if (browserMount && window.ReactDOM && window.ReactDOM.unmountComponentAtNode) {
+      try {
+        window.ReactDOM.unmountComponentAtNode(browserMount);
+      } catch (err) {
+        console.warn('Error unmounting browser component:', err);
+      }
+    }
+    
+    // Remove any stand-alone browser containers that might be in the body
+    const browserContainers = document.querySelectorAll('body > .browser-container');
+    browserContainers.forEach(container => {
+      if (container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
+    });
+    
+    // Reset loading state if needed
+    if (this.state?.isLoading) {
+      this.setState({ isLoading: false });
+      updateLoadingIndicator(this, false);
+    }
+  }
+  
+  handleDidFailLoad = (e) => {
+    console.error('Webview failed to load:', e);
+    
+    // Check if this is an actual error
+    if (e && e.errorCode !== -3) { // Ignore -3 error (aborted navigation)
+      console.error(`Load failed with error code: ${e.errorCode}, description: ${e.errorDescription}`);
+      
+      // Set error state
+      this.setState({ 
+        loading: false,
+        loadError: true,
+        errorCode: e.errorCode,
+        errorDescription: e.errorDescription || 'Failed to load page'
+      });
+      
+      // Render error page in the webview if possible
+      if (this.webview && typeof this.webview.executeJavaScript === 'function') {
+        try {
+          // Get the error details
+          const errorCode = e.errorCode || 'unknown';
+          const errorDesc = e.errorDescription || 'An error occurred while loading this page';
+          const validatedUrl = this.state.currentUrl || 'Unknown URL';
+          
+          // Create error page HTML using template literal
+          const errorPageHtml = `
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                body {
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                  margin: 0;
+                  padding: 20px;
+                  background-color: #f7f7f7;
+                  color: #333;
+                }
+                .error-container {
+                  max-width: 800px;
+                  margin: 40px auto;
+                  background-color: white;
+                  border-radius: 8px;
+                  padding: 20px;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                h1 {
+                  margin-top: 0;
+                  color: #d32f2f;
+                  font-size: 24px;
+                }
+                p {
+                  line-height: 1.6;
+                }
+                .error-code {
+                  font-family: monospace;
+                  background-color: #f1f1f1;
+                  padding: 4px 8px;
+                  border-radius: 4px;
+                }
+                .retry-btn {
+                  background-color: #2196f3;
+                  color: white;
+                  border: none;
+                  padding: 10px 16px;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  font-size: 14px;
+                  margin-top: 20px;
+                }
+                .retry-btn:hover {
+                  background-color: #1976d2;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="error-container">
+                <h1>Page Load Failed</h1>
+                <p>The browser encountered an error while trying to load <strong>${validatedUrl}</strong></p>
+                <p>Error: <span class="error-code">${errorCode}</span> - ${errorDesc}</p>
+                <p>Possible solutions:</p>
+                <ul>
+                  <li>Check your internet connection</li>
+                  <li>Refresh the page</li>
+                  <li>Try a different URL</li>
+                </ul>
+                <button class="retry-btn" onclick="window.location.reload()">Try Again</button>
+              </div>
+            </body>
+            </html>
+          `;
+          
+          // Execute JavaScript to replace the page content with our error page
+          this.webview.executeJavaScript(`
+            (function() {
+              // Replace entire document content with error page
+              document.open();
+              document.write(${JSON.stringify(errorPageHtml)});
+              document.close();
+              
+              // Prevent further navigation
+              window.stop();
+              
+              // Override navigation functions to prevent changes
+              history.pushState = function() { console.log('Navigation prevented'); };
+              history.replaceState = function() { console.log('Navigation prevented'); };
+              
+              console.log('Error page rendered');
+            })();
+          `)
+          .catch(err => {
+            console.error('Failed to inject error page:', err);
+          });
+        } catch (err) {
+          console.error('Error injecting error page:', err);
+        }
+      } else {
+        console.warn('Cannot render error page - webview not available or missing executeJavaScript');
+      }
+      
+      // If error handler exists, call it
+      if (typeof this.props.onError === 'function') {
+        this.props.onError(e);
+      }
+      
+      // Try to initialize again after a short delay with increasing backoff
+      if (this.webview && this.loadRetryCount < 3) {
+        this.loadRetryCount++;
+        const retryDelay = 1000 * Math.pow(2, this.loadRetryCount);
+        
+        console.log(`Scheduling retry attempt ${this.loadRetryCount} in ${retryDelay}ms`);
+        
+        setTimeout(() => {
+          console.log(`Retry attempt ${this.loadRetryCount}`);
+          this.initWebview();
+        }, retryDelay);
+      }
+    } else {
+      console.log('Ignoring aborted navigation error (code -3)');
+    }
+  }
+  
   render() {
     // Destructure props for easier access and defaults
     const { 
@@ -405,7 +947,7 @@ class Voyager extends Component {
       showAddressBar = true,
       showStatusBar = true,
       height = '100%'
-    } = this.props;
+    } = this.props || {};
     
     // Compute container styles
     const containerStyle = {
@@ -563,5 +1105,11 @@ class Voyager extends Component {
     );
   }
 }
+
+// Set default props
+Voyager.defaultProps = {
+  initialUrl: 'https://www.google.com',
+  notificationService: null
+};
 
 export default Voyager; 

@@ -4,3 +4,5 @@ globs:
 alwaysApply: true
 ---
 Always add changes in short summaries to [changelog.md](mdc:internal/docs/plans/changelog.md), don't add simple small changes. Add descriptions of all new files, with patterns but extremely abbreviated. Ensure that these make future tracking and implementation easier.
+
+ALWAYS put new entries at the top NOT the bottom.

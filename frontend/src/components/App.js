@@ -17,6 +17,8 @@ import Anthology from './Anthology.js';
 import Settings from './ui/Settings.js';
 import ToolRenderer from './tools/ToolRenderer.js';
 import Browser from './browser/Voyager.js';
+import React, { Component } from 'react';
+import ReactDOM from 'react-dom';
 
 // Create context-specific logger
 const appLogger = logger.scope('App');
@@ -24,8 +26,9 @@ const appLogger = logger.scope('App');
 // Initialize the ToolRenderer singleton
 const toolRenderer = new ToolRenderer();
 
-class App {
+class App extends Component {
   constructor() {
+    super();
     this.container = null;
     this.sidebar = null;
     this.chatHeader = null;
@@ -44,11 +47,13 @@ class App {
     this.anthology = null; // Anthology component
     this.settings = null; // Settings component
     this.browser = null; // Browser component
+    this.browserRef = React.createRef(); // Create ref for Browser component
     
     // Bind methods
     this.handleNavigation = this.handleNavigation.bind(this);
     this.handleContentSelected = this.handleContentSelected.bind(this);
     this.handleContentUpdated = this.handleContentUpdated.bind(this);
+    this.handleContentCapture = this.handleContentCapture.bind(this);
   }
 
   /**
@@ -384,6 +389,19 @@ class App {
   }
 
   /**
+   * Handle content captured from browser
+   * @param {Object} content - Captured content data
+   */
+  handleContentCapture(content) {
+    appLogger.info('Content captured from browser');
+    // Process captured content if needed
+    if (this.documentManager && content) {
+      // You can add code here to process the captured content
+      // For example, adding it to the document manager
+    }
+  }
+
+  /**
    * Render the app
    */
   render() {
@@ -470,26 +488,64 @@ class App {
         
       case 'browser':
       case 'voyager':
-        // Special handling for Browser component - render directly to body
-        appLogger.info('Rendering Browser component');
-        const browserElement = this.browser.render();
-        
-        // Don't append to mainContent, append directly to body
-        document.body.appendChild(browserElement);
-        
-        // Hide the main app container when browser is active
-        const appContainer = document.getElementById('app');
-        if (appContainer) {
-          appContainer.style.display = 'none';
+        // Create mount point if it doesn't exist
+        let browserMount = document.getElementById('browser-mount');
+        if (!browserMount) {
+          browserMount = document.createElement('div');
+          browserMount.id = 'browser-mount';
+          document.body.appendChild(browserMount);
         }
         
-        // Initialize Browser
-        setTimeout(() => {
-          this.browser.initialize();
-        }, 100);
+        try {
+          // Render using ReactDOM to attach component properly
+          if (ReactDOM) {
+            console.log('[App] Rendering Voyager using ReactDOM');
+            ReactDOM.render(
+              <Browser 
+                ref={this.browserRef}
+                initialUrl="https://www.google.com"
+                onContentCapture={this.handleContentCapture}
+              />, 
+              browserMount
+            );
+            
+            // Initialize the browser component after mounting
+            setTimeout(() => {
+              if (this.browserRef && this.browserRef.current) {
+                if (typeof this.browserRef.current.initialize === 'function') {
+                  this.browserRef.current.initialize();
+                }
+              } else {
+                console.warn('[App] Browser reference not available yet, will try again');
+                
+                // Try again with a longer delay
+                setTimeout(() => {
+                  if (this.browserRef && this.browserRef.current && 
+                      typeof this.browserRef.current.initialize === 'function') {
+                    this.browserRef.current.initialize();
+                  } else {
+                    console.error('[App] Browser initialization failed - component reference not available');
+                  }
+                }, 500);
+              }
+            }, 100);
+            
+            return null; // Already rendered using ReactDOM
+          } else {
+            console.error('[App] ReactDOM not available for rendering the browser component');
+          }
+        } catch (error) {
+          console.error('[App] Error rendering browser component:', error);
+        }
         
-        // Return early since we've handled rendering outside the main flow
-        return;
+        // Fallback return if ReactDOM rendering fails
+        return (
+          <Browser 
+            ref={this.browserRef}
+            initialUrl="https://www.google.com"
+            onContentCapture={this.handleContentCapture}
+          />
+        );
         
       case 'anthology':
         // Render Anthology component
@@ -618,6 +674,41 @@ class App {
     this.browser = null;
     
     appLogger.info('App cleanup complete');
+  }
+
+  // Add cleanup method to properly unmount component when navigating away
+  componentDidUpdate(prevProps, prevState) {
+    if (prevState.navigationItem === 'voyager' || prevState.navigationItem === 'browser') {
+      if (this.state.navigationItem !== 'voyager' && this.state.navigationItem !== 'browser') {
+        // Clean up browser component when navigating away
+        this.cleanupBrowser();
+      }
+    }
+  }
+
+  cleanupBrowser() {
+    // Unmount component to prevent memory leaks
+    const browserMount = document.getElementById('browser-mount');
+    if (browserMount && ReactDOM.unmountComponentAtNode) {
+      try {
+        console.log('[App] Unmounting browser component');
+        ReactDOM.unmountComponentAtNode(browserMount);
+      } catch (error) {
+        console.error('[App] Error unmounting browser component:', error);
+      }
+    }
+    
+    // Call cleanup on component if available
+    if (this.browserRef.current && typeof this.browserRef.current.cleanup === 'function') {
+      this.browserRef.current.cleanup();
+    }
+  }
+
+  componentWillUnmount() {
+    // Clean up browser when component unmounts
+    this.cleanupBrowser();
+    
+    // ... existing cleanup code ...
   }
 }
 

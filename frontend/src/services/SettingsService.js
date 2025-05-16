@@ -212,29 +212,64 @@ async function initSettingsService() {
   // Register the service with the backend API (Electron or HTTP)
   if (isElectron) {
     // In Electron environment, attach to window.backend
-    window.backend.settingsService = {
-      getSettings,
-      saveSettings,
-      clearSettings,
-      getApiKey,
-      setApiKey,
-      testApiKey
-    };
-    settingsLogger.info('SettingsService registered with window.backend');
-    console.log('SettingsService registered with window.backend');
+    try {
+      if (!window.backend) {
+        window.backend = {};
+      }
+      
+      if (!window.backend.settingsService) {
+        const serviceAPI = {
+          getSettings,
+          saveSettings,
+          clearSettings,
+          getApiKey,
+          setApiKey,
+          testApiKey
+        };
+        
+        // Use Object.defineProperty to avoid issues with non-extensible objects
+        Object.defineProperty(window.backend, 'settingsService', {
+          value: serviceAPI,
+          writable: true,
+          configurable: true
+        });
+      }
+      
+      settingsLogger.info('SettingsService registered with window.backend');
+      console.log('SettingsService registered with window.backend');
+    } catch (error) {
+      settingsLogger.error('Failed to register SettingsService:', error);
+      console.error('Failed to register SettingsService:', error);
+    }
   } else {
     // In browser environment, define global variable
-    window.backend = window.backend || {};
-    window.backend.settingsService = {
-      getSettings,
-      saveSettings,
-      clearSettings,
-      getApiKey,
-      setApiKey,
-      testApiKey
-    };
-    settingsLogger.info('SettingsService registered with window.backend (browser)');
-    console.log('SettingsService registered with window.backend (browser)');
+    try {
+      if (!window.backend) {
+        window.backend = {};
+      }
+      
+      const serviceAPI = {
+        getSettings,
+        saveSettings,
+        clearSettings,
+        getApiKey,
+        setApiKey,
+        testApiKey
+      };
+      
+      // Use Object.defineProperty to avoid issues with non-extensible objects
+      Object.defineProperty(window.backend, 'settingsService', {
+        value: serviceAPI,
+        writable: true,
+        configurable: true
+      });
+      
+      settingsLogger.info('SettingsService registered with window.backend (browser)');
+      console.log('SettingsService registered with window.backend (browser)');
+    } catch (error) {
+      settingsLogger.error('Failed to register SettingsService (browser):', error);
+      console.error('Failed to register SettingsService (browser):', error);
+    }
   }
   
   settingsLogger.info('SettingsService initialized');

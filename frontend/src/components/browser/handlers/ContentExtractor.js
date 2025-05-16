@@ -14,12 +14,32 @@ export function extractPageContent(browser) {
     // Track extraction attempt
     console.log('Attempting to extract content from:', browser.currentUrl);
     
-    if (browser.webviewImplementation === 'webview' && typeof browser.webview.executeJavaScript === 'function') {
-      // Electron webview - use executeJavaScript for full DOM access
-      extractContentWithWebviewAPI(browser);
+    // Add safety check for webview readiness
+    if (browser.webview.tagName && browser.webview.tagName.toLowerCase() === 'webview' && 
+        browser.webview.isConnected && typeof browser.webview.executeJavaScript === 'function') {
+      // Execute a simple test first to verify webview is ready
+      browser.webview.executeJavaScript('true')
+        .then(() => {
+          // Webview is ready, proceed with content extraction
+          extractContentWithWebviewAPI(browser);
+        })
+        .catch(error => {
+          console.warn('Webview not ready for JavaScript execution:', error);
+          // Try fallback methods
+          if (browser.contentFrame) {
+            extractContentFromIframe(browser);
+          } else if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
+            extractContentViaProxy(browser);
+          }
+        });
     } else if (browser.contentFrame) {
       // Try to extract from iframe if available
       extractContentFromIframe(browser);
+    } else {
+      // Try proxy extraction if available
+      if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
+        extractContentViaProxy(browser);
+      }
     }
   } catch (error) {
     console.error('Error extracting page content:', error);
@@ -39,107 +59,131 @@ function extractContentWithWebviewAPI(browser) {
   browser.webview.executeJavaScript(`
     (function() {
       try {
-        // Extract main content
-        const getMostRelevantContent = () => {
-          // Potential content containers by priority
-          const contentSelectors = [
-            'article', 'main', '.main-content', '#main-content', 
-            '[role="main"]', '.post-content', '.article-content',
-            '.content', '#content'
-          ];
-          
-          // Try to find main content container
-          for (const selector of contentSelectors) {
-            const element = document.querySelector(selector);
-            if (element && element.textContent.trim().length > 500) {
-              return element;
+        // Collect page data
+        const extractedContent = {
+          title: document.title || '',
+          url: window.location.href,
+          domain: window.location.hostname,
+          timestamp: new Date().toISOString(),
+          content: {
+            text: '',
+            html: '',
+            headlines: [],
+            links: [],
+            metadata: {}
+          }
+        };
+        
+        // Extract main text content
+        const contentNodes = Array.from(document.querySelectorAll('article, [role="main"], main, #content, .content, .article, .post, .entry, .news-content, .page-content'));
+        
+        // If no content nodes are found, fallback to body
+        const mainContentNode = contentNodes.length > 0 
+          ? contentNodes[0] 
+          : document.body;
+        
+        // Extract readable text
+        extractedContent.content.text = (function getReadableText() {
+          // Use Readability if available
+          if (typeof Readability === 'function') {
+            try {
+              const documentClone = document.cloneNode(true);
+              const reader = new Readability(documentClone);
+              const article = reader.parse();
+              if (article && article.textContent) {
+                return article.textContent.trim();
+              }
+            } catch (e) {
+              console.warn('Readability extraction failed:', e);
             }
           }
           
-          // Fallback to body if no content container found
-          return document.body;
-        };
+          // Fallback text extraction
+          const paragraphs = Array.from(mainContentNode.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, div:not(:has(*))'))
+            .filter(el => {
+              // Filter out elements that are too short or hidden
+              const text = el.textContent.trim();
+              const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
+              return text.length > 10 && isVisible;
+            })
+            .map(el => el.textContent.trim())
+            .filter(text => text.length > 0);
+          
+          return paragraphs.join('\\n\\n').trim();
+        })();
         
-        // Get content container and extract text
-        const contentContainer = getMostRelevantContent();
+        // Extract basic HTML content
+        extractedContent.content.html = mainContentNode.innerHTML;
         
-        // Remove unnecessary elements that might contain unrelated text
-        const clonedContainer = contentContainer.cloneNode(true);
-        const elementsToRemove = [
-          'nav', 'header', 'footer', 'aside', 
-          '.nav', '.navigation', '.menu', '.sidebar', 
-          '.footer', '.comments', '.advertisement',
-          'script', 'style', 'noscript'
-        ];
+        // Extract headlines
+        extractedContent.content.headlines = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+          .map(el => ({
+            level: parseInt(el.tagName.substring(1)),
+            text: el.textContent.trim()
+          }))
+          .filter(headline => headline.text.length > 0);
         
-        elementsToRemove.forEach(selector => {
-          const elements = clonedContainer.querySelectorAll(selector);
-          elements.forEach(el => el.remove());
-        });
-        
-        // Extract links for potential follow-up research
-        const links = Array.from(document.links).slice(0, 50).map(link => ({
-          href: link.href,
-          text: link.textContent.trim() || link.title || link.href,
-          isInternal: link.host === window.location.host
-        })).filter(link => {
-          // Filter out common non-content links
-          const href = link.href.toLowerCase();
-          return !href.includes('javascript:') && 
-                 !href.includes('#') &&
-                 !href.includes('/cdn-cgi/') &&
-                 link.text.length > 0;
-        });
+        // Extract links
+        extractedContent.content.links = Array.from(document.querySelectorAll('a[href]'))
+          .filter(a => a.href && a.href.startsWith('http') && a.textContent.trim().length > 0)
+          .map(a => ({
+            text: a.textContent.trim(),
+            href: a.href,
+            title: a.title || ''
+          }))
+          .filter((link, index, self) => 
+            // Remove duplicates
+            index === self.findIndex(l => l.href === link.href)
+          )
+          .slice(0, 100); // Limit to 100 links
         
         // Extract metadata
-        const metadata = {
-          title: document.title,
-          description: document.querySelector('meta[name="description"]')?.content || '',
-          keywords: document.querySelector('meta[name="keywords"]')?.content || '',
-          author: document.querySelector('meta[name="author"]')?.content || '',
-          siteName: document.querySelector('meta[property="og:site_name"]')?.content || '',
-          publishedTime: document.querySelector('meta[property="article:published_time"]')?.content || ''
-        };
+        const metaTags = Array.from(document.querySelectorAll('meta[name], meta[property]'));
+        metaTags.forEach(meta => {
+          const name = meta.getAttribute('name') || meta.getAttribute('property');
+          const content = meta.getAttribute('content');
+          if (name && content) {
+            extractedContent.content.metadata[name] = content;
+          }
+        });
         
-        // Main text extraction with better formatting
-        const textContent = clonedContainer.textContent
-          .replace(/\\s+/g, ' ')
-          .replace(/\\t/g, ' ')
-          .trim();
+        // Specifically extract important metadata
+        const importantMetaTags = [
+          'description', 'keywords', 'author', 'og:title', 'og:description', 'og:image',
+          'twitter:title', 'twitter:description', 'twitter:image'
+        ];
         
-        // Get a sampling of images
-        const images = Array.from(document.querySelectorAll('img')).slice(0, 10).map(img => ({
-          src: img.src,
-          alt: img.alt || '',
-          width: img.width,
-          height: img.height
-        })).filter(img => img.src && !img.src.includes('data:image') && (img.width > 100 || img.height > 100));
+        importantMetaTags.forEach(name => {
+          const selector = name.startsWith('og:') || name.startsWith('twitter:')
+            ? \`meta[property="\${name}"]\`
+            : \`meta[name="\${name}"]\`;
+          
+          const metaEl = document.querySelector(selector);
+          if (metaEl && metaEl.getAttribute('content')) {
+            extractedContent.content.metadata[name] = metaEl.getAttribute('content');
+          }
+        });
         
-        return {
-          title: document.title,
-          text: textContent,
-          url: window.location.href,
-          metadata: metadata,
-          links: links,
-          images: images
-        };
+        // Return the extracted content
+        return extractedContent;
       } catch (error) {
         // Return error information
         return {
-          error: error.toString(),
-          url: window.location.href,
-          title: document.title || 'Unknown Title'
+          error: true,
+          message: error.message || 'Unknown error during content extraction',
+          stack: error.stack,
+          timestamp: new Date().toISOString()
         };
       }
     })();
   `)
   .then(result => {
     if (result.error) {
-      console.error('Error in content extraction script:', result.error);
+      console.error('Error in content extraction script:', result.message);
       // Try a simpler extraction as fallback
       extractSimpleContent(browser);
     } else {
-      savePageToVectorDB(browser, result);
+      savePageToVectorDB(browser, result.content);
     }
   })
   .catch(error => {

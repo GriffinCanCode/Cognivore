@@ -271,24 +271,48 @@ export function applySiteSpecificSettings(url) {
   }
   
   // Apply settings to webview
-  if (this.webview && this.webview.tagName.toLowerCase() === 'webview') {
+  if (this.webview && this.webview.tagName && 
+      this.webview.tagName.toLowerCase() === 'webview' && 
+      this.webview.isConnected) {
     try {
       // Apply sandbox settings
       if (settings.sandbox && typeof applySandboxSettings === 'function') {
         applySandboxSettings(this.webview, settings.sandbox);
       }
       
-      // Apply user agent
+      // Apply user agent - but only if the webview is ready
+      // First check if method exists and is callable
       if (settings.userAgent && typeof this.webview.setUserAgent === 'function') {
-        this.webview.setUserAgent(settings.userAgent);
+        // Try-catch for safety in case DOM isn't ready
+        try {
+          // Check if webview has initialized its WebContents
+          if (typeof this.webview.getWebContentsId === 'function') {
+            try {
+              const hasWebContents = this.webview.getWebContentsId() !== -1;
+              if (hasWebContents) {
+                this.webview.setUserAgent(settings.userAgent);
+              } else {
+                console.log('Webview not ready for setUserAgent, WebContents not initialized');
+              }
+            } catch (webContentsError) {
+              // WebContents not ready yet, log and continue
+              console.log('WebContents not ready:', webContentsError.message);
+            }
+          } else {
+            console.log('getWebContentsId method not available, skipping user agent setting');
+          }
+        } catch (userAgentError) {
+          console.warn('Error setting user agent:', userAgentError);
+        }
       }
       
       // Handle CSP bypass through session if available
-      if (settings.bypassCSP && this.webview.getSession) {
+      if (settings.bypassCSP && typeof this.webview.getWebContents === 'function') {
         try {
-          const session = this.webview.getSession();
-          if (session && session.webRequest) {
-            session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+          // First check if webview has WebContents
+          const webContents = this.webview.getWebContents();
+          if (webContents && webContents.session && webContents.session.webRequest) {
+            webContents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
               if (details.responseHeaders && details.responseHeaders['content-security-policy']) {
                 delete details.responseHeaders['content-security-policy'];
               }
@@ -296,7 +320,8 @@ export function applySiteSpecificSettings(url) {
             });
           }
         } catch (err) {
-          console.warn('Error setting up CSP bypass:', err);
+          // WebContents might not be ready yet
+          console.warn('WebContents not ready for CSP bypass, will try later:', err.message);
         }
       }
       
@@ -307,10 +332,182 @@ export function applySiteSpecificSettings(url) {
   }
 }
 
+export function setupWebviewEnvironment(webview) {
+  if (!webview || !webview.isConnected) {
+    console.warn('Cannot setup webview environment - webview not connected');
+    return Promise.resolve(false);
+  }
+  
+  if (typeof webview.executeJavaScript !== 'function') {
+    console.warn('Cannot setup webview environment - executeJavaScript not available');
+    return Promise.resolve(false);
+  }
+  
+  console.log('Setting up webview environment...');
+  
+  const environmentSetupScript = `
+    (function() {
+      // Avoid duplicate execution
+      if (window._browserEnvSetup) {
+        console.log('Browser environment already set up, skipping');
+        return true;
+      }
+      
+      // Mark as set up
+      window._browserEnvSetup = true;
+      
+      try {
+        // Add helper functions to detect if environment is ready
+        window.cognivoreEnv = {
+          isReady: true,
+          timestamp: Date.now(),
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          browserInfo: {
+            vendor: navigator.vendor,
+            appName: navigator.appName,
+            appVersion: navigator.appVersion
+          },
+          sendMessage: function(message) {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage(message, '*');
+            }
+          },
+          notifyParent: function(type, data) {
+            this.sendMessage({
+              type: type,
+              timestamp: Date.now(),
+              data: data || {}
+            });
+          }
+        };
+        
+        // Send ready message to parent
+        window.cognivoreEnv.notifyParent('webview-ready', {
+          url: window.location.href,
+          title: document.title
+        });
+        
+        // Set up scroll event
+        window.addEventListener('scroll', function() {
+          const scrollData = {
+            scrollTop: window.scrollY || document.documentElement.scrollTop,
+            scrollHeight: document.documentElement.scrollHeight,
+            clientHeight: document.documentElement.clientHeight,
+            scrollPercentage: Math.round(
+              (window.scrollY || document.documentElement.scrollTop) / 
+              (document.documentElement.scrollHeight - document.documentElement.clientHeight) * 100
+            )
+          };
+          
+          // Only send message every 500ms to avoid flooding
+          if (!window._lastScrollMessage || (Date.now() - window._lastScrollMessage) > 500) {
+            window._lastScrollMessage = Date.now();
+            window.cognivoreEnv.notifyParent('webview-scroll', scrollData);
+          }
+        }, { passive: true });
+        
+        // Monitor DOM changes
+        if (window.MutationObserver) {
+          const bodyObserver = new MutationObserver(function(mutations) {
+            // Batch notifications to reduce overhead
+            if (!window._domChangePending) {
+              window._domChangePending = true;
+              setTimeout(function() {
+                window._domChangePending = false;
+                window.cognivoreEnv.notifyParent('dom-changed', {
+                  url: window.location.href,
+                  title: document.title
+                });
+              }, 500);
+            }
+          });
+          
+          // Start observing when body is available
+          if (document.body) {
+            bodyObserver.observe(document.body, { 
+              childList: true, 
+              subtree: true,
+              attributes: false, 
+              characterData: false 
+            });
+          } else {
+            // Wait for body to be available
+            document.addEventListener('DOMContentLoaded', function() {
+              if (document.body) {
+                bodyObserver.observe(document.body, { 
+                  childList: true, 
+                  subtree: true,
+                  attributes: false, 
+                  characterData: false 
+                });
+              }
+            });
+          }
+        }
+        
+        // Track navigation events
+        window.addEventListener('popstate', function() {
+          window.cognivoreEnv.notifyParent('navigation-event', {
+            type: 'popstate',
+            url: window.location.href
+          });
+        });
+        
+        // Set up click handler for external links
+        document.addEventListener('click', function(e) {
+          const link = e.target.closest('a');
+          if (!link) return;
+          
+          const href = link.getAttribute('href');
+          if (!href) return;
+          
+          // Check if link is external
+          const isExternal = (
+            link.hostname !== window.location.hostname || 
+            link.protocol !== window.location.protocol
+          );
+          
+          // Only intercept http/https links
+          const isHttp = link.protocol === 'http:' || link.protocol === 'https:';
+          
+          if (isHttp) {
+            window.cognivoreEnv.notifyParent('link-clicked', {
+              href: link.href,
+              text: link.textContent.trim(),
+              isExternal: isExternal
+            });
+          }
+        }, { passive: true });
+        
+        console.log('Browser environment setup complete');
+        return true;
+      } catch (error) {
+        console.error('Error setting up browser environment:', error);
+        return {
+          error: true,
+          message: error.message || 'Unknown error during environment setup'
+        };
+      }
+    })();
+  `;
+  
+  return webview.executeJavaScript(environmentSetupScript)
+    .then(result => {
+      console.log('Webview environment setup:', result);
+      return !!result;
+    })
+    .catch(error => {
+      console.error('Error executing environment setup script:', error);
+      return false;
+    });
+}
+
 export default {
   detectEnvironment,
   applySandboxSettings,
   formatUrl,
   forceElectronMode,
-  applySiteSpecificSettings
+  applySiteSpecificSettings,
+  setupWebviewEnvironment
 }; 

@@ -5,6 +5,8 @@ alwaysApply: true
 ---
 Do not guess, if something is not in context, use tools to locate it.
 
+Always add new changes to changelog at the top of the file, not the bottom.
+
 Always create tests for all new components, and run tests on all edited components. These should by type accurate, and focus on testing cohesion and purpose.
 
 When creating new features, always enforce SoC. If a file doesn't seem to need this logic in it to function directly, try to separate concerns. Do not break patterns, just focus on reusability.

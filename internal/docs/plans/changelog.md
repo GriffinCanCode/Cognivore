@@ -1,3 +1,110 @@
+# Changelog
+
+## 2023-08-15 - Fixed browser JavaScript injection issues
+
+
+## [0.5.34] - Working Browser Component
+### Fixed
+- Implemented comprehensive webview readiness checks to improve Voyager browser component stability:
+  - Added proper DOM attachment detection before executing JavaScript in webview
+  - Enhanced WebContents readiness verification before applying site-specific settings
+  - Fixed "The WebView must be attached to the DOM" errors with delayed execution
+  - Improved content extraction with progressive fallbacks when webview isn't ready
+  - Added safety checks in EventHandlers to prevent JavaScript execution before DOM is ready
+  - Implemented error recovery with alternative content extraction methods
+  - Enhanced WebContents API access with better defensive programming
+  - Prevented CSP bypass errors by checking for WebContents availability
+  - Fixed syntax errors in JavaScript injection code across browser components
+  - Improved header bypass functionality by using IIFE pattern to avoid duplicate variable declarations
+  - Enhanced error handling in content extraction scripts
+  - Improved script isolation and WebView interaction in ContentExtractor and BrowserRenderer
+  - Updated event handling to properly wrap JS code for event listeners
+  - Fixed execution issues in browser utils and handlers
+
+## [0.5.33] - Fixed Voyager JavaScript Execution Errors
+
+### Fixed
+- Fixed critical JavaScript syntax and execution errors in browser webview:
+  - Fixed "Uncaught SyntaxError: Unexpected token ':'" error in header bypass script
+  - Fixed "Uncaught SyntaxError: Identifier 'bypassRestrictions' has already been declared" error by using IIFE pattern
+  - Encapsulated all bypass functions in proper scopes to prevent duplicate declarations
+  - Used Object.defineProperty instead of direct assignment for frame busting prevention
+  - Added initialization flags to prevent duplicate code execution
+  - Renamed functions to prevent naming conflicts
+  - Applied comprehensive fixes to all webview JavaScript execution
+
+## [0.5.32] - Fixed Voyager Missing Handler Functions
+
+### Fixed
+- Fixed critical errors in Voyager browser event handling:
+  - Added missing handleLoadStop and handlePageNavigation functions to EventHandlers.js
+  - Fixed "e.showLoadingProgress is not a function" error with proper function existence check
+  - Fixed "e.hideLoadingContent is not a function" error with proper method existence verification
+  - Added robust null checking in history navigation to prevent "Cannot read properties of undefined" errors
+  - Enhanced browser history handling with proper initialization
+  - Fixed navigation errors with better error handling for uninitialized history objects
+  - Improved fault tolerance in browser progress bar and content handling functions
+
+## [0.5.31] - Voyager Browser Initialization and Rendering Fix
+
+### Fixed
+- Fixed critical error with Voyager browser component not properly initializing:
+  - Added proper ReactDOM import and implementation in App.js
+  - Created dedicated browser mount point to ensure consistent DOM attachment
+  - Improved initialization process with better container reference handling
+  - Added robust error checking for DOM elements before accessing them
+  - Enhanced event handler binding with fallback to module functions
+  - Implemented proper element reference discovery with multiple fallback mechanisms
+  - Added retry logic for initialization when container references aren't immediately available
+  - Fixed "ReactDOM not available for rendering the browser component" error
+  - Fixed "Cannot update address bar - input is missing" error with better element discovery
+  - Fixed "Cannot update loading indicator - elements missing" error with improved reference handling
+  - Fixed double initialization issue with proper state tracking
+
+## [0.5.30] - Fixed Voyager/Browser React Rendering Error
+
+### Fixed
+- Fixed critical error when rendering Voyager/Browser component:
+  - Added proper React component rendering via ReactDOM for browser component
+  - Created dedicated container and mount point for React component in the DOM
+  - Fixed "Failed to execute 'appendChild' on 'Node': parameter 1 is not of type 'Node'" error
+  - Implemented proper cleanup with ReactDOM.unmountComponentAtNode to prevent memory leaks
+  - Enhanced error handling for browser rendering failures
+  - Added optional chaining for isLoading state check to prevent null reference errors
+  - Improved browser container management with more robust cleanup
+
+## [0.5.29] - Enhanced Voyager Component Null Handling
+
+### Fixed
+- Fixed critical null reference errors in Voyager browser component:
+  - Added proper null checks for this.props with fallback to empty object
+  - Implemented optional chaining for state object accesses to prevent null errors
+  - Enhanced tagName property access with optional chaining to prevent "Cannot read properties of null" errors
+  - Added fallbacks for missing environment configuration in BrowserRenderer
+  - Fixed "Cannot read properties of null (reading 'className')" error when navigating to Voyager
+  - Improved component resilience during initialization and navigation
+  - Enhanced error handling in webview container setup
+
+## [0.5.28] - Voyager Navigation Methods Implementation
+
+### Fixed
+- Added critical navigation lifecycle methods to Voyager browser component:
+  - Implemented `initialize()` method for proper browser component initialization
+  - Implemented `cleanup()` method for resource management when navigating away
+  - Added tracking flag for initial navigation to prevent redundant loading
+  - Ensured proper loading of default Google page when no URL is specified
+  - Enhanced webview visibility control during navigation transitions
+  - Added proper cleanup of browser containers and event listeners
+  - Fixed browser navigation from other application sections
+  - Eliminated errors when switching between Voyager and other components
+- Added robust null checks to prevent initialization errors:
+  - Implemented proper null handling for props in initialize method
+  - Added initialization state tracking to prevent duplicate initialization
+  - Used optional chaining (?.) for safely accessing potentially null references
+  - Reset initialization flags during cleanup for reliable re-initialization
+  - Added internal state tracking for component lifecycle management
+  - Fixed "Cannot read properties of null (reading 'initialUrl')" error
+
 ## [0.5.27] - Voyager Webview Flicker Reduction
 
 ### Fixed
@@ -1490,617 +1597,15 @@
 - Added informative tooltips that appear on hover
 - Created demo page at `special-words-demo.html` for testing and demonstration
 
-## [Unreleased]
-
-### Added
-- **Anthology Feature**: 
-  - Added "Anthology" navigation item to the sidebar (`frontend/src/components/Sidebar.js`).
-  - Created new `Anthology.js` component (`frontend/src/components/Anthology.js`) to display story chapters.
-  - Added corresponding CSS for the Anthology component (`frontend/public/styles/components/anthology.css`).
-  - Integrated `Anthology` component into `App.js` (`frontend/src/components/App.js`) for navigation and rendering.
-  - Mocked chapter data loading in `Anthology.js` for frontend display of files from `backend/@story/`.
-
-### Changed
-- Standardized character titles and roles across all story chapters
-- Removed Griffin from chapters 1-2, introduced him in chapter 3 as "the creator of the sieve"
-- Made Griffin's role consistent as "the Watcher of the Hunt" across chapters 3-6
-- Updated story plot points to reflect Griffin's absence in early chapters and introduction in chapter 3
-- Updated Anthology component to exclusively use "title" property for character descriptions
-- Changed Mnemosyne's "role" property to "title" in chapter 2 JSON file
-
-### Fixed
-- Fixed Anthology component to correctly detect character titles
-  - Updated character card rendering to check for both "title" and "role" properties
-  - Added fallback to "Unknown" when neither property is present
-  - Ensures consistent display across all story files regardless of property naming
-- Fixed Anthology component to exclusively use "title" property instead of falling back to "role"
-
-## Build System Improvements
-
-- Fixed Electron build process to properly handle main.js entry point
-- Added a temporary workaround for electron-builder asar issues
-- Created documentation for electron-builder setup and troubleshooting
-- Added direct main.js entry point in root directory to fix entry point issues
-
-## App Name and Branding
-
-- Fixed issues with application display name on macOS
-- Consolidated electron-builder configuration to ensure "Cognivore" appears in all UI elements
-- Added proper Info.plist template for macOS builds
-- Enhanced app metadata and about panel information
-
-## macOS Menu Bar Branding Fix
-
-- Fixed macOS menu bar still showing "Electron" instead of "Cognivore"
-- Added dedicated script to patch Electron.app Info.plist for development mode
-- Enhanced app menu construction to correctly show Cognivore in menu items
-- Added proper CFBundleName and CFBundleDisplayName in Info.plist templates
-
-## Enhanced macOS Menu Bar Branding Fix
-
-- Added multiple approaches to ensure proper app name in macOS menu bar:
-  - Environmental variable approach (ELECTRON_APP_NAME) in npm scripts
-  - Early application name setter module that runs before Electron loads
-  - Root main.js entry point environment variable setting
-  - Enhanced menu customization with direct manipulation
-
-## macOS Dock Name Fix
-
-- Fixed the application name in the macOS dock by:
-  - Creating a dedicated fix-dock-name.js script that modifies the Electron.app bundle
-  - Using the app.dock API to set the dock menu with correct name
-  - Adding mac-specific npm scripts that run the dock fix before launch
-  - Directly renaming the Electron binary to Cognivore and updating CFBundleExecutable
-  - Configuring empty-first-item menu template to replace "Electron" in menu bar
-
-## macOS Dock and Menu Enhancement
-
-- Improved macOS app branding with enhanced fixes:
-  - Added bold formatting to Cognivore menu item for better visibility
-  - Created dedicated fix-dock-icon script with multiple approaches for stubborn dock naming issues
-  - Added PlistBuddy direct editing for more reliable property setting
-  - Enhanced binary renaming approach with symbolic links for compatibility
-  - Added app bundle touching to force macOS to refresh bundle cache
-  - Implemented explicit app.dock.setName call in app.whenReady handler
-  - Added automated scripts to fix both dock icon and menu names before launch
-
-## Checked sidebar image usage; `logo-transparent.png` is correctly implemented in `Sidebar.js`.
-
-## [0.3.32] - Sidebar Logo Fix
-
-### Fixed
-- Corrected sidebar logo to use `logo-png.png` to resolve broken image issue.
-
-## [0.3.33] - Sidebar Logo Reverted to Transparent
-
-### Fixed
-- Reverted sidebar logo to use `logo-transparent.png` as per user preference.
-
-## [0.3.34] - Anthology Component UI Enhancement
-
-### Changed
-- Enhanced Anthology component with interactive storytelling features
-  - Redesigned character display with interactive cards and custom icons
-  - Added expandable concept boxes with click-to-reveal details
-  - Implemented visual timeline for plot points with numbered markers
-  - Added subtle animations including title gradient effects
-  - Improved visual hierarchy with better typography and spacing
-  - Enhanced navigation with hover effects and improved transitions
-  - Added card-flip interactions for character descriptions
-  - Removed themes section for cleaner focused presentation
-  - Improved overall readability with better contrast and spacing
-
-## [0.3.35] - Anthology Component Layout Refinements
-
-### Changed
-- Refined Anthology component layout for better visual balance
-  - Reduced padding between elements for more compact presentation
-  - Improved character cards with centered layout and bottom-aligned content
-  - Centered all section titles and headers for better visual flow
-  - Added fixed width to character cards for consistent sizing
-  - Improved concept boxes with centered layout and better spacing
-  - Enhanced readability with optimized margins and padding
-  - Adjusted plot point timeline for better visual hierarchy
-  - Improved section underlines with centered positioning
-
-## [0.3.36] - Anthology Character Card Design Enhancement
-
-### Changed
-- Enhanced character card design in Anthology component for better visual consistency
-  - Fixed layout issues with cards to ensure consistent heights and spacing
-  - Added subtle design improvements including soft radial gradients on hover
-  - Improved card proportions with adjusted width and height parameters
-  - Enhanced visual hierarchy with better icon-to-text ratio
-  - Added subtle border details and enhanced shadow effects
-  - Improved text positioning within cards for better readability
-  - Fixed alignment issues with character role descriptions
-  - Added better visual cues for interactive elements
-  - Enhanced hover states with more pronounced visual feedback
-
-### [Current]
-- Added special word rendering for "Griffin" with red text styling
-- Updated system prompt with guidelines for emphasizing special characters
-- Enhanced special words styling in CSS with Griffin-specific visual elements
-- Added special styling for expletives with gold/orange gradient and animation effects
-- Updated system prompt to guide AI in using profanity as divine emphasis
-- Enhanced SpecialWordRenderer to detect and emphasize common expletives
-- Added support for markdown-style text emphasis with double asterisks (**text**)
-- Implemented purple gradient styling for emphasized text with subtle animations
-- Updated system prompt with guidelines for using emphasis for key concepts
-
-## Added
-
-- New file listing tools for better knowledge base navigation
-  - `listAllFiles`: List all files in the knowledge base
-  - `listFilesByType`: List files of a specific type
-  - `listFilesWithContent`: List files containing specific content
-  - `listRecentFiles`: List recently added files
-- Updated system prompt to include new file listing tools
-
-## Fixed
-
-- Fixed issue where LLM tool calls were rendered as plain text instead of interactive tool UI elements
-- Improved tool call extraction from Gemini API responses to handle different response formats
-- Added fallback detection for tool calls that appear in message text but aren't properly structured as tool calls
-- Implemented backend functionality for file listing tools: listAllFiles, listFilesByType, listFilesWithContent, and listRecentFiles
-- Added proper IPC handlers and preload API methods for file listing tools
-- Fixed issue where tool calls would only display the tool name without executing the actual commands
-- Fixed tool call execution flow to properly invoke tools and display results in the chat UI
-- Enhanced tool response display with JSON formatting and syntax highlighting
-- Improved UI for displaying lists of items returned by tools
-
-## [0.3.37] - RAG System Workflow Fix
-
-### Fixed
-- Fixed RAG (Retrieval-Augmented Generation) system workflow to properly answer questions about knowledge base content
-  - Updated system prompt with explicit RAG workflow guidance
-  - Added clear instructions to use searchKnowledgeBase first followed by getItemContent
-  - Prevented listing tools (listFilesByType, listAllFiles) from being used for content questions
-  - Improved tool selection logic to prioritize content retrieval over listing
-  - Enhanced RAG workflow to ensure proper content retrieval and use in responses
-  - Fixed issue where questions about content would only list files without retrieving content
-
-## [0.3.38] - Story Files Build Fix
-
-### Fixed
-- Fixed story files not being included in the build
-  - Updated `electron-builder.yml` to include `../backend/@story/**/*` in files section
-  - Updated `electron-builder.json` to include `../backend/@story/**/*` in files section
-  - Enhanced `build.js` to create `@story` directory in the dist folder and copy all story files
-  - Ensured story files are accessible on application boot
-  - Added proper file discovery and copy process to the build script
-
-## [0.3.39] - Anthology Story Loading Fix
-
-### Fixed
-- Fixed Anthology component not loading story chapters
-  - Added missing IPC handlers for `get-story-chapters` and `get-story-chapter-content`
-  - Implemented robust story directory discovery algorithm to find files in multiple possible locations
-  - Enhanced JSON parsing with fallback to filename for titles
-  - Added proper sorting by chapter number from story JSON data
-  - Implemented detailed logging for story loading process to aid debugging
-  - Fixed issue where loaded story files would result in an empty array
-
-## [0.3.40] - Packaged Application Story File Access Fix
-
-### Fixed
-- Fixed story files not being accessible in packaged DMG applications
-  - Enhanced story file discovery to check multiple paths in packaged applications
-  - Added automatic copying of story files to userData directory on first application launch
-  - Implemented proper resource bundling with story files in extraResources section
-  - Added robust path checking with better error handling and logging
-  - Improved detection of story JSON files with content validation
-  - Prioritized userData directory when searching for story files
-
-## UI Enhancements
-- Enhanced character cards in Anthology view with more responsive and interactive SVG icons
-- Added subtle hover effects and animations to improve user experience
-- Fixed SVG sizing and display issues in character cards
-- Updated Anthology color scheme to match the navy dark theme of the main application
-- Enhanced card backgrounds and borders with more subtle, cohesive styling
-- Improved character card sizing consistency with fixed dimensions for better content display
-- Added scrollable description areas to handle varying content lengths without breaking layout
-
-## [0.3.41] - Character SVG Icon Animations
-
-### Added
-- Added subtle animations to all character SVG icons
-  - Implemented smooth, subtle animations for abstract-cognivore.svg
-  - Implemented subtle animations for abstract-human.svg
-  - Created a more abstract floating human head design with animations for abstract-griffin.svg
-  - Added cosmic animations to abstract-mnemosyne.svg
-  - Enhanced abstract-default.svg with subtle pulse animations
-  - Used consistent animation techniques with calcMode splines for smooth transitions
-  - Added gradient animations and particle effects across all character icons
-  - Implemented slow, subtle movement to create living, breathing illustrations
-  - Added proper filter effects for subtle glow animations
-
-## [0.3.42] - Enhanced Character Icon Animation Effects
-
-### Changed
-- Enhanced character SVG animations with more dynamic, subtle movement
-  - Added additional floating motion to abstract-mnemosyne.svg:
-    - Enhanced constellation pattern with subtle translation and morphing
-    - Added floating movement to divine essence and star elements
-    - Improved radiant symbol with combined rotation and translation
-    - Added animated stroke-dasharray to pulse ring for ethereal effect
-    - Created new celestial currents with gentle wave animations
-  - Enhanced abstract-griffin.svg with more dynamic elements:
-    - Added subtle oscillating movement to floating head and facial features
-    - Enhanced knowledge streams with animated stroke-width and dash patterns
-    - Added new knowledge current with fluid wave animation
-    - Improved particles with size variations and subtle position shifts
-    - Added gentle ethereal glow movement with position animation
-  - All enhancements maintain the subtle, non-distracting nature of the animations
-  - Used extended animation durations (15-30s) for smooth, barely perceptible movement
-  - Implemented calcMode spline transitions for natural, organic motion
-
-## Updates
-
-- Enhanced Anthology component with special styling for key phrases in plot points section
-  - Added subtle animations and custom colors for "Empyraen Athenaeum", "Mnemosyne", "the Watcher of the Hunt", "Cognivore", and "Griffin"
-  - Implemented gradual reveal animations and hover effects for highlighted text
-
-## [0.5.0] - Settings UI Sidebar Layout Update
-
-### Changed
-- Updated Settings component with modern sidebar layout similar to Cursor
-  - Converted tab-based navigation to left sidebar navigation for better UX
-  - Added icon-based navigation with SVG icons matching Cursor's aesthetic
-  - Enhanced form styling with consistent input and control styling
-  - Improved API key input fields with monospace font for better readability
-  - Added subtle hover and focus animations throughout the interface
-  - Enhanced button interactions with hover effects and animations
-  - Added active state indicators with colored borders and backgrounds
-  - Implemented consistent CSS variables for better theme integration
-  - Added responsive design for mobile layouts
-
-## Latest Changes
-
-### Bug Fixes
-- Fixed Google API key authentication issues for tool calls in Gemini API
-- Improved error handling and user feedback for API key problems
-- Added validation for API key format on server startup
-
-## [Unreleased]
-
-### Fixed
-- Fixed "SYSTEM_PROMPT is not defined" error in backend LLM service by removing the unused systemInstruction parameter
-  - The frontend already handles system prompts through chat history formatting
-  - Prevented IPC chat failures that were causing fallback to HTTP requests
-- Fixed "result.response.text.trim is not a function" error in LLM service
-  - Added safe response text handling with proper null checks
-  - Implemented fallback text extraction from alternative response structures
-  - Enhanced error handling for various Gemini API response formats
-  - Fixed issue causing chat to fail after removing systemInstruction
-- Fixed "required oneof field 'data' must have one initialized field" error in chat messages
-  - Enhanced message formatting in `formatChatHistory` function
-  - Added proper content type checking and conversion for message parts
-- Fixed "Invalid message at index 1" error preventing chat responses from rendering
-  - Standardized response object format between backend and frontend
-  - Added missing required properties (text, content, role, timestamp) to LLM responses
-  - Ensured consistent response structure for both regular text and tool call responses
-
-## Changelog
-
-### 2023-11-12
-- Fixed tool calling functionality to properly recognize and execute tool calls in markdown code blocks
-- Enhanced regex patterns to match various tool call formats including searchKnowledgeBase
-- Improved message parsing to extract tool calls from character-by-character responses
-
-### May 14, 2024
-
-- Fixed character-by-character response issue where the Gemini API was returning indexed characters instead of a string
-- Added robust response text extraction to handle various response formats from Gemini API
-- Enhanced LlmService with better response validation and character reconstruction
-- Fixed chat message rendering issues by improving response format handling in ChatUI, ChatMessages, and LlmService
-- Added better error recovery and fallback mechanisms for chat rendering
-- Enhanced logging and debugging for message state tracking
-
-### Earlier Changes
-
-// ... existing code ...
-
-## Recent Changes
-
-### [2023-05-14] Comprehensive Message Formatting System
-- Created centralized `messageFormatter.js` utility for consistent message processing
-- Added robust handling for various response formats including indexed character arrays
-- Enhanced special word highlighting with improved styling
-- Added JSON syntax highlighting for tool responses
-- Improved tool call handling with normalized formatting
-- Fixed issues with raw JSON being displayed in chat interface
-- Separated concerns with dedicated formatting utilities
-- Added improved CSS for message rendering and tool responses
-
-### [2023-05-14] Improved Chat UI Format Handling
-- Fixed LlmService to correctly handle indexed character array responses
-- Added comprehensive tool call handling with normalization in ChatUI and ChatMessages  
-- Enhanced response format extraction for a more stable chat experience
-
-### [2023-05-14] Fixed issue with tool calls embedded in markdown code blocks not being properly detected and processed
-- Enhanced backend LLM service to extract tool calls from structured text responses
-- Updated frontend message formatter to recognize and process tool calls in markdown
-- Added fallback mechanism in LlmService to handle tool calls that weren't detected by the backend
-
-## 2023-09-XX - Tool Call Rendering System
-
-### Added
-- Implemented a comprehensive tool call rendering system with customizable UI for different tool types
-- Created a ToolRenderer factory component to dynamically select appropriate renderers
-- Added specialized renderers for search results, file listings, database queries, and content
-- Added BaseToolRenderer abstract class with common functionality for all renderers
-- Implemented CSS styling for tool renderers in a dedicated stylesheet
-- Added tool action handlers for copy, view, and execute actions
-- Extended ChatUI and ChatMessages components to support the new rendering system
-- Added toolResult CSS styling for enhanced tool results visualization
-
-### Changed
-- Updated App.js to load tool renderer styles and initialize the tool rendering system
-- Improved messaging system to better integrate with tool call renderers
-- Enhanced ChatMessages component to use the new ToolRenderer for tool calls
-
-### Fixed
-- Improved error handling for tool call rendering and execution
-- Enhanced notification system for tool actions
-
-## [0.5.8] - Browser Auto-Detection in Electron
-
-### Changed
-- Enhanced browser components to reliably detect and operate in Electron environments:
-  - Improved `detectEnvironment()` with multiple Electron detection methods
-  - Added new `forceElectronMode()` function to bypass detection when needed
-  - Modified BrowserRenderer to correctly create webview elements in Electron
-  - Updated placeholder display logic to automatically hide in Electron
-  - Added automatic initial navigation to Google in Electron environments
-
-### Fixed
-- Fixed issue with browser not loading external pages in Electron despite security settings
-- Corrected environment detection when environment indicators are ambiguous
-- Ensured webview is properly displayed and placeholder is hidden in Electron
-
-## [0.5.9] - Browser Rendering Fix
-
-### Fixed
-- Fixed issues with browser environment detection in Electron app:
-  - Forced webview implementation regardless of environment detection
-  - Directly enabled browser functionality with webSecurity disabled
-  - Bypassed environment-specific rendering paths for consistent behavior
-  - Removed conditional logic that was causing detection failures
-  - Improved browser initialization to always load Google on startup
-  - Fixed placeholder hiding to ensure it's not shown in Electron
-  - Guaranteed that webview is always displayed properly
-
-## [0.5.8] - Browser Rendering Enhancement
-
-### Fixed
-- Fixed browser component not rendering websites correctly
-  - Added detailed event debugging for Electron webview to track loading issues
-  - Enhanced webview DOM-ready event handling to ensure content is visible
-  - Improved error handling with better logging and diagnostics
-  - Enhanced navigation method to support both webview and iframe elements
-  - Added more robust error page fallback when content can't be loaded
-  - Fixed webview container sizing to ensure proper display
-  - Added additional safety checks throughout browser component
-  - Enhanced EventHandlers to better handle Electron-specific webview events
-
-## [0.5.9] - Enhanced Browser WebView Loading
-
-### Fixed
-- Fixed webview not properly loading websites in Electron environment
-  - Added more permissive webview attributes to allow content loading
-  - Implemented site-specific settings for popular websites like Google
-  - Created preload script to bypass common embedding restrictions
-  - Added direct navigation method as fallback for difficult sites
-  - Added system to attempt alternative loading method from error pages
-  - Enhanced loadURL options with better headers and user agent
-  - Improved error page with additional retry options
-
-## [0.5.8] - Browser Webview Loading Fix
-
-### Fixed
-- Fixed browser component webview loading issues in Electron
-  - Enhanced error handling in EventHandlers.js to properly detect and report navigation failures
-  - Added timeout detection and recovery in Browser.js for navigation taking too long
-  - Improved frame message handling to prevent missing navigation events
-  - Fixed webview initialization with proper preload script and security settings
-  - Added fallback mechanisms when websites fail to load in webview
-  - Enhanced error page rendering with better user feedback and retry options
-  - Fixed Content Security Policy settings to allow proper resource loading
-  - Improved event communication between webview and main application
-
-## [0.5.9] - Enhanced Browser Webview Loading Reliability
-
-### Fixed
-- Fixed critical issue where webview wasn't loading websites in Electron:
-  - Implemented multiple loading strategies with automatic fallbacks
-  - Added `loadContentDirectly` function with iframe-based rendering technique
-  - Enhanced browser component to handle special cases for Google and YouTube
-  - Improved webview element initialization with more reliable attributes
-  - Added enhanced debugging with detailed console logging
-  - Fixed webview visibility issues with direct style enforcement
-  - Added multiple fallback mechanisms when primary loading fails
-  - Enhanced navigation timeout handling with progressive approaches
-  - Implemented DOM-ready detection with forced content visibility
-  - Fixed webview security settings to ensure content loads properly
-
-## Version 1.x.x (Development)
-
-### Bug Fixes
-- Fixed browser script execution errors by using IIFEs and window-scoped variables to prevent redeclaration
-- Fixed browser not filling the full screen by rendering directly to document body instead of within app container
-- Fixed browser loading screen not displaying properly by implementing a dedicated loading content component with improved styling
-- Fixed browser webview rendering issues with more aggressive styling using !important directives
-- Fixed z-index issues between loading screen and webview content for proper layer management
-- Improved browser component rendering with inline styles to prevent external style overrides
-- Added persistent style enforcement system to maintain proper fullscreen display after content loads
-- Implemented internal webview content styling to prevent Google from breaking out of the container
-- Added site-specific CSS styling with Google Search-specific fixes for container elements
-- Implemented content page navigation detection to ensure styles persist during in-page transitions
-- Enhanced style enforcement with multiple strategies (direct CSS, style elements, mutation observers)
-- Fixed browser container overflow and dimension issues with explicit max/min height properties
-- Added periodic style reapplication to handle dynamic content that modifies layout
-- Implemented style reset on page navigation to ensure consistent rendering across sites
-
-// ... existing code ...
-
-## Web Browser Component Improvements
-
-- Fixed error `ReferenceError: immediate is not defined` in Voyager.js and BrowserRenderer.js by standardizing parameter naming
-- Renamed parameter from `immediate` to `forcedApply` for consistency across style application methods
-- Fixed parameter passing in applyContentStyles, enforceWebviewStyles, and applyAllCriticalStyles methods
-- Eliminated flickering caused by failed JavaScript execution during style application
-
-## Voyager Webview Flickering Elimination
-
-- Eliminated remaining flickering issues in webview browser component:
-  - Implemented smarter dimension verification with stability tracking to reduce style reapplications
-  - Added dimension stability counter to prevent fluctuations from triggering style updates
-  - Enhanced opacity transitions with improved easing functions and timing
-  - Implemented two-phase timeout system for smoother loading experience
-  - Reduced frequency of style checks with exponential backoff strategy
-  - Eliminated redundant dimension check interval to reduce style interference
-  - Added transition property removal after animations complete to prevent flickering
-  - Increased dimension tolerance from 5px to 10px to reduce unnecessary updates
-  - Implemented style application caching to prevent redundant operations
-  - Enhanced timeout handling with better coordination between loading phases
-
-## Changelog
-
-### 2023-08-25
-- Added cross-platform messaging system for seamless communication between frontend and backend
-- Implemented basic UI components for chat interface
-
-### 2023-09-01
-- Added backend memory management system for efficient context retrieval
-- Improved search functionality with better ranking algorithm
-
-### 2023-09-15
-- Integrated vector database for knowledge storage and retrieval
-- Added support for document uploads and processing
-
-### 2023-09-30
-- Implemented browser component for web research
-- Added ability to save web content to knowledge base
-
-### 2023-10-15
-- Improved chat UI with better message threading
-- Added support for code highlighting in chat messages
-
-### 2023-11-01
-- Implemented advanced memory management with forgetting mechanisms
-- Added support for user-defined memory importance
-
-### 2023-11-15
-- Added support for image generation and processing
-- Improved overall UI/UX with better responsiveness
-
-### 2023-12-01
-- Implemented user authentication and profile management
-- Added support for multiple agent personalities
-
-### 2023-12-15
-- Improved search with hybrid retrieval (vector + keyword)
-- Added support for audio input and output
-
-### 2024-01-15
-- Implemented collaborative features for team usage
-- Added export/import functionality for knowledge bases
-
-### 2024-02-01
-- Improved browser component with better rendering fidelity
-- Added support for PDF annotation and extraction
-
-### 2024-02-15
-- Implemented fine-tuning interface for personalized models
-- Added support for plugin system
-
-### 2024-03-01
-- Improved memory management with hierarchical storage
-- Added support for custom knowledge base organization
-
-### 2024-03-15
-- Implemented advanced reasoning capabilities
-- Added support for multi-modal inputs in chat
-
-### 2024-04-01
-- Fixed critical performance issues in memory retrieval
-- Improved UI responsiveness for large knowledge bases
-
-### 2024-04-15
-- Added advanced visualization tools for memory exploration
-- Implemented better error handling throughout the app
-
-### 2024-05-01
-- Enhanced browser component with improved navigation
-- Added support for batch processing of documents
-
-### 2024-05-15
-- Fixed security vulnerabilities in API endpoints
-- Improved cross-platform compatibility
-
-### 2024-06-01
-- Implemented new vector embedding models for better retrieval
-- Enhanced UI with customizable themes
-
-### 2024-06-15
-- Added support for collaborative document editing
-- Improved browser component with better JavaScript handling
-
-### 2024-07-01 
-- Fixed flickering issues in browser component
-  - Added anti-flicker flags to Electron startup
-  - Implemented hardware acceleration optimizations
-  - Added CSS transforms and backface visibility rules to prevent visual glitches
-  - Improved header modification for better iframe compatibility
-  - Enhanced rendering stability with GPU memory buffer support
-
-## [Unreleased]
-
-### Fixed
-- Fixed browser webview rendering flickering issue by preventing unnecessary style reapplications
-- Added style stabilization for browser component to maintain correct dimensions after initial render
-- Implemented style application safety checks to prevent disrupting correctly rendered pages
-
-# Changelog
-
-## [Unreleased]
-
-### Changed
-- Refactored browser component structure to ensure proper separation of concerns:
-  - Moved site-specific settings to `BrowserEnv.js`
-  - Added content processing functions to `ContentUtils.js` (cleanupHtmlForMemory, sanitizeUrlForAnalysis)
-  - Enhanced `ContentExtractor.js` with content extraction methods (extractPageContent, extractMainContent, extractHeadingStructure)
-  - Added bookmark handling methods to `BookmarkManager.js` (handleBookmarkCreation, updateBookmarksPanel)
-  - Added content rendering functions to `ContentRenderer.js` (renderHtml, createSafeIframe, renderContentView)
-  - Removed overlapping logic from Voyager.js
-
-## 2023-11-22
-
-### Added
-- Added code to handle and fix the issue with iframe height and cross-origin isolation
-- Added structured way to test and debug Browser issues 
-- Ensured that browser detection respects security warnings
-
-### Changed
-- Standardized all naming conventions in browser components
-- Refactored browser renderers for more consistent operation
-- Made browser component respect Electron environment properly
-- Improved loading content to show meaningful information
-- Refactored Voyager.js to improve separation of concerns:
-  - Moved site-specific settings to BrowserEnv.js (applySiteSpecificSettings)
-  - Moved content processing to ContentUtils.js (cleanupHtmlForMemory, sanitizeUrlForAnalysis)
-  - Enhanced ContentExtractor.js with extraction methods (extractPageContent, extractMainContent)
-  - Added bookmark management to BookmarkManager.js (handleBookmarkCreation)
-  - Added content rendering to ContentRenderer.js (renderHtml, createSafeIframe)
-  - Added style and UI management to BrowserRenderer.js
-  - Added error page handling to ErrorPageRenderer.js
-  - Added navigation functions to HistoryManager.js
-  - Added loading state handling to EventHandlers.js
-  - Created a React component-based implementation with proper state management
-
-### Fixed
-- Fixed iframe reload issue when refreshing the page
-- Fixed loading animation not showing during initial load
-- Fixed several CSS styling issues with web content
-- Fixed inconsistent naming (sanitizeHTML vs sanitizeHtml)
+## Change Log
+
+### 2023-10-17
+- Fixed browser interactivity issue in Voyager component by properly binding event handlers and resolving initialization conflicts between componentDidMount and initialize methods
+- Improved webview event handler binding to ensure navigation buttons and interactions work correctly
+- Fixed navigation and click interaction issues by adding proper event delegation 
+- Fixed "Cannot read properties of undefined (reading 'current')" error in App.js by properly initializing the browserRef with React.createRef()
+- Added handleContentCapture method to properly handle content captured from the browser component
+- Fixed "Cannot initialize Voyager - container not mounted" error with progressive retry mechanism using increasing backoff
+- Fixed "The object has already navigated, so its partition cannot be changed" error by setting a unique partition before any navigation
+- Added more robust initialization in packaged application with better ReactDOM handling
+- Improved mounting detection and error recovery for Electron environments

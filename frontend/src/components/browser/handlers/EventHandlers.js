@@ -18,14 +18,21 @@ export function handleWebviewLoad(browser, e) {
   updateLoadingState(browser);
   
   // Set progress to 100% to complete the progress bar
-  browser.showLoadingProgress(100);
+  if (typeof browser.showLoadingProgress === 'function') {
+    browser.showLoadingProgress(100);
+  } else {
+    updateLoadingProgress(browser, 100);
+  }
   
   // First apply critical styles before hiding loading content
   enforceFullscreenStyles(browser);
   
   // Then hide loading content with a delay to ensure webview is ready
   setTimeout(() => {
-    browser.hideLoadingContent();
+    // Check if hideLoadingContent exists before calling it
+    if (typeof browser.hideLoadingContent === 'function') {
+      browser.hideLoadingContent();
+    }
     
     // Apply styles again after hiding loading content
     enforceFullscreenStyles(browser);
@@ -48,7 +55,9 @@ export function handleWebviewLoad(browser, e) {
   
   // Update the URL in the search input if needed
   // For webview in Electron, get the URL from the webview
-  if (browser.webview.tagName.toLowerCase() === 'webview' && typeof browser.webview.getURL === 'function') {
+  if (browser.webview && browser.webview.tagName && 
+      browser.webview.tagName.toLowerCase() === 'webview' && 
+      typeof browser.webview.getURL === 'function') {
     try {
       const currentUrl = browser.webview.getURL();
       if (currentUrl && currentUrl !== 'about:blank' && browser.searchInput) {
@@ -61,111 +70,126 @@ export function handleWebviewLoad(browser, e) {
   }
   
   // Set up a content transition observer to handle page navigations within the webview
-  if (browser.webview.tagName.toLowerCase() === 'webview' && typeof browser.webview.executeJavaScript === 'function') {
+  if (browser.webview && browser.webview.tagName && 
+      browser.webview.tagName.toLowerCase() === 'webview' && 
+      typeof browser.webview.executeJavaScript === 'function' &&
+      browser.webview.isConnected) {
     try {
-      browser.webview.executeJavaScript(`
-        // Set up history change listener to detect in-page navigations
-        (function() {
-          // Check if we've already set this up to prevent duplicate listeners
-          if (window.cognivoreNavigationSetup) {
-            return;
-          }
-          
-          // Mark as set up
-          window.cognivoreNavigationSetup = true;
-          
-          const originalPushState = history.pushState;
-          const originalReplaceState = history.replaceState;
-          
-          // Override pushState
-          history.pushState = function() {
-            const result = originalPushState.apply(this, arguments);
-            window.dispatchEvent(new Event('locationchange'));
-            return result;
-          };
-          
-          // Override replaceState
-          history.replaceState = function() {
-            const result = originalReplaceState.apply(this, arguments);
-            window.dispatchEvent(new Event('locationchange'));
-            return result;
-          };
-          
-          // Listen for popstate
-          window.addEventListener('popstate', function() {
-            window.dispatchEvent(new Event('locationchange'));
-          });
-          
-          // Listen for location changes
-          window.addEventListener('locationchange', function() {
-            console.log('Page navigation detected, reapplying styles');
-            
-            // Tell parent we're navigating
-            window.parent.postMessage({
-              type: 'webview-navigation',
-              url: window.location.href
-            }, '*');
-            
-            // Reapply styles after navigation
-            setTimeout(function() {
-              // Create override stylesheet
-              let styleEl = document.getElementById('cognivore-browser-overrides');
-              if (!styleEl) {
-                styleEl = document.createElement('style');
-                styleEl.id = 'cognivore-browser-overrides';
-                document.head.appendChild(styleEl);
+      // First check if webview is ready for script execution 
+      browser.webview.executeJavaScript('true')
+        .then(() => {
+          // Now safe to execute more complex scripts
+          browser.webview.executeJavaScript(`
+            // Set up history change listener to detect in-page navigations
+            (function() {
+              // Check if we've already set this up to prevent duplicate listeners
+              if (window.cognivoreNavigationSetup) {
+                return;
               }
               
-              // Apply Google-specific CSS
-              if (window.location.hostname.includes('google.com')) {
-                styleEl.textContent = \`
-                  html, body {
-                    width: 100% !important;
-                    height: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    overflow: auto !important;
-                  }
-                  /* Google Search specific fixes */
-                  #main, #cnt, #rcnt, #center_col, .yuRUbf, .MjjYud, #rso, main, [role="main"] {
-                    width: 100% !important;
-                    min-height: 100% !important;
-                    max-width: none !important;
-                  }
-                  .g, .yuRUbf, .MjjYud {
-                    width: 100% !important;
-                    margin-right: 0 !important;
-                    padding-right: 0 !important;
-                  }
-                \`;
-              } else {
-                // Generic styles for other sites
-                styleEl.textContent = \`
-                  html, body {
-                    width: 100% !important;
-                    height: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    overflow: auto !important;
-                  }
-                  main, [role="main"], #main, .main-content, .content, #content, article {
-                    width: 100% !important;
-                    min-height: 100% !important;
-                  }
-                \`;
-              }
+              // Mark as set up
+              window.cognivoreNavigationSetup = true;
               
-              // Directly apply styles to body and html
-              document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; overflow: hidden !important;";
-              document.body.style.cssText += "width: 100% !important; height: 100% !important; overflow: auto !important; position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;";
+              const originalPushState = history.pushState;
+              const originalReplaceState = history.replaceState;
               
-              console.log("Reapplied styles after navigation");
-            }, 100);
-          });
-        })();
-        
-        console.log("Set up navigation style maintenance");
-      `).catch(err => console.warn('Error setting up navigation listener:', err));
+              // Override pushState
+              history.pushState = function() {
+                const result = originalPushState.apply(this, arguments);
+                window.dispatchEvent(new Event('locationchange'));
+                return result;
+              };
+              
+              // Override replaceState
+              history.replaceState = function() {
+                const result = originalReplaceState.apply(this, arguments);
+                window.dispatchEvent(new Event('locationchange'));
+                return result;
+              };
+              
+              // Listen for popstate
+              window.addEventListener('popstate', function() {
+                window.dispatchEvent(new Event('locationchange'));
+              });
+              
+              // Listen for location changes
+              window.addEventListener('locationchange', function() {
+                console.log('Page navigation detected, reapplying styles');
+                
+                // Tell parent we're navigating
+                try {
+                  window.parent.postMessage({
+                    type: 'webview-navigation',
+                    url: window.location.href
+                  }, '*');
+                } catch (e) {
+                  console.error('Failed to send navigation message:', e);
+                }
+                
+                // Reapply styles after navigation
+                setTimeout(function() {
+                  // Create override stylesheet
+                  let styleEl = document.getElementById('cognivore-browser-overrides');
+                  if (!styleEl) {
+                    styleEl = document.createElement('style');
+                    styleEl.id = 'cognivore-browser-overrides';
+                    document.head.appendChild(styleEl);
+                  }
+                  
+                  // Apply Google-specific CSS
+                  if (window.location.hostname.includes('google.com')) {
+                    styleEl.textContent = \`
+                      html, body {
+                        width: 100% !important;
+                        height: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: auto !important;
+                      }
+                      /* Google Search specific fixes */
+                      #main, #cnt, #rcnt, #center_col, .yuRUbf, .MjjYud, #rso, main, [role="main"] {
+                        width: 100% !important;
+                        min-height: 100% !important;
+                        max-width: none !important;
+                      }
+                      .g, .yuRUbf, .MjjYud {
+                        width: 100% !important;
+                        margin-right: 0 !important;
+                        padding-right: 0 !important;
+                      }
+                    \`;
+                  } else {
+                    // Generic styles for other sites
+                    styleEl.textContent = \`
+                      html, body {
+                        width: 100% !important;
+                        height: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: auto !important;
+                      }
+                      main, [role="main"], #main, .main-content, .content, #content, article {
+                        width: 100% !important;
+                        min-height: 100% !important;
+                      }
+                    \`;
+                  }
+                  
+                  // Directly apply styles to body and html
+                  document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; overflow: hidden !important;";
+                  document.body.style.cssText += "width: 100% !important; height: 100% !important; overflow: auto !important; position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;";
+                  
+                  console.log("Reapplied styles after navigation");
+                }, 100);
+              });
+              
+              console.log("Set up navigation style maintenance");
+            })();
+          `).catch(err => console.warn('Error setting up navigation listener:', err));
+        })
+        .catch(err => {
+          console.warn('Webview not ready for script execution:', err);
+        });
     } catch (err) {
       console.warn('Error executing script for navigation handling:', err);
     }
@@ -257,6 +281,10 @@ function enforceFullscreenStyles(browser) {
         browser.webview.executeJavaScript(`
           // Use IIFE to prevent variable redeclaration
           (function() {
+            // Check if already applied to prevent duplicate execution
+            if (window._stylesEnforced) return;
+            window._stylesEnforced = true;
+            
             // Function to apply Google-specific fixes
             function applyGoogleFixes() {
               const isGoogle = window.location.hostname.includes('google.com');
@@ -765,7 +793,7 @@ export function checkIfPageIsLoaded(browser) {
       // Try to use executeJavaScript to check readyState
       if (typeof browser.webview.executeJavaScript === 'function') {
         browser.webview.executeJavaScript(`
-          {
+          (function() {
             // Apply crucial styling first to ensure proper display while checking
             document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
             if (document.body) { 
@@ -781,8 +809,8 @@ export function checkIfPageIsLoaded(browser) {
             }
             
             // Return true if page appears to be loaded
-            document.readyState === 'complete' || document.readyState === 'interactive';
-          }
+            return document.readyState === 'complete' || document.readyState === 'interactive';
+          })();
         `)
         .then((isReady) => {
           if (isReady) {
@@ -794,32 +822,34 @@ export function checkIfPageIsLoaded(browser) {
             } else {
               // Apply full styling immediately as fallback
               browser.webview.executeJavaScript(`
-                // Apply comprehensive styles
-                document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
-                document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
-                
-                // Force fix in case default styles haven't been applied yet
-                const style = document.createElement('style');
-                style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; overflow-y: auto !important; }";
-                document.head.appendChild(style);
-                
-                // Apply Google-specific fixes if on Google
-                if (window.location.hostname.includes('google.com')) {
-                  const mainElements = document.querySelectorAll('#main, #cnt, #rcnt, #center_col, #rso');
-                  mainElements.forEach(el => {
-                    if (el) {
-                      el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important;";
-                    }
-                  });
+                (function() {
+                  // Apply comprehensive styles
+                  document.documentElement.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
+                  document.body.style.cssText = "width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow-x: hidden !important; overflow-y: auto !important;";
                   
-                  // Fix any search results container
-                  const searchContainer = document.querySelector('#center_col, #rso, #search');
-                  if (searchContainer) {
-                    searchContainer.style.cssText += "width: 100% !important; max-width: 900px !important; margin: 0 auto !important;";
+                  // Force fix in case default styles haven't been applied yet
+                  const style = document.createElement('style');
+                  style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow-x: hidden !important; overflow-y: auto !important; }";
+                  document.head.appendChild(style);
+                  
+                  // Apply Google-specific fixes if on Google
+                  if (window.location.hostname.includes('google.com')) {
+                    const mainElements = document.querySelectorAll('#main, #cnt, #rcnt, #center_col, #rso');
+                    mainElements.forEach(el => {
+                      if (el) {
+                        el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important;";
+                      }
+                    });
+                    
+                    // Fix any search results container
+                    const searchContainer = document.querySelector('#center_col, #rso, #search');
+                    if (searchContainer) {
+                      searchContainer.style.cssText += "width: 100% !important; max-width: 900px !important; margin: 0 auto !important;";
+                    }
                   }
-                }
-                
-                true;
+                  
+                  return true;
+                })();
               `).catch(() => {});
             }
             
@@ -915,6 +945,102 @@ export function checkIfPageIsLoaded(browser) {
   }
 }
 
+/**
+ * Handle load stop event for webview
+ * @param {Object} browser - Browser instance
+ * @param {Event} e - Event
+ */
+export function handleLoadStop(browser, e) {
+  console.log('Webview stopped loading - applying final styles and marking ready');
+  
+  // Mark as not loading
+  browser.isLoading = false;
+  updateLoadingState(browser);
+  
+  // Set progress to 100% to complete the progress bar
+  if (typeof browser.showLoadingProgress === 'function') {
+    browser.showLoadingProgress(100);
+  } else {
+    updateLoadingProgress(browser, 100);
+  }
+  
+  // Apply styles one final time to ensure everything is perfect
+  if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
+    browser.webview.applyAllCriticalStyles(true);
+  }
+  
+  // Make fully visible with a slight delay to allow styles to take effect
+  if (browser.webview) {
+    browser.webview.style.visibility = 'visible';
+    browser.webview.style.opacity = '1';
+    
+    if (typeof browser.webview.readyToShow !== 'undefined') {
+      browser.webview.readyToShow = true;
+    }
+  }
+  
+  // Hide loading content after a small delay to ensure webview is visible
+  setTimeout(() => {
+    if (typeof browser.hideLoadingContent === 'function') {
+      browser.hideLoadingContent();
+    }
+  }, 50);
+}
+
+/**
+ * Handle page navigation event for webview
+ * @param {Object} browser - Browser instance
+ * @param {Event} e - Event
+ */
+export function handlePageNavigation(browser, e) {
+  if (!e || !e.url) return;
+  
+  console.log('Page navigated to:', e.url);
+  
+  // Update current URL
+  browser.currentUrl = e.url;
+  
+  // Update address bar
+  if (browser.searchInput) {
+    browser.searchInput.value = e.url;
+  }
+  
+  // Add to history if this is a new navigation and history is properly initialized
+  if (Array.isArray(browser.history) && typeof browser.historyIndex === 'number') {
+    // Check if this is a new URL compared to current history position
+    const currentHistoryUrl = browser.historyIndex >= 0 && browser.historyIndex < browser.history.length 
+      ? browser.history[browser.historyIndex] 
+      : null;
+      
+    if (currentHistoryUrl !== e.url) {
+      // Remove forward history if navigating from middle of history
+      if (browser.historyIndex < browser.history.length - 1) {
+        browser.history = browser.history.slice(0, browser.historyIndex + 1);
+      }
+      
+      // Add new URL to history
+      browser.history.push(e.url);
+      browser.historyIndex = browser.history.length - 1;
+      
+      // Update navigation buttons
+      updateNavigationButtons(browser);
+    }
+  } else {
+    // Initialize history if it doesn't exist
+    browser.history = browser.history || [];
+    browser.historyIndex = browser.historyIndex || 0;
+    
+    // Add URL to fresh history
+    browser.history.push(e.url);
+    browser.historyIndex = 0;
+  }
+  
+  // Apply site-specific settings based on the new URL
+  if (typeof browser.applySiteSpecificSettings === 'function') {
+    browser.applySiteSpecificSettings(e.url);
+  }
+}
+
 export default {
   handleWebviewLoad,
   handleWebviewError,
@@ -924,5 +1050,7 @@ export default {
   updateLoadingState,
   updateNavigationButtons,
   updateLoadingProgress,
-  checkIfPageIsLoaded
+  checkIfPageIsLoaded,
+  handleLoadStop,
+  handlePageNavigation
 }; 
