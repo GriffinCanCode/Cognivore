@@ -16,6 +16,7 @@
   padding: 0 !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
+  transition: left 0.3s ease, width 0.3s ease !important;
 }
 
 /* Header container for all header elements */
@@ -23,6 +24,7 @@
   display: flex !important;
   flex-direction: column !important;
   width: 100% !important;
+  transition: width 0.3s ease !important;
 }
 
 /* Address bar container styling at the top */
@@ -38,6 +40,7 @@
   z-index: 3 !important; /* Higher z-index to be above other elements */
   box-sizing: border-box !important;
   width: 100% !important;
+  transition: width 0.3s ease !important;
 }
 
 /* Address bar input styling */
@@ -71,6 +74,7 @@
   max-height: 52px !important;
   z-index: 2 !important;
   box-sizing: border-box !important;
+  transition: width 0.3s ease !important;
 }
 
 .browser-nav-controls {
@@ -182,6 +186,7 @@
   z-index: 10 !important;
   width: 100% !important;
   overflow: hidden !important;
+  transition: width 0.3s ease !important;
 }
 
 .browser-progress-bar {
@@ -212,7 +217,7 @@
   z-index: 1000 !important;
   width: calc(100vw - var(--sidebar-width, 260px)) !important; /* Adjust width to account for sidebar */
   height: calc(100vh - 104px) !important; /* Adjusted for both bars */
-  transition: opacity 0.3s ease !important;
+  transition: opacity 0.3s ease, left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
   margin: 0 !important;
   padding: 0 !important;
   min-height: calc(100vh - 104px) !important; /* Adjusted for both bars */
@@ -302,7 +307,7 @@
   max-width: calc(100vw - var(--sidebar-width, 260px)) !important; /* Match width */
   opacity: 1 !important;
   visibility: visible !important;
-  transition: opacity 0.3s ease !important;
+  transition: opacity 0.3s ease, left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
 }
 
 /* Browser placeholder styling */
@@ -377,7 +382,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease-out, opacity 0.2s ease;
+  transition: transform 0.2s ease-out, opacity 0.2s ease, right 0.3s ease;
   opacity: 1;
 }
 
@@ -565,7 +570,8 @@
 body.sidebar-collapsed .browser-container,
 body.sidebar-collapsed .browser-webview-container,
 body.sidebar-collapsed .browser-webview,
-body.sidebar-collapsed .browser-loading-content {
+body.sidebar-collapsed .browser-loading-content,
+body.sidebar-collapsed .browser-research-panel {
   left: var(--sidebar-collapsed-width, 70px) !important;
   width: calc(100vw - var(--sidebar-collapsed-width, 70px)) !important;
   min-width: calc(100vw - var(--sidebar-collapsed-width, 70px)) !important;
@@ -577,6 +583,18 @@ body.sidebar-collapsed .browser-loading-content {
 .browser-container,
 .browser-webview-container,
 .browser-webview,
-.browser-loading-content {
+.browser-loading-content,
+.browser-research-panel {
   transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
+}
+
+/* When sidebar is collapsed also handle progress container */
+body.sidebar-collapsed .browser-progress-container {
+  width: 100% !important;
+  transition: width 0.3s ease !important;
+}
+
+/* Specific styles for the research panel in collapsed state */
+body.sidebar-collapsed .browser-research-panel {
+  left: var(--sidebar-collapsed-width, 70px) !important;
 } 

@@ -292,6 +292,10 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
         try {
           if (!webview.isConnected) return;
           
+          // Check if sidebar is collapsed
+          const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+          const sidebarWidthVar = sidebarCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 260px)';
+          
           // Apply comprehensive styling directly
           webview.style.cssText = `
             display: flex !important;
@@ -300,15 +304,15 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
             z-index: 1 !important;
             position: fixed !important;
             top: 52px !important;
-            left: var(--sidebar-width, 260px) !important;
+            left: ${sidebarWidthVar} !important;
             right: 0 !important;
             bottom: 0 !important;
-            width: calc(100vw - var(--sidebar-width, 260px)) !important;
+            width: calc(100vw - ${sidebarWidthVar}) !important;
             height: calc(100vh - 52px) !important;
             min-height: calc(100vh - 52px) !important;
             max-height: calc(100vh - 52px) !important;
-            min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-            max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+            min-width: calc(100vw - ${sidebarWidthVar}) !important;
+            max-width: calc(100vw - ${sidebarWidthVar}) !important;
             border: none !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -317,6 +321,7 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
             transform: none !important;
             overflow: hidden !important;
             flex: 1 1 auto !important;
+            transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
           `;
           
           // Mark as ready to show
@@ -610,14 +615,20 @@ export function createWebview(browser, implementation, sandboxLevel) {
   container.className = 'browser-webview-container';
   
   // Apply styling to fit container while preserving layout
+  // Check if sidebar is collapsed
+  const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+  const sidebarWidth = isSidebarCollapsed 
+    ? 'var(--sidebar-collapsed-width, 70px)' 
+    : 'var(--sidebar-width, 260px)';
+  
   container.style.cssText = `
     position: fixed !important;
-    top: 52px !important;
-    left: 0 !important;
+    top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+    left: ${sidebarWidth} !important;
     right: 0 !important;
     bottom: 0 !important;
-    width: 100vw !important;
-    height: calc(100vh - 52px) !important;
+    width: calc(100vw - ${sidebarWidth}) !important;
+    height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -627,6 +638,7 @@ export function createWebview(browser, implementation, sandboxLevel) {
     display: flex !important;
     flex-direction: column !important;
     background: #fff !important;
+    transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
   `;
   
   // Use our enhanced webview creation function
@@ -639,22 +651,23 @@ export function createWebview(browser, implementation, sandboxLevel) {
   }
   
   // Apply styling to webview for proper containment
+  // Use the same sidebar width variable we calculated for the container
   webview.style.cssText = `
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 1 !important;
     position: fixed !important;
-    top: 52px !important;
-    left: var(--sidebar-width, 260px) !important;
+    top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+    left: ${sidebarWidth} !important;
     right: 0 !important;
     bottom: 0 !important;
-    width: calc(100vw - var(--sidebar-width, 260px)) !important;
-    height: calc(100vh - 52px) !important;
-    min-height: calc(100vh - 52px) !important;
-    max-height: calc(100vh - 52px) !important;
-    min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-    max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+    width: calc(100vw - ${sidebarWidth}) !important;
+    height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+    min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+    max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+    min-width: calc(100vw - ${sidebarWidth}) !important;
+    max-width: calc(100vw - ${sidebarWidth}) !important;
     border: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -662,6 +675,7 @@ export function createWebview(browser, implementation, sandboxLevel) {
     background-color: white !important;
     transform: none !important;
     flex: 1 1 auto !important;
+    transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
   `;
   
   // Force attachment to DOM
@@ -762,10 +776,18 @@ export function showLoadingContent(browser, url) {
   if (!loadingContent) {
     loadingContent = document.createElement('div');
     loadingContent.className = 'browser-loading-content';
+    // Check if sidebar is collapsed
+    const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+    
+    // Use the appropriate width variable based on sidebar state
+    const sidebarWidth = isSidebarCollapsed 
+      ? 'var(--sidebar-collapsed-width, 70px)' 
+      : 'var(--sidebar-width, 260px)';
+    
     loadingContent.style.cssText = `
       position: fixed !important;
-      top: 52px !important;
-      left: 0 !important;
+      top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+      left: ${sidebarWidth} !important;
       right: 0 !important;
       bottom: 0 !important;
       display: flex !important;
@@ -775,12 +797,12 @@ export function showLoadingContent(browser, url) {
       text-align: center !important;
       background-color: var(--bg-color, #1a1a1a) !important;
       z-index: 1000 !important;
-      width: 100vw !important;
-      height: calc(100vh - 52px) !important;
-      transition: opacity 0.3s ease !important;
+      width: calc(100vw - ${sidebarWidth}) !important;
+      height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+      transition: opacity 0.3s ease, left 0.3s ease, width 0.3s ease !important;
       margin: 0 !important;
       padding: 0 !important;
-      min-height: calc(100vh - 52px) !important;
+      min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
       transform: none !important;
     `;
     
@@ -832,7 +854,15 @@ export function showLoadingContent(browser, url) {
   
   // Keep webview hidden until fully ready
   if (browser.webview) {
-    // Apply critical styling but keep it hidden
+    // Check if sidebar is collapsed
+    const webviewSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+    
+    // Use the appropriate width variable based on sidebar state for webview
+    const webviewSidebarWidth = webviewSidebarCollapsed 
+      ? 'var(--sidebar-collapsed-width, 70px)' 
+      : 'var(--sidebar-width, 260px)';
+    
+    // Apply critical styling but keep it hidden with dynamic sidebar width
     browser.webview.style.cssText = `
       display: flex !important;
       visibility: hidden !important;
@@ -840,15 +870,15 @@ export function showLoadingContent(browser, url) {
       z-index: 0 !important;
       position: fixed !important;
       top: 52px !important;
-      left: var(--sidebar-width, 260px) !important;
+      left: ${webviewSidebarWidth} !important;
       right: 0 !important;
       bottom: 0 !important;
-      width: calc(100vw - var(--sidebar-width, 260px)) !important;
+      width: calc(100vw - ${webviewSidebarWidth}) !important;
       height: calc(100vh - 52px) !important;
       min-height: calc(100vh - 52px) !important;
       max-height: calc(100vh - 52px) !important;
-      min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-      max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+      min-width: calc(100vw - ${webviewSidebarWidth}) !important;
+      max-width: calc(100vw - ${webviewSidebarWidth}) !important;
       border: none !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -954,32 +984,41 @@ function _hideLoadingContent(loadingContent, browser) {
   
   // Ensure webview is immediately visible with proper styling
   if (browser.webview) {
-    // Now show the webview with all styles applied
+    // Check if sidebar is collapsed
+    const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+    
+    // Use the appropriate width variable based on sidebar state
+    const sidebarWidth = isSidebarCollapsed 
+      ? 'var(--sidebar-collapsed-width, 70px)' 
+      : 'var(--sidebar-width, 260px)';
+    
+    // Now show the webview with all styles applied and dynamic sidebar width
     browser.webview.style.cssText = `
-      display: flex !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      z-index: 1 !important;
-      position: fixed !important;
-      top: 52px !important;
-      left: var(--sidebar-width, 260px) !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      width: calc(100vw - var(--sidebar-width, 260px)) !important;
-      height: calc(100vh - 52px) !important;
-      min-height: calc(100vh - 52px) !important;
-      max-height: calc(100vh - 52px) !important;
-      min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-      max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-      border: none !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      box-sizing: border-box !important;
-      background-color: white !important;
-      flex: 1 1 auto !important;
-      transform: none !important;
-      overflow: hidden !important;
-    `;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 1 !important;
+        position: fixed !important;
+        top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+        left: ${sidebarWidth} !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: calc(100vw - ${sidebarWidth}) !important;
+        height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        min-width: calc(100vw - ${sidebarWidth}) !important;
+        max-width: calc(100vw - ${sidebarWidth}) !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        background-color: white !important;
+        flex: 1 1 auto !important;
+        transform: none !important;
+        overflow: hidden !important;
+        transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
+      `;
     
     // Immediately apply content styles if possible
     if (browser.webview.tagName.toLowerCase() === 'webview' && typeof browser.webview.executeJavaScript === 'function') {
@@ -1093,7 +1132,15 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         browser.webview.removeAttribute('style');
       }
       
-      // Apply comprehensive styling
+      // Check if sidebar is collapsed
+      const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+      
+      // Use the appropriate width variable based on sidebar state
+      const sidebarWidth = isSidebarCollapsed 
+        ? 'var(--sidebar-collapsed-width, 70px)' 
+        : 'var(--sidebar-width, 260px)';
+      
+      // Apply comprehensive styling with dynamic sidebar width
       browser.webview.style.cssText = `
         display: flex !important;
         visibility: visible !important;
@@ -1101,15 +1148,15 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         z-index: 1 !important;
         position: fixed !important;
         top: 52px !important;
-        left: var(--sidebar-width, 260px) !important;
+        left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
-        width: calc(100vw - var(--sidebar-width, 260px)) !important;
+        width: calc(100vw - ${sidebarWidth}) !important;
         height: calc(100vh - 52px) !important;
         min-height: calc(100vh - 52px) !important;
         max-height: calc(100vh - 52px) !important;
-        min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-        max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+        min-width: calc(100vw - ${sidebarWidth}) !important;
+        max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -1126,15 +1173,21 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
       // Force layout recalculation to ensure styles are applied
       void browser.webview.offsetHeight;
       
-      if (container) {
+              if (container) {
+        // Check if sidebar is collapsed for container too
+        const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+        const sidebarWidth = isSidebarCollapsed 
+          ? 'var(--sidebar-collapsed-width, 70px)' 
+          : 'var(--sidebar-width, 260px)';
+        
         // Ensure container has proper styling
         container.style.cssText = `
           position: fixed !important;
           top: 52px !important;
-          left: var(--sidebar-width, 260px) !important;
+          left: ${sidebarWidth} !important;
           right: 0 !important;
           bottom: 0 !important;
-          width: calc(100vw - var(--sidebar-width, 260px)) !important;
+          width: calc(100vw - ${sidebarWidth}) !important;
           height: calc(100vh - 52px) !important;
           margin: 0 !important;
           padding: 0 !important;
@@ -1143,6 +1196,7 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
           flex-direction: column !important;
           z-index: 1 !important;
           background-color: white !important;
+          transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
         `;
         
         // Force layout recalculation for container
@@ -1549,23 +1603,31 @@ export function applyPreNavigationStyles(browser) {
       return;
     }
     
-    // Apply direct styling to the webview element with transition support
+    // Check if sidebar is collapsed
+    const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+    
+    // Use the appropriate width variable based on sidebar state
+    const sidebarWidth = isSidebarCollapsed 
+      ? 'var(--sidebar-collapsed-width, 70px)' 
+      : 'var(--sidebar-width, 260px)';
+    
+    // Apply direct styling to the webview element with transition support and dynamic sidebar width
     browser.webview.style.cssText = `
       display: flex !important;
       visibility: visible !important;
       opacity: 0 !important;
       z-index: 1 !important;
       position: fixed !important;
-      top: 52px !important;
-      left: var(--sidebar-width, 260px) !important;
+      top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+      left: ${sidebarWidth} !important;
       right: 0 !important;
       bottom: 0 !important;
-      width: calc(100vw - var(--sidebar-width, 260px)) !important;
-      height: calc(100vh - 52px) !important;
-      min-height: calc(100vh - 52px) !important;
-      max-height: calc(100vh - 52px) !important;
-      min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-      max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+      width: calc(100vw - ${sidebarWidth}) !important;
+      height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+      min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+      max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+      min-width: calc(100vw - ${sidebarWidth}) !important;
+      max-width: calc(100vw - ${sidebarWidth}) !important;
       border: none !important;
       margin: 0 !important;
       padding: 0 !important;
@@ -1577,7 +1639,7 @@ export function applyPreNavigationStyles(browser) {
       pointer-events: auto !important;
       user-select: auto !important;
       touch-action: auto !important;
-      transition: opacity 0.3s ease-in-out !important;
+      transition: opacity 0.3s ease-in-out, left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
     `;
     
     // Force a layout recalculation to ensure styles are applied
@@ -1712,23 +1774,31 @@ export function scheduleStyleChecks(browser) {
     
       console.log('Applying all critical webview styles at once');
       
-      // Apply direct styling to the webview element
+      // Check if sidebar is collapsed
+      const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+      
+      // Use the appropriate width variable based on sidebar state
+      const sidebarWidth = isSidebarCollapsed 
+        ? 'var(--sidebar-collapsed-width, 70px)' 
+        : 'var(--sidebar-width, 260px)';
+      
+      // Apply direct styling to the webview element with dynamic sidebar width
       browser.webview.style.cssText = `
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         z-index: 1 !important;
         position: fixed !important;
-        top: 52px !important;
-        left: var(--sidebar-width, 260px) !important;
+        top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+        left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
-        width: calc(100vw - var(--sidebar-width, 260px)) !important;
-        height: calc(100vh - 52px) !important;
-        min-height: calc(100vh - 52px) !important;
-        max-height: calc(100vh - 52px) !important;
-        min-width: calc(100vw - var(--sidebar-width, 260px)) !important;
-        max-width: calc(100vw - var(--sidebar-width, 260px)) !important;
+        width: calc(100vw - ${sidebarWidth}) !important;
+        height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        min-width: calc(100vw - ${sidebarWidth}) !important;
+        max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
         margin: 0 !important;
         padding: 0 !important;
@@ -1740,6 +1810,7 @@ export function scheduleStyleChecks(browser) {
         pointer-events: auto !important;
         user-select: auto !important;
         touch-action: auto !important;
+        transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
       `;
       
       // Force layout recalculation
@@ -1908,14 +1979,14 @@ export function scheduleStyleChecks(browser) {
   const safetyCheck = setTimeout(() => {
     if (browser.webview && !browser._isUnloading) {
       const rect = browser.webview.getBoundingClientRect();
-      const expectedHeight = window.innerHeight - 52;
+      const expectedHeight = window.innerHeight - 104; // Adjusted from 52px to 104px
       const expectedWidth = window.innerWidth;
       
       // Only reapply if dimensions are significantly wrong (>10px difference)
       // Increased from previous 5px to reduce unnecessary style applications
       if (Math.abs(rect.width - expectedWidth) > 10 || 
           Math.abs(rect.height - expectedHeight) > 10 || 
-          rect.top !== 52 || rect.left !== 0) {
+          rect.top !== 104 || rect.left !== 0) { // Adjusted from 52px to 104px
         console.log('Safety check: Webview dimensions need adjustment');
         browser.webview.applyAllCriticalStyles(true);
       }
@@ -1939,6 +2010,63 @@ export function scheduleStyleChecks(browser) {
     };
     
     window.addEventListener('resize', browser._resizeHandler);
+  }
+  
+  // Add sidebar state change listener if it doesn't already exist
+  if (!browser._sidebarStateHandler) {
+    browser._sidebarStateHandler = (e) => {
+      // Check if this is a sidebar toggle event
+      const isSidebarEvent = 
+        e.target && 
+        (e.target.classList.contains('sidebar-toggle-btn') || 
+        (document.body.classList.contains('sidebar-collapsed') !== browser._lastSidebarCollapsed));
+      
+      if (isSidebarEvent && browser.webview && !browser._isUnloading) {
+        // Update the sidebar state tracker
+        browser._lastSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+        
+        console.log('Sidebar state changed, updating browser dimensions');
+        
+        // Apply styles immediately for responsive feel
+        if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+          browser.webview.applyAllCriticalStyles(true);
+        } else {
+          enforceWebviewStyles(browser, true);
+        }
+        
+        // Also update the container if present
+        if (browser.webviewContainer) {
+          const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+          const sidebarWidth = isSidebarCollapsed 
+            ? 'var(--sidebar-collapsed-width, 70px)' 
+            : 'var(--sidebar-width, 260px)';
+          
+          browser.webviewContainer.style.left = sidebarWidth;
+          browser.webviewContainer.style.width = `calc(100vw - ${sidebarWidth})`;
+        }
+      }
+    };
+    
+    // Track initial sidebar state
+    browser._lastSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+    
+    // Listen for clicks that might toggle the sidebar
+    document.addEventListener('click', browser._sidebarStateHandler);
+    
+    // Also listen for class changes on the body element using MutationObserver
+    if (typeof MutationObserver !== 'undefined') {
+      browser._sidebarObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.attributeName === 'class' && 
+              document.body.classList.contains('sidebar-collapsed') !== browser._lastSidebarCollapsed) {
+            // Sidebar state changed via class mutation
+            browser._sidebarStateHandler({ target: document.body });
+          }
+        });
+      });
+      
+      browser._sidebarObserver.observe(document.body, { attributes: true });
+    }
   }
   
   return browser._styleCheckTimers;

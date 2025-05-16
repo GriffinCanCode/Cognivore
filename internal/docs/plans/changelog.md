@@ -1,26 +1,25 @@
 # Changelog
 
-## 2023-08-21 - Browser Sidebar Transition Improvements
+## 2023-08-24 - Fixed Browser Webview Positioning
 
 ### Fixed
-- Enhanced browser positioning when toggling sidebar state
-  - Added smooth transition effects when sidebar collapses and expands
-  - Fixed browser components to properly adjust dimensions during sidebar transitions
-  - Applied consistent transition timing across all affected elements
-  - Improved user experience with animated layout changes
-  - Ensured browser content remains properly sized during and after transitions
+- Fixed browser webview positioning to properly render beneath the input and bookmarks bar
+- Updated all height and positioning values from 52px to 104px to account for both bars (52px address bar + 52px toolbar)
+- Modified BrowserRenderer.js to consistently position webview and other elements correctly
+- Updated container positioning and dimensions in multiple rendering functions
+- Fixed safety check methods to verify correct positioning dimensions
+- Applied consistent 104px offset across all browser elements including loading content
+- Ensured correct height calculations for the webview container 
 
-## 2023-08-20 - Browser Sidebar Positioning Fix
+## 2023-08-23 - Fixed Browser Sizing with Collapsed Sidebar
 
 ### Fixed
-- Resolved browser positioning issues with sidebar and search bar
-  - Updated browser CSS to properly account for sidebar width in all components
-  - Fixed browser container, webview, and loading content to respect sidebar dimensions
-  - Added proper calculations for browser width using CSS variables
-  - Improved collapsed sidebar handling with dedicated media query
-  - Modified BrowserRenderer.js to use sidebar width variables in all inline styles
-  - Enhanced responsiveness when toggling sidebar collapsed state
-  - Fixed layout consistency issues with proper container sizing
+- Fixed browser not properly sizing when sidebar is collapsed (default state)
+- Updated all webview inline styles to properly use sidebar-collapsed-width (70px) when sidebar is collapsed
+- Enhanced browser rendering to respect both sidebar states (expanded and collapsed)
+- Improved loading content positioning to match webview positioning in both states
+- Implemented dynamic width calculation based on sidebar collapsed state
+- Fixed positioning consistency across all browser elements
 
 ## 2023-08-19 - Browser DOM Attachment and Timing Fixes
 

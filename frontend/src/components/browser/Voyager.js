@@ -818,6 +818,18 @@ class Voyager extends Component {
       this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
     }
     
+    // Clean up sidebar observer if it exists
+    if (this._sidebarObserver) {
+      this._sidebarObserver.disconnect();
+      this._sidebarObserver = null;
+    }
+    
+    // Remove sidebar state change listener
+    if (this._sidebarStateHandler) {
+      document.removeEventListener('click', this._sidebarStateHandler);
+      this._sidebarStateHandler = null;
+    }
+    
     // Clear any active timers and intervals
     if (this._navigationTimeout) {
       clearTimeout(this._navigationTimeout);
