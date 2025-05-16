@@ -1,6 +1,7 @@
 const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { rimraf } = require('rimraf'); // Updated import for rimraf v4+
 
 // Define paths
 const projectRoot = path.resolve(__dirname, '..');
@@ -8,6 +9,48 @@ const rootDir = path.resolve(projectRoot, '..');
 const distDir = path.join(projectRoot, 'dist');
 const publicDir = path.join(projectRoot, 'public');
 const resourcesDir = path.join(projectRoot, 'resources');
+
+// Function to safely clean up build directories
+function cleanupBuildDirectories() {
+  console.log('Cleaning up previous build files...');
+  
+  // Add additional directories that might have permission issues
+  const foldersToClean = [
+    path.join(distDir, 'electron-build'),
+    // Also clean specific problem directories based on the error message
+    path.join(distDir, 'electron-build', 'mac-arm64', 'Cognivore.app'),
+    path.join(distDir, 'electron-build', 'mac-arm64', 'Cognivore.app', 'Contents'),
+  ];
+  
+  for (const folder of foldersToClean) {
+    if (fs.existsSync(folder)) {
+      try {
+        console.log(`Removing: ${folder}`);
+        // Use rimraf with force option
+        rimraf(folder, { force: true });
+      } catch (error) {
+        console.warn(`Warning: Could not remove ${folder} - ${error.message}`);
+        console.log('Attempting alternative removal method...');
+        
+        try {
+          // Try with execSync as a fallback with sudo if available
+          if (process.platform === 'darwin' || process.platform === 'linux') {
+            // On Unix-like systems, try rm -rf
+            execSync(`rm -rf "${folder}"`, { stdio: 'inherit' });
+            console.log(`Successfully removed ${folder} with rm -rf`);
+          } else if (process.platform === 'win32') {
+            // On Windows, try rd /s /q
+            execSync(`rd /s /q "${folder}"`, { stdio: 'inherit' });
+            console.log(`Successfully removed ${folder} with rd command`);
+          }
+        } catch (fallbackError) {
+          console.warn(`All removal methods failed for ${folder}`);
+          console.log('You may need to manually delete this directory or run with higher permissions.');
+        }
+      }
+    }
+  }
+}
 
 // Ensure dist directory exists
 if (!fs.existsSync(distDir)) {
@@ -106,6 +149,9 @@ exit 0
 // Main build process
 async function build() {
   console.log('Starting build process...');
+  
+  // Clean up previous build files before starting
+  cleanupBuildDirectories();
   
   // Run webpack build
   runCommand('npx webpack --mode production');

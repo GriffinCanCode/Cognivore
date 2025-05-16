@@ -12,6 +12,9 @@ import React, { Component } from 'react';
 import { nanoid } from 'nanoid';
 import DOMPurify from 'dompurify';
 
+// Import researcher component
+import Researcher from './researcher/Researcher';
+
 // Import browser component utilities
 import { 
   detectEnvironment, 
@@ -90,7 +93,9 @@ class Voyager extends Component {
       // Track if the component is mounted
       isMounted: false,
       // Environment detection results
-      environment: detectEnvironment()
+      environment: detectEnvironment(),
+      // Research mode state - explicitly set to false to prevent toggle issues
+      researchMode: false
     };
     
     // Create unique ID for component
@@ -101,6 +106,7 @@ class Voyager extends Component {
     this.webview = null;
     this.iframe = null;
     this.addressInput = null;
+    this.researcher = null;
     
     // Track if we've already done the initial navigation
     this.hasNavigatedInitially = false;
@@ -117,6 +123,11 @@ class Voyager extends Component {
     this.handleWebviewLoad = this.handleWebviewLoad.bind(this);
     this.capturePageContent = this.capturePageContent.bind(this);
     this.toggleReaderMode = this.toggleReaderMode.bind(this);
+    this.toggleResearchMode = this.toggleResearchMode.bind(this);
+    this.isResearchModeActive = this.isResearchModeActive.bind(this);
+    this.savePage = this.savePage.bind(this);
+    this.addBookmark = this.addBookmark.bind(this);
+    this.extractPageContent = this.extractPageContent.bind(this);
     this.initialize = this.initialize.bind(this);
     this.cleanup = this.cleanup.bind(this);
   }
@@ -147,6 +158,30 @@ class Voyager extends Component {
         this.props.initialUrl && 
         this.props.initialUrl !== 'about:blank') {
       this.navigate(this.props.initialUrl);
+    }
+  }
+  
+  /**
+   * Update the page title
+   * @param {string} title - The page title to set
+   */
+  updatePageTitle(title) {
+    // Update state
+    this.setState({ title });
+    
+    // Update document title if needed
+    if (this.props && this.props.updateDocumentTitle && title) {
+      document.title = title;
+    }
+    
+    // Call BrowserRenderer version if available
+    try {
+      const { updatePageTitle } = require('./renderers/BrowserRenderer');
+      if (typeof updatePageTitle === 'function') {
+        updatePageTitle(this, title);
+      }
+    } catch (err) {
+      // Silently handle import errors
     }
   }
   
@@ -243,7 +278,7 @@ class Voyager extends Component {
                         // Update title if available
                         if (result.title) {
                           this.setState({ title: result.title });
-                          updatePageTitle(this, result.title);
+                          this.updatePageTitle(result.title);
                         }
                         
                         // Capture content if possible
@@ -391,7 +426,7 @@ class Voyager extends Component {
             // Update title if available
             if (result.title) {
               this.setState({ title: result.title });
-              updatePageTitle(this, result.title);
+              this.updatePageTitle(result.title);
             }
             
             // Update loading state
@@ -537,7 +572,9 @@ class Voyager extends Component {
     }
     
     // Capture page content and title for memory
-    this.capturePageContent();
+    this.capturePageContent().catch(err => {
+      console.warn('Error in capturePageContent during load:', err);
+    });
     
     // Add to browsing history
     const historyRecord = createHistoryRecord(
@@ -546,80 +583,9 @@ class Voyager extends Component {
       new Date().toISOString()
     );
     
-    // Notify parent component if callback provided
-    if (this.props.onPageLoad) {
+    // Notify parent component if callback provided - fix the null check
+    if (this.props && typeof this.props.onPageLoad === 'function') {
       this.props.onPageLoad(historyRecord);
-    }
-  }
-  
-  /**
-   * Captures and processes the content of the current page
-   */
-  capturePageContent() {
-    if (this.webview) {
-      // Extract content using the webview's executeJavaScript method
-      this.webview.executeJavaScript(`
-        {
-          const title = document.title;
-          const html = document.documentElement.outerHTML;
-          const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'))
-            .map(h => ({ level: h.tagName.toLowerCase(), text: h.textContent.trim() }));
-          
-          { title, html, headings }
-        }
-      `).then(result => {
-        if (!result) return;
-        
-        // Update page title
-        this.setState({ title: result.title || 'Untitled Page' });
-        updatePageTitle(this, result.title || 'Untitled Page');
-        
-        // Clean up HTML for memory storage
-        const cleanHtml = cleanupHtmlForMemory(result.html);
-        
-        // Extract main content
-        const mainContent = extractMainContent(cleanHtml);
-        
-        // Update state with reader content
-        this.setState({ readerContent: mainContent });
-        
-        // Capture page metadata for memory
-        if (this.props.onContentCapture) {
-          const content = {
-            url: this.state.url,
-            title: result.title,
-            html: cleanHtml,
-            mainContent: mainContent,
-            headings: result.headings || [],
-            capturedAt: new Date().toISOString()
-          };
-          this.props.onContentCapture(content);
-        }
-      }).catch(err => {
-        console.error('Error capturing page content:', err);
-      });
-    } else if (this.iframe) {
-      // For iframe, we have more limited access due to same-origin policy
-      try {
-        const title = this.iframe.contentDocument.title;
-        this.setState({ title: title || 'Untitled Page' });
-        updatePageTitle(this, title || 'Untitled Page');
-        
-        // We might not be able to extract content from cross-origin iframes
-        if (this.props.onContentCapture) {
-          const content = {
-            url: this.state.url,
-            title: title,
-            html: '<p>Content extraction not available for this page</p>',
-            mainContent: '<p>Content extraction not available for this page</p>',
-            headings: [],
-            capturedAt: new Date().toISOString()
-          };
-          this.props.onContentCapture(content);
-        }
-      } catch (err) {
-        console.log('Cannot access iframe content due to same-origin policy');
-      }
     }
   }
   
@@ -644,6 +610,648 @@ class Voyager extends Component {
     if ((newMode === 'reader' || newMode === 'split') && !this.state.readerContent) {
       this.capturePageContent();
     }
+  }
+  
+  /**
+   * Toggle research mode for the browser
+   * @returns {boolean} The new research mode state
+   */
+  toggleResearchMode() {
+    console.log('Toggle research mode called');
+    
+    // CRITICAL CHANGE: First explicitly modify state directly to ensure toggling works
+    // (setState is asynchronous, so using it directly wouldn't work for returns)
+    const newResearchMode = !this.state.researchMode;
+    
+    // Set state directly for immediate use
+    this.state.researchMode = newResearchMode;
+    
+    // Log the new state
+    console.log(`TOGGLED RESEARCH MODE: ${newResearchMode ? 'ON' : 'OFF'}`);
+    
+    // Then use setState to trigger component updates (async)
+    this.setState({ researchMode: newResearchMode }, () => {
+      console.log(`Research mode ${newResearchMode ? 'activated' : 'deactivated'}`);
+      
+      // Check if research panel exists, if not create it
+      if (!this.researchPanel) {
+        // Get the research panel element - it was created during setupBrowserLayout 
+        // and should already be in the DOM
+        this.researchPanel = this.containerRef.current?.querySelector('.browser-research-panel');
+        
+        // If it still doesn't exist, create it
+        if (!this.researchPanel) {
+          console.log('Creating new research panel');
+          const { createResearchPanel } = require('./renderers/BrowserRenderer');
+          this.researchPanel = createResearchPanel();
+          
+          // Make sure it's attached to the DOM
+          if (this.containerRef.current) {
+            this.containerRef.current.appendChild(this.researchPanel);
+          } else {
+            document.body.appendChild(this.researchPanel);
+          }
+          
+          // Set up event handlers
+          const closeBtn = this.researchPanel.querySelector('.research-panel-close');
+          if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+              this.toggleResearchMode();
+            });
+          }
+          
+          const clearBtn = this.researchPanel.querySelector('.research-panel-clear');
+          if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+              if (this.researcher && typeof this.researcher.clearResearch === 'function') {
+                this.researcher.clearResearch();
+              } else {
+                // Fallback implementation
+                const content = this.researchPanel.querySelector('.research-panel-content');
+                if (content) {
+                  content.innerHTML = `
+                    <div class="research-empty-state">
+                      <p>No research data available yet.</p>
+                      <p>Enable research mode to automatically save pages as you browse.</p>
+                    </div>
+                  `;
+                }
+              }
+            });
+          }
+        }
+      }
+      
+      // Toggle research panel visibility - IMPORTANT: Force panel into view explicitly
+      // EMERGENCY FIX: Create a completely new panel directly as a modal
+      console.log('Creating emergency direct research panel');
+      
+      // First, remove any existing panel
+      if (this.researchPanel && this.researchPanel.isConnected) {
+        this.researchPanel.remove();
+      }
+      
+      // Also find and remove any existing research panels in the body
+      const existingPanels = document.querySelectorAll('.browser-research-panel');
+      existingPanels.forEach(panel => panel.remove());
+      
+      if (newResearchMode) {
+        // Create a completely new panel with direct body attachment
+        const directPanel = document.createElement('div');
+        directPanel.id = 'emergency-research-panel-' + Date.now();
+        directPanel.className = 'browser-research-panel direct-emergency-panel';
+        
+        // Direct style application with important flag on every property
+        directPanel.setAttribute('style', `
+          display: block !important;
+          z-index: 999999 !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+          position: fixed !important;
+          right: 0 !important;
+          top: 0 !important;
+          bottom: 0 !important;
+          height: 100vh !important;
+          width: 350px !important;
+          background-color: #ffffff !important;
+          box-shadow: -5px 0 25px rgba(0, 0, 0, 0.25) !important;
+          overflow: auto !important;
+          font-family: system-ui, -apple-system, sans-serif !important;
+          color: #000000 !important;
+          border-left: 3px solid #335eea !important;
+        `);
+        
+        // Add header with inline styles
+        directPanel.innerHTML = `
+          <div style="padding: 15px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 500; color: #333;">Research Panel 📝</h3>
+            <div style="display: flex; gap: 10px;">
+              <button id="research-clear-btn" style="background: none; border: none; cursor: pointer; font-size: 14px; padding: 5px 8px; border-radius: 4px; color: #333;">Clear</button>
+              <button id="research-close-btn" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 5px 8px; border-radius: 4px; color: #333;">×</button>
+            </div>
+          </div>
+          <div style="flex: 1; overflow-y: auto; padding: 20px; height: calc(100vh - 51px);">
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
+              <p style="margin-bottom: 10px; font-size: 16px; color: #333;">Research panel activated!</p>
+              <p style="color: #666; font-size: 14px;">Browse the web to collect research automatically.</p>
+              <p style="margin-top: 20px; color: #666; font-size: 13px;">Current URL: ${this.state.url || 'None'}</p>
+              <div style="margin-top: 30px; border: 1px solid #eee; border-radius: 8px; padding: 15px; background: #f9f9f9; width: 80%;">
+                <p style="font-weight: 500; color: #333; margin-bottom: 8px;">Page Title: ${this.state.title || 'Not loaded'}</p>
+                <p style="color: #666;">Research entries: ${this.researcher?.state?.researchEntries?.length || 0}</p>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        // Add to document body
+        document.body.appendChild(directPanel);
+        
+        // Store reference
+        this.researchPanel = directPanel;
+        
+        // Add event listeners
+        const closeBtn = directPanel.querySelector('#research-close-btn');
+        if (closeBtn) {
+          closeBtn.addEventListener('click', () => {
+            console.log('Close button clicked');
+            this.toggleResearchMode();
+          });
+        }
+        
+        // Clear button
+        const clearBtn = directPanel.querySelector('#research-clear-btn');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            console.log('Clear button clicked');
+            const content = directPanel.querySelector('div:nth-child(2)');
+            if (content) {
+              content.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
+                  <p style="margin-bottom: 10px; font-size: 16px;">Research data cleared.</p>
+                  <p style="color: #999; font-size: 14px;">Browse the web to collect more research.</p>
+                </div>
+              `;
+            }
+          });
+        }
+        
+        // MEGA CRITICAL: Log that panel was created and do visibility check
+        console.log('🔴 EMERGENCY PANEL CREATED AND ATTACHED TO BODY 🔴', directPanel);
+        
+        // Force a browser layout calculation to ensure the panel is painted
+        void directPanel.offsetHeight;
+        
+        // Multiple visibility checks with increasing delays
+        [10, 100, 500].forEach(delay => {
+          setTimeout(() => {
+            if (directPanel.isConnected) {
+              const rect = directPanel.getBoundingClientRect();
+              console.log(`CHECK AT ${delay}ms - PANEL VISIBILITY:`, {
+                id: directPanel.id,
+                isConnected: directPanel.isConnected,
+                width: rect.width,
+                height: rect.height,
+                right: rect.right,
+                display: window.getComputedStyle(directPanel).display,
+                visibility: window.getComputedStyle(directPanel).visibility,
+                zIndex: window.getComputedStyle(directPanel).zIndex
+              });
+            } else {
+              console.log(`CHECK AT ${delay}ms - PANEL NOT CONNECTED TO DOM`);
+            }
+          }, delay);
+        });
+      } else {
+        // If researchMode is false, make sure any panel is removed
+        const existingPanels = document.querySelectorAll('.browser-research-panel');
+        existingPanels.forEach(panel => panel.remove());
+      }
+      
+      // Update the research button active state 
+      const researchBtn = this.containerRef.current?.querySelector('.browser-research-btn');
+      if (researchBtn) {
+        if (newResearchMode) {
+          researchBtn.classList.add('active');
+          researchBtn.title = 'Research mode active';
+          
+          // Show a toast notification
+          const { showToastNotification } = require('./renderers/BrowserRenderer');
+          if (typeof showToastNotification === 'function') {
+            showToastNotification('Research mode activated');
+          }
+        } else {
+          researchBtn.classList.remove('active');
+          researchBtn.title = 'Toggle research mode';
+          
+          // Show a toast notification
+          const { showToastNotification } = require('./renderers/BrowserRenderer');
+          if (typeof showToastNotification === 'function') {
+            showToastNotification('Research mode deactivated');
+          }
+        }
+      }
+      
+              // If research mode is active, extract content from the current page
+      if (this.state.researchMode && this.state.url) {
+        // Initialize the researcher if needed
+        if (!this.researcher) {
+          try {
+            // Import Researcher dynamically if needed
+            const Researcher = require('./researcher/Researcher').default;
+            
+            // Create a new instance with proper configuration
+            this.researcher = new Researcher({
+              browser: this,
+              containerRef: this.researchPanel || this.containerRef.current,
+              currentUrl: this.state.url,
+              currentTitle: this.state.title,
+              onToggle: (isActive) => {
+                console.log(`Researcher component ${isActive ? 'activated' : 'deactivated'}`);
+              }
+            });
+            
+            console.log('Researcher component initialized on demand');
+          } catch (err) {
+            console.error('Failed to initialize researcher component:', err);
+          }
+        }
+        
+        // If researcher was created successfully, activate it
+        if (this.researcher) {
+          // If the researcher has no state, initialize it
+          if (!this.researcher.state) {
+            this.researcher.state = {
+              isActive: false,
+              isProcessing: false,
+              currentUrl: this.state.url,
+              currentTitle: this.state.title,
+              researchEntries: [],
+              autoExtract: true,
+              error: null,
+              llmConnected: false
+            };
+          }
+          
+          // Ensure researcher has proper container reference
+          this.researcher.props = this.researcher.props || {};
+          this.researcher.props.browser = this;
+          this.researcher.props.containerRef = this.researchPanel;
+          this.researcher.props.currentUrl = this.state.url;
+          this.researcher.props.currentTitle = this.state.title;
+          
+          // Activate researcher component if not already active
+          if (typeof this.researcher.toggleActive === 'function') {
+            // Only toggle if not already active
+            if (!this.researcher.state.isActive) {
+              console.log('Activating researcher component');
+              this.researcher.toggleActive();
+            } else {
+              console.log('Researcher component already active');
+            }
+          }
+          
+          // Either way, process the current page
+          if (typeof this.researcher.processPage === 'function') {
+            console.log('Processing current page in researcher');
+            this.researcher.processPage(this.state.url, this.state.title);
+          } else {
+            console.warn('processPage method not found on researcher component');
+          }
+        }
+      } else {
+        // Deactivate researcher component if active
+        if (this.researcher && 
+            typeof this.researcher.toggleActive === 'function' && 
+            this.researcher.state && 
+            this.researcher.state.isActive) {
+          this.researcher.toggleActive();
+        }
+      }
+      
+      // Notify parent component if callback provided
+      if (this.props && this.props.onResearchModeToggle) {
+        this.props.onResearchModeToggle(newResearchMode);
+      }
+    });
+    
+    // CRITICAL CHANGE: Return the new mode value directly
+    return newResearchMode;
+  }
+  
+  /**
+   * Check if research mode is active
+   * @returns {boolean} True if research mode is active
+   */
+  isResearchModeActive() {
+    return this.state && this.state.researchMode === true;
+  }
+  
+  /**
+   * Save the current page to the knowledge base
+   * @returns {Promise<Object>} Promise resolving to the saved page data
+   */
+  savePage() {
+    return new Promise((resolve, reject) => {
+      try {
+        // Show visual feedback on the save button first
+        const saveBtn = this.containerRef.current?.querySelector('.browser-save-btn');
+        if (saveBtn) {
+          saveBtn.classList.add('loading');
+        }
+        
+        // Capture the page content first
+        this.capturePageContent()
+          .then(content => {
+            // Notify parent component if callback provided
+            if (this.props && this.props.onSavePage) {
+              this.props.onSavePage(content)
+                .then(result => {
+                  if (saveBtn) saveBtn.classList.remove('loading');
+                  resolve(result);
+                })
+                .catch(err => {
+                  if (saveBtn) saveBtn.classList.remove('loading');
+                  reject(err);
+                });
+            } else {
+              // Format page data for storage
+              const pageData = {
+                url: this.state?.url || '',
+                title: this.state?.title || 'Untitled Page',
+                content: content || this.state?.readerContent || '',
+                savedAt: new Date().toISOString()
+              };
+              
+              // Use LLM service if available
+              if (window.server && window.server.savePageToKnowledgeBase) {
+                window.server.savePageToKnowledgeBase(pageData)
+                  .then(result => {
+                    if (saveBtn) saveBtn.classList.remove('loading');
+                    
+                    // Show success notification
+                    try {
+                      const { showToastNotification } = require('./renderers/BrowserRenderer');
+                      if (typeof showToastNotification === 'function') {
+                        showToastNotification('Page saved to knowledge base!');
+                      }
+                    } catch (err) {
+                      console.warn('Could not show save notification:', err);
+                    }
+                    
+                    resolve(result);
+                  })
+                  .catch(err => {
+                    if (saveBtn) saveBtn.classList.remove('loading');
+                    
+                    // Show error notification
+                    try {
+                      const { showToastNotification } = require('./renderers/BrowserRenderer');
+                      if (typeof showToastNotification === 'function') {
+                        showToastNotification('Failed to save page: ' + (err.message || 'Unknown error'), 'error');
+                      }
+                    } catch (notifyErr) {
+                      console.warn('Could not show error notification:', notifyErr);
+                    }
+                    
+                    reject(err);
+                  });
+              } else {
+                // If no IPC handler is available
+                if (saveBtn) saveBtn.classList.remove('loading');
+                
+                // Show notification that the page was saved locally
+                try {
+                  const { showToastNotification } = require('./renderers/BrowserRenderer');
+                  if (typeof showToastNotification === 'function') {
+                    showToastNotification('Page saved locally (no knowledge base available)');
+                  }
+                } catch (err) {
+                  console.warn('Could not show notification:', err);
+                }
+                
+                // Resolve with the page data if no server method is available
+                resolve(pageData);
+              }
+            }
+          })
+          .catch(err => {
+            console.error('Error capturing page content:', err);
+            
+            // Remove loading state from button
+            if (saveBtn) saveBtn.classList.remove('loading');
+            
+            // Show error notification
+            try {
+              const { showToastNotification } = require('./renderers/BrowserRenderer');
+              if (typeof showToastNotification === 'function') {
+                showToastNotification('Error capturing page content: ' + (err.message || 'Unknown error'), 'error');
+              }
+            } catch (notifyErr) {
+              console.warn('Could not show error notification:', notifyErr);
+            }
+            
+            reject(err);
+          });
+      } catch (err) {
+        console.error('Error saving page:', err);
+        
+        // Reset button state
+        const saveBtn = this.containerRef.current?.querySelector('.browser-save-btn');
+        if (saveBtn) saveBtn.classList.remove('loading');
+        
+        reject(err);
+      }
+    });
+  }
+  
+  /**
+   * Add the current page as a bookmark
+   * @returns {Object} The bookmark data
+   */
+  addBookmark() {
+    try {
+      // Ensure nanoid is available
+      let uniqueId;
+      try {
+        const { nanoid } = require('nanoid');
+        uniqueId = nanoid();
+      } catch (e) {
+        // Fallback to a simple unique ID if nanoid isn't available
+        uniqueId = `bookmark_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      }
+      
+      // Create bookmark data
+      const bookmarkData = {
+        id: uniqueId,
+        url: this.state?.url || window.location.href,
+        title: this.state?.title || document.title || 'Bookmarked Page',
+        createdAt: new Date().toISOString()
+      };
+      
+      // Add to state
+      this.setState(prevState => ({
+        bookmarks: [...(prevState.bookmarks || []), bookmarkData]
+      }));
+      
+      // Try to call handleBookmarkCreation from BookmarkManager if available
+      try {
+        const { handleBookmarkCreation } = require('./utils/BookmarkManager');
+        if (typeof handleBookmarkCreation === 'function') {
+          handleBookmarkCreation(this, bookmarkData);
+        }
+      } catch (err) {
+        console.warn('Could not import BookmarkManager:', err);
+      }
+      
+      // Notify parent component if callback provided
+      if (this.props && this.props.onBookmarkAdded) {
+        this.props.onBookmarkAdded(bookmarkData);
+      }
+      
+      // Show visual feedback
+      const bookmarkBtn = this.containerRef.current?.querySelector('.browser-bookmark-btn');
+      if (bookmarkBtn) {
+        bookmarkBtn.classList.add('active');
+        // Animate the button
+        bookmarkBtn.animate([
+          { transform: 'scale(1)' },
+          { transform: 'scale(1.3)' },
+          { transform: 'scale(1)' }
+        ], {
+          duration: 400,
+          easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        });
+      }
+      
+      // Show a toast notification
+      try {
+        const { showToastNotification } = require('./renderers/BrowserRenderer');
+        if (typeof showToastNotification === 'function') {
+          showToastNotification('Page bookmarked');
+        }
+      } catch (err) {
+        console.warn('Could not show bookmark notification:', err);
+      }
+      
+      return bookmarkData;
+    } catch (err) {
+      console.error('Error adding bookmark:', err);
+      return null;
+    }
+  }
+  
+  /**
+   * Extract content from the current page for research
+   * @returns {Promise<Object>} Promise resolving to the extracted content
+   */
+  extractPageContent() {
+    // If researcher component is available, use it
+    if (this.researcher) {
+      return this.researcher.processPage(this.state.url, this.state.title);
+    }
+    
+    // Otherwise use the default implementation
+    return new Promise((resolve, reject) => {
+      try {
+        if (!this.webview || !this.state.url) {
+          reject(new Error('Webview or URL not available'));
+          return;
+        }
+        
+        // Extract content using the Extractor utility
+        extractFullPageContent(this)
+          .then(content => {
+            if (!content) {
+              reject(new Error('No content extracted'));
+              return;
+            }
+            
+            // Update research panel with content
+            const { updateResearchPanel } = require('./handlers/ContentExtractor');
+            updateResearchPanel(this, content);
+            
+            // Notify parent component if callback provided
+            if (this.props.onContentExtracted) {
+              this.props.onContentExtracted(content);
+            }
+            
+            resolve(content);
+          })
+          .catch(err => {
+            console.error('Error extracting page content:', err);
+            reject(err);
+          });
+      } catch (err) {
+        console.error('Error in extractPageContent:', err);
+        reject(err);
+      }
+    });
+  }
+  
+  /**
+   * Captures and processes the content of the current page
+   * @returns {Promise<Object>} Promise resolving to the captured content
+   */
+  capturePageContent() {
+    return new Promise((resolve, reject) => {
+      if (!this.webview) {
+        reject(new Error('Webview not available'));
+        return;
+      }
+      
+      // Extract content using the webview's executeJavaScript method
+      this.webview.executeJavaScript(`
+        {
+          const title = document.title;
+          const html = document.documentElement.outerHTML;
+          const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+            .map(h => ({ level: h.tagName.toLowerCase(), text: h.textContent.trim() }));
+          
+          { title, html, headings }
+        }
+      `).then(result => {
+        if (!result) {
+          reject(new Error('No content retrieved'));
+          return;
+        }
+        
+        // Update page title using our safe method
+        const pageTitle = result.title || 'Untitled Page';
+        this.setState({ title: pageTitle });
+        
+        // Call updatePageTitle with proper context
+        if (typeof this.updatePageTitle === 'function') {
+          this.updatePageTitle(pageTitle);
+        } else {
+          // Fallback to imported function if method not available
+          const { updatePageTitle } = require('./renderers/BrowserRenderer');
+          if (typeof updatePageTitle === 'function') {
+            updatePageTitle(this, pageTitle);
+          }
+        }
+        
+        // Clean up HTML for memory storage
+        const { cleanupHtmlForMemory, extractMainContent } = require('./handlers/ContentExtractor');
+        const cleanHtml = cleanupHtmlForMemory ? cleanupHtmlForMemory(result.html) : result.html;
+        
+        // Extract main content
+        const mainContent = extractMainContent ? extractMainContent(cleanHtml) : cleanHtml;
+        
+        // Update state with reader content
+        this.setState({ readerContent: mainContent });
+        
+        const content = {
+          url: this.state.url,
+          title: pageTitle,
+          html: cleanHtml,
+          mainContent: mainContent,
+          headings: result.headings || [],
+          capturedAt: new Date().toISOString(),
+          text: mainContent.replace(/<[^>]*>/g, ' ').trim() // Extract plain text from HTML
+        };
+        
+        // Update research panel if in research mode
+        if (this.state.researchMode && this.researcher) {
+          // Use processPage instead of addResearchItem (which doesn't exist)
+          if (typeof this.researcher.processPage === 'function') {
+            this.researcher.processPage(this.state.url, this.state.title, content);
+          } else if (typeof this.researcher.addResearchItem === 'function') {
+            // Legacy fallback
+            this.researcher.addResearchItem(content);
+          }
+        }
+        
+        // Capture page metadata for memory
+        if (this.props && this.props.onContentCapture) {
+          this.props.onContentCapture(content);
+        }
+        
+        resolve(content);
+      }).catch(err => {
+        console.error('Error capturing page content:', err);
+        reject(err);
+      });
+    });
   }
   
   /**
@@ -796,6 +1404,37 @@ class Voyager extends Component {
           }, 500);
         }
       }, 800); // Increased from 500ms to 800ms for better reliability
+    }
+    
+    // Initialize researcher component if needed
+    if (!this.researcher && this.props && this.props.enableResearch !== false) {
+      try {
+        // Import Researcher dynamically
+        const Researcher = require('./researcher/Researcher').default;
+        
+        // Create a new instance with proper configuration
+        this.researcher = new Researcher({
+          browser: this,
+          containerRef: this.researchPanel || this.containerRef.current,
+          currentUrl: this.state?.url,
+          currentTitle: this.state?.title,
+          onToggle: (isActive) => {
+            console.log(`Researcher component ${isActive ? 'activated' : 'deactivated'}`);
+          },
+          onResearchItemClick: (item) => {
+            if (item && item.url) {
+              this.navigate(item.url);
+            }
+          },
+          onResearchClear: () => {
+            console.log('Research data cleared');
+          }
+        });
+        
+        console.log('Researcher component initialized');
+      } catch (err) {
+        console.error('Failed to initialize researcher component:', err);
+      }
     }
   }
   
@@ -1168,6 +1807,15 @@ class Voyager extends Component {
             <div>{this.state.isLoading ? 'Loading...' : 'Ready'}</div>
           </div>
         )}
+
+        {/* Research component (renderless) */}
+        {this.state.isMounted && <Researcher 
+          ref={(ref) => this.researcher = ref}
+          browser={this}
+          currentUrl={this.state.url}
+          currentTitle={this.state.title}
+          autoAnalyze={this.props.autoAnalyzeContent}
+        />}
       </div>
     );
   }

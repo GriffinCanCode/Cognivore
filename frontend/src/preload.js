@@ -396,6 +396,25 @@ const serverProxy = {
     }
   },
   
+  // Save page to knowledge base
+  async savePageToKnowledgeBase(pageData) {
+    log.info('Saving page to knowledge base via IPC');
+    try {
+      try {
+        return await ipcRenderer.invoke('save-page-to-knowledge-base', pageData);
+      } catch (ipcError) {
+        log.error('IPC savePageToKnowledgeBase failed, falling back to HTTP:', ipcError);
+        return this.request('/api/kb/save-page', {
+          method: 'POST',
+          body: JSON.stringify(pageData)
+        });
+      }
+    } catch (error) {
+      log.error('Save page to knowledge base failed:', error);
+      throw error;
+    }
+  },
+  
   // Net request wrapper with standard error handling (keeping as fallback)
   async request(url, options = {}) {
     return new Promise((resolve, reject) => {
@@ -622,7 +641,8 @@ contextBridge.exposeInMainWorld('electron', {
         'get-available-tools', 'execute-tool', 'generate-summary', 'chat',
         'generate-embeddings', 'execute-tool-call', 'semantic-search',
         'get-story-chapters', 'get-story-chapter-content', 'setup-header-bypass',
-        'settings:get', 'settings:save', 'settings:clear', 'settings:testApiKey'
+        'settings:get', 'settings:save', 'settings:clear', 'settings:testApiKey',
+        'save-page-to-knowledge-base'
       ];
       
       if (validChannels.includes(channel)) {

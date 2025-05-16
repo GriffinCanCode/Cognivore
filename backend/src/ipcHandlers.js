@@ -874,12 +874,103 @@ function initializeIpcHandlers() {
     }
   });
 
+  // Save page content to knowledge base
+  safelyRegisterHandler('save-page-to-knowledge-base', async (event, pageData) => {
+    try {
+      return await savePageToKnowledgeBase(event, pageData);
+    } catch (error) {
+      logger.error('Error saving page to knowledge base:', error);
+      return {
+        success: false,
+        error: error.message || 'Unknown error',
+        message: 'Failed to save page to knowledge base'
+      };
+    }
+  });
+
   logger.info('IPC handlers initialized');
+}
+
+/**
+ * Save page content to knowledge base
+ * @param {Object} event - IPC event
+ * @param {Object} pageData - Page data object with URL, title, content, etc.
+ * @returns {Promise<Object>} Success or error result
+ */
+async function savePageToKnowledgeBase(event, pageData) {
+  try {
+    console.log('[IPC] Saving page to knowledge base:', pageData.url);
+    
+    if (!pageData || !pageData.url || !pageData.title) {
+      throw new Error('Missing required page data');
+    }
+    
+    // Get services
+    const { DatabaseService } = require('./services/database');
+    const { LlmService } = require('./services/llm');
+    
+    // Initialize services
+    const db = new DatabaseService();
+    const llm = new LlmService();
+    
+    // Generate embeddings for page content
+    let embeddings = null;
+    
+    if (pageData.text) {
+      try {
+        // Truncate text if too long (embedding models typically have token limits)
+        const truncatedText = pageData.text.substring(0, 8000);
+        
+        // Generate embeddings
+        const embeddingResult = await llm.generateEmbeddings(truncatedText);
+        if (embeddingResult && embeddingResult.embedding) {
+          embeddings = embeddingResult.embedding;
+        }
+      } catch (error) {
+        console.error('[IPC] Error generating embeddings:', error);
+        // Continue without embeddings if generation fails
+      }
+    }
+    
+    // Format page data for storage
+    const documentData = {
+      id: `page-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      url: pageData.url,
+      title: pageData.title,
+      content: pageData.content,
+      text: pageData.text,
+      headings: pageData.headings || [],
+      analysis: pageData.analysis || null,
+      savedAt: pageData.savedAt || new Date().toISOString(),
+      embeddings: embeddings,
+      type: 'web_page',
+      source: 'browser_research'
+    };
+    
+    // Save to database
+    await db.saveDocument(documentData);
+    
+    console.log('[IPC] Page saved to knowledge base:', documentData.id);
+    
+    return {
+      success: true,
+      documentId: documentData.id,
+      message: 'Page saved to knowledge base'
+    };
+  } catch (error) {
+    console.error('[IPC] Error saving page to knowledge base:', error);
+    return {
+      success: false,
+      error: error.message || 'Unknown error',
+      message: 'Failed to save page to knowledge base'
+    };
+  }
 }
 
 module.exports = {
   initializeIpcHandlers,
   getSettingsPath, // Export for testing
   loadSettings,    // Export for testing
-  saveSettings     // Export for testing
+  saveSettings,    // Export for testing
+  savePageToKnowledgeBase,
 }; 

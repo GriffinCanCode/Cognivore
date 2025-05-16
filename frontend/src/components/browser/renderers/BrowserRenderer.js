@@ -1,5 +1,5 @@
 /**
- * BrowserRenderer - Handles rendering of the browser UI
+ * BrowserRenderer - Handles rendering of the browser UI with enhanced interactivity
  */
 import { applySandboxSettings } from '../utils/BrowserEnv.js';
 import { createBrowserPlaceholder } from './ContentRenderer.js';
@@ -18,25 +18,10 @@ export function createBrowserHeader(browser) {
   // Create address bar container (now at the top)
   const addressContainer = document.createElement('div');
   addressContainer.className = 'voyager-address-container';
-  addressContainer.style.cssText = `
-    display: flex !important;
-    align-items: center !important;
-    padding: 8px 16px !important;
-    background-color: var(--card-bg, #252525) !important;
-    border-bottom: 1px solid var(--border-color, #333) !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    z-index: 3 !important;
-    box-sizing: border-box !important;
-    width: 100% !important;
-  `;
   
   // Create address form
   const addressForm = document.createElement('form');
   addressForm.className = 'browser-search-form';
-  addressForm.style.flex = '1';
-  addressForm.style.display = 'flex';
   
   // Handle form submission with proper browser context
   addressForm.addEventListener('submit', (event) => {
@@ -55,18 +40,15 @@ export function createBrowserHeader(browser) {
   addressInput.placeholder = 'Search or enter website name';
   addressInput.spellcheck = false;
   addressInput.autocomplete = 'off';
-  addressInput.style.cssText = `
-    flex: 1 !important;
-    height: 36px !important;
-    padding: 0 12px !important;
-    border-radius: 20px !important;
-    border: 1px solid var(--border-color, #333) !important;
-    background-color: var(--input-bg, #2a2a2a) !important;
-    color: var(--text-color, #e0e0e0) !important;
-    font-size: 14px !important;
-    outline: none !important;
-    width: 100% !important;
-  `;
+  
+  // Add focus animation for better interactivity
+  addressInput.addEventListener('focus', () => {
+    addressForm.classList.add('focused');
+  });
+  
+  addressInput.addEventListener('blur', () => {
+    addressForm.classList.remove('focused');
+  });
   
   // Handle input changes
   addressInput.addEventListener('change', (event) => {
@@ -74,6 +56,17 @@ export function createBrowserHeader(browser) {
       browser.handleAddressChange(event);
     } else {
       console.warn('handleAddressChange not available on browser object');
+    }
+  });
+  
+  // Add keyup listener for real-time address bar updates
+  addressInput.addEventListener('keyup', (event) => {
+    // Trigger visual feedback when typing
+    if (event.key !== 'Enter') {
+      addressForm.classList.add('typing');
+      setTimeout(() => {
+        addressForm.classList.remove('typing');
+      }, 500);
     }
   });
   
@@ -107,7 +100,20 @@ export function createBrowserHeader(browser) {
     </svg>
   `;
   backButton.disabled = true;
-  backButton.addEventListener('click', browser.handleBack);
+  
+  // Add enhanced click handling with visual feedback
+  backButton.addEventListener('click', (e) => {
+    if (!backButton.disabled) {
+      // Add visual feedback
+      addButtonClickEffect(backButton);
+      // Call original handler
+      browser.handleBack(e);
+    }
+  });
+  
+  // Update back button state when history changes
+  updateNavButtonStates(browser, backButton, null);
+  
   navControls.appendChild(backButton);
   
   const forwardButton = document.createElement('button');
@@ -119,7 +125,17 @@ export function createBrowserHeader(browser) {
     </svg>
   `;
   forwardButton.disabled = true;
-  forwardButton.addEventListener('click', browser.handleForward);
+  
+  // Add enhanced click handling with visual feedback
+  forwardButton.addEventListener('click', (e) => {
+    if (!forwardButton.disabled) {
+      // Add visual feedback
+      addButtonClickEffect(forwardButton);
+      // Call original handler
+      browser.handleForward(e);
+    }
+  });
+  
   navControls.appendChild(forwardButton);
   
   const refreshButton = document.createElement('button');
@@ -132,7 +148,19 @@ export function createBrowserHeader(browser) {
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
     </svg>
   `;
-  refreshButton.addEventListener('click', browser.handleRefresh);
+  
+  // Add enhanced click handling with visual feedback
+  refreshButton.addEventListener('click', (e) => {
+    // Add visual feedback - show rotation animation
+    refreshButton.classList.add('rotating');
+    setTimeout(() => {
+      refreshButton.classList.remove('rotating');
+    }, 1000);
+    
+    // Call original handler
+    browser.handleRefresh(e);
+  });
+  
   navControls.appendChild(refreshButton);
   
   const stopButton = document.createElement('button');
@@ -144,7 +172,15 @@ export function createBrowserHeader(browser) {
     </svg>
   `;
   stopButton.style.display = 'none';
-  stopButton.addEventListener('click', browser.handleStop);
+  
+  // Add enhanced click handling with visual feedback
+  stopButton.addEventListener('click', (e) => {
+    // Add visual feedback
+    addButtonClickEffect(stopButton);
+    // Call original handler
+    browser.handleStop(e);
+  });
+  
   navControls.appendChild(stopButton);
   
   header.appendChild(navControls);
@@ -161,7 +197,31 @@ export function createBrowserHeader(browser) {
       <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
     </svg>
   `;
-  bookmarkButton.addEventListener('click', () => browser.addBookmark());
+  
+  // Add enhanced bookmark functionality
+  bookmarkButton.addEventListener('click', () => {
+    // Check if page is already bookmarked
+    const isBookmarked = bookmarkButton.classList.contains('active');
+    
+    // Toggle bookmark state with visual feedback
+    if (isBookmarked) {
+      bookmarkButton.classList.remove('active');
+      bookmarkButton.title = 'Bookmark this page';
+      // Show toast notification
+      showToastNotification('Bookmark removed');
+    } else {
+      bookmarkButton.classList.add('active');
+      bookmarkButton.title = 'Remove bookmark';
+      // Show animation for bookmarking
+      addBookmarkAnimation(bookmarkButton);
+      // Show toast notification
+      showToastNotification('Page bookmarked');
+    }
+    
+    // Call original handler
+    browser.addBookmark();
+  });
+  
   actionButtons.appendChild(bookmarkButton);
   
   const saveButton = document.createElement('button');
@@ -174,7 +234,35 @@ export function createBrowserHeader(browser) {
       <polyline points="7 3 7 8 15 8"></polyline>
     </svg>
   `;
-  saveButton.addEventListener('click', () => browser.savePage());
+  
+  // Add enhanced save functionality with loading state
+  saveButton.addEventListener('click', () => {
+    // Show loading state
+    saveButton.classList.add('loading');
+    
+    // Call original handler and handle response
+    const savePromise = browser.savePage();
+    
+    // If it returns a promise, wait for completion
+    if (savePromise && typeof savePromise.then === 'function') {
+      savePromise.then(() => {
+        // Success state
+        saveButton.classList.remove('loading');
+        showToastNotification('Page saved to knowledge base!');
+      }).catch((error) => {
+        // Error state
+        saveButton.classList.remove('loading');
+        showToastNotification('Failed to save page: ' + (error.message || 'Unknown error'), 'error');
+      });
+    } else {
+      // If no promise, remove loading state after a delay
+      setTimeout(() => {
+        saveButton.classList.remove('loading');
+        showToastNotification('Page saved to knowledge base!');
+      }, 800);
+    }
+  });
+  
   actionButtons.appendChild(saveButton);
   
   const researchButton = document.createElement('button');
@@ -186,7 +274,116 @@ export function createBrowserHeader(browser) {
       <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
     </svg>
   `;
-  researchButton.addEventListener('click', browser.toggleResearchMode);
+  
+  // Ultra-enhanced research mode toggle with maximum resilience
+  researchButton.addEventListener('click', (event) => {
+    // Prevent default to avoid any unexpected behaviors
+    event.preventDefault();
+    event.stopPropagation();
+    
+    console.log('Research button clicked');
+    
+    try {
+      // Don't toggle the visual state immediately - wait for the actual result first
+      
+      // Call the toggleResearchMode handler first to get the actual state
+      if (typeof browser.toggleResearchMode === 'function') {
+        console.log('Calling toggleResearchMode');
+        const result = browser.toggleResearchMode();
+        console.log('toggleResearchMode result:', result);
+        
+        // Now update the button state based on the ACTUAL result, not just toggling
+        if (result === true) {
+          researchButton.classList.add('active');
+          researchButton.title = 'Research mode active';
+          showToastNotification('Research mode activated');
+        } else {
+          researchButton.classList.remove('active');
+          researchButton.title = 'Toggle research mode';
+          showToastNotification('Research mode deactivated');
+        }
+        
+        // Super-force panel visibility if activated
+        if (result === true && browser.researchPanel) {
+          // First immediate check
+          if (browser.researchPanel && browser.researchPanel.isConnected) {
+            browser.researchPanel.setAttribute('style', `
+              display: block !important;
+              z-index: 999999 !important;
+              opacity: 1 !important;
+              visibility: visible !important;
+              position: fixed !important;
+              right: 0 !important;
+              top: 0 !important;
+              bottom: 0 !important;
+              height: 100vh !important;
+              width: 350px !important;
+              transform: none !important;
+            `);
+            
+            // Move to body for absolute maximum visibility
+            document.body.appendChild(browser.researchPanel);
+          }
+          
+          // Try again after a delay
+          setTimeout(() => {
+            if (browser.researchPanel && browser.researchPanel.isConnected) {
+              browser.researchPanel.setAttribute('style', `
+                display: block !important;
+                z-index: 999999 !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                position: fixed !important;
+                right: 0 !important;
+                top: 0 !important;
+              `);
+              
+              // Ensure it's in the body
+              if (browser.researchPanel.parentElement !== document.body) {
+                document.body.appendChild(browser.researchPanel);
+              }
+            }
+          }, 100);
+        }
+      } else {
+        console.error('toggleResearchMode is not a function on the browser object');
+        showToastNotification('Research mode not available', 'error');
+      }
+    } catch (error) {
+      console.error('Error toggling research mode:', error);
+      showToastNotification('Error toggling research mode', 'error');
+      
+      // Attempt emergency recovery
+      try {
+        // Try to create panel directly if it doesn't exist
+        if (!browser.researchPanel) {
+          console.log('Attempting emergency panel creation');
+          browser.researchPanel = createResearchPanel();
+          document.body.appendChild(browser.researchPanel);
+          browser.researchPanel.setAttribute('style', `
+            display: block !important;
+            z-index: 999999 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            position: fixed !important;
+            right: 0 !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            height: 100vh !important;
+            width: 350px !important;
+          `);
+        }
+      } catch (recoveryError) {
+        console.error('Emergency recovery failed:', recoveryError);
+      }
+    }
+    
+    // Fire a custom event to notify any listeners
+    document.dispatchEvent(new CustomEvent('researchModeToggled', {
+      detail: { browser, button: researchButton }
+    }));
+  });
+  
   actionButtons.appendChild(researchButton);
   
   header.appendChild(actionButtons);
@@ -194,7 +391,190 @@ export function createBrowserHeader(browser) {
   // Add header to container
   headerContainer.appendChild(header);
   
+  // Initialize research panel state if available in browser
+  setTimeout(() => {
+    if (browser.isResearchModeActive && browser.isResearchModeActive()) {
+      researchButton.classList.add('active');
+      researchButton.title = 'Research mode active';
+    }
+  }, 100);
+  
   return headerContainer;
+}
+
+/**
+ * Helper function to add button click effect
+ * @param {HTMLElement} button - The button to apply effect to
+ */
+function addButtonClickEffect(button) {
+  // Add ripple effect
+  const ripple = document.createElement('span');
+  ripple.className = 'button-ripple';
+  ripple.style.cssText = `
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  `;
+  
+  button.appendChild(ripple);
+  
+  // Animate ripple
+  requestAnimationFrame(() => {
+    ripple.style.width = '120%';
+    ripple.style.height = '120%';
+    ripple.style.opacity = '0';
+    ripple.style.transition = 'all 0.6s ease-out';
+  });
+  
+  // Remove ripple after animation
+  setTimeout(() => {
+    if (ripple.parentNode === button) {
+      button.removeChild(ripple);
+    }
+  }, 600);
+}
+
+/**
+ * Helper to add bookmark animation
+ * @param {HTMLElement} button - Bookmark button
+ */
+function addBookmarkAnimation(button) {
+  // Add a small pop animation
+  button.animate([
+    { transform: 'scale(1)' },
+    { transform: 'scale(1.3)' },
+    { transform: 'scale(1)' }
+  ], {
+    duration: 400,
+    easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+  });
+  
+  // Change SVG fill to show it's active
+  const svg = button.querySelector('svg');
+  if (svg) {
+    svg.setAttribute('fill', 'currentColor');
+  }
+}
+
+/**
+ * Helper to show toast notifications
+ * @param {string} message - Message to display
+ * @param {string} type - Type of notification (default, error, etc.)
+ */
+function showToastNotification(message, type = 'default') {
+  // Check if toast container exists
+  let toastContainer = document.querySelector('.browser-toast-container');
+  
+  // Create if doesn't exist
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.className = 'browser-toast-container';
+    toastContainer.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    `;
+    document.body.appendChild(toastContainer);
+  }
+  
+  // Create toast
+  const toast = document.createElement('div');
+  toast.className = `browser-toast ${type}`;
+  toast.textContent = message;
+  
+  // Style toast based on type
+  const bgColor = type === 'error' ? 'rgba(220, 38, 38, 0.9)' : 'rgba(37, 99, 235, 0.9)';
+  
+  toast.style.cssText = `
+    padding: 10px 16px;
+    background-color: ${bgColor};
+    color: white;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-size: 14px;
+    max-width: 300px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+  `;
+  
+  // Add to container
+  toastContainer.appendChild(toast);
+  
+  // Trigger animation
+  setTimeout(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+  }, 10);
+  
+  // Remove after delay
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(20px)';
+    
+    // Remove from DOM after fade out
+    setTimeout(() => {
+      if (toast.parentNode === toastContainer) {
+        toastContainer.removeChild(toast);
+      }
+      
+      // Remove container if empty
+      if (toastContainer.children.length === 0) {
+        toastContainer.remove();
+      }
+    }, 300);
+  }, 3000);
+}
+
+/**
+ * Update navigation button states based on browser history
+ * @param {Object} browser - Browser instance
+ * @param {HTMLElement} backBtn - Back button element
+ * @param {HTMLElement} forwardBtn - Forward button element
+ */
+function updateNavButtonStates(browser, backBtn, forwardBtn) {
+  // Set up navigation state update after a short delay (let history update)
+  if (browser.webview) {
+    setTimeout(() => {
+      try {
+        const canGoBack = typeof browser.canGoBack === 'function' ? browser.canGoBack() : false;
+        const canGoForward = typeof browser.canGoForward === 'function' ? browser.canGoForward() : false;
+        
+        if (backBtn) {
+          backBtn.disabled = !canGoBack;
+          // Visual indication of disabled state for better UX
+          if (!canGoBack) {
+            backBtn.classList.add('disabled');
+          } else {
+            backBtn.classList.remove('disabled');
+          }
+        }
+        
+        if (forwardBtn) {
+          forwardBtn.disabled = !canGoForward;
+          // Visual indication of disabled state for better UX
+          if (!canGoForward) {
+            forwardBtn.classList.add('disabled');
+          } else {
+            forwardBtn.classList.remove('disabled');
+          }
+        }
+      } catch (err) {
+        console.warn('Error updating nav button states:', err);
+      }
+    }, 100);
+  }
 }
 
 /**
@@ -202,48 +582,112 @@ export function createBrowserHeader(browser) {
  * @returns {HTMLElement} Research panel element
  */
 export function createResearchPanel() {
+  // Create the panel with explicit comprehensive styling
   const researchPanel = document.createElement('div');
   researchPanel.className = 'browser-research-panel';
-  researchPanel.style.display = 'none';
   
+  // Apply immediate styling to ensure visibility
+  researchPanel.style.cssText = `
+    display: none !important;
+    z-index: 9999 !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    position: fixed !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    height: 100vh !important;
+    width: 350px !important;
+    background-color: #ffffff !important;
+    box-shadow: -5px 0 25px rgba(0, 0, 0, 0.25) !important;
+    transition: transform 0.3s ease-in-out, opacity 0.3s ease !important;
+    transform: translateX(100%) !important;
+    pointer-events: none !important;
+    overflow: auto !important;
+    font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  `;
+  
+  // Create header with standard styling
   const researchHeader = document.createElement('div');
   researchHeader.className = 'research-panel-header';
+  researchHeader.style.cssText = `
+    padding: 15px !important;
+    border-bottom: 1px solid #e0e0e0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    background-color: #f8f9fa !important;
+  `;
+  
+  // Add header content
   researchHeader.innerHTML = `
-    <h3>Research</h3>
-    <div class="research-panel-controls">
-      <button class="research-panel-clear">Clear</button>
-      <button class="research-panel-close">×</button>
+    <h3 style="margin: 0; font-size: 18px; font-weight: 500;">Research</h3>
+    <div class="research-panel-controls" style="display: flex; gap: 10px;">
+      <button class="research-panel-clear" style="background: none; border: none; cursor: pointer; font-size: 14px; padding: 5px 8px; border-radius: 4px;">Clear</button>
+      <button class="research-panel-close" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 5px 8px; border-radius: 4px;">×</button>
     </div>
   `;
   
-  researchHeader.querySelector('.research-panel-close').addEventListener('click', () => {
-    researchPanel.style.display = 'none';
+  // Set up event handlers with console logging
+  researchHeader.querySelector('.research-panel-close').addEventListener('click', (event) => {
+    console.log('Research panel close button clicked');
+    
+    // Use a more robust approach to hide the panel
+    researchPanel.style.cssText = `
+      transform: translateX(100%) !important;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      display: none !important;
+      pointer-events: none !important;
+    `;
+    
+    // Also try to find and toggle the research button
+    const researchBtn = document.querySelector('.browser-research-btn');
+    if (researchBtn && researchBtn.classList.contains('active')) {
+      researchBtn.click();
+    }
+    
+    event.stopPropagation();
   });
   
-  researchHeader.querySelector('.research-panel-clear').addEventListener('click', () => {
+  researchHeader.querySelector('.research-panel-clear').addEventListener('click', (event) => {
+    console.log('Research panel clear button clicked');
     const content = researchPanel.querySelector('.research-panel-content');
     if (content) {
       content.innerHTML = `
-        <div class="research-empty-state">
+        <div class="research-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
           <p>No research data available yet.</p>
           <p>Enable research mode to automatically save pages as you browse.</p>
         </div>
       `;
     }
+    event.stopPropagation();
   });
   
   researchPanel.appendChild(researchHeader);
   
+  // Create content area with standard styling
   const researchContent = document.createElement('div');
   researchContent.className = 'research-panel-content';
+  researchContent.style.cssText = `
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 10px 15px !important;
+    height: calc(100vh - 51px) !important; /* 51px is header height */
+  `;
+  
+  // Add initial empty state
   researchContent.innerHTML = `
-    <div class="research-empty-state">
+    <div class="research-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; margin-top: 40px; color: #666; text-align: center;">
       <p>No research data available yet.</p>
       <p>Enable research mode to automatically save pages as you browse.</p>
     </div>
   `;
   
   researchPanel.appendChild(researchContent);
+  
+  // Log panel creation
+  console.log('Created research panel with explicit styling');
   
   return researchPanel;
 }
@@ -303,14 +747,14 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
             opacity: 1 !important;
             z-index: 1 !important;
             position: fixed !important;
-            top: 52px !important;
+            top: 92px !important; /* 52px address bar + 40px toolbar */
             left: ${sidebarWidthVar} !important;
             right: 0 !important;
             bottom: 0 !important;
             width: calc(100vw - ${sidebarWidthVar}) !important;
-            height: calc(100vh - 52px) !important;
-            min-height: calc(100vh - 52px) !important;
-            max-height: calc(100vh - 52px) !important;
+            height: calc(100vh - 92px) !important; /* Adjusted height */
+            min-height: calc(100vh - 92px) !important; /* Adjusted height */
+            max-height: calc(100vh - 92px) !important; /* Adjusted height */
             min-width: calc(100vw - ${sidebarWidthVar}) !important;
             max-width: calc(100vw - ${sidebarWidthVar}) !important;
             border: none !important;
@@ -623,12 +1067,12 @@ export function createWebview(browser, implementation, sandboxLevel) {
   
   container.style.cssText = `
     position: fixed !important;
-    top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+    top: 92px !important; /* 52px address bar + 40px toolbar */
     left: ${sidebarWidth} !important;
     right: 0 !important;
     bottom: 0 !important;
     width: calc(100vw - ${sidebarWidth}) !important;
-    height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+    height: calc(100vh - 92px) !important; /* Adjusted for both bars */
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -999,14 +1443,14 @@ function _hideLoadingContent(loadingContent, browser) {
         opacity: 1 !important;
         z-index: 1 !important;
         position: fixed !important;
-        top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+        top: 92px !important; /* 52px address bar + 40px toolbar */
         left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
         width: calc(100vw - ${sidebarWidth}) !important;
-        height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-        min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-        max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        min-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        max-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
         min-width: calc(100vw - ${sidebarWidth}) !important;
         max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
@@ -1147,14 +1591,14 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         opacity: 1 !important;
         z-index: 1 !important;
         position: fixed !important;
-        top: 52px !important;
+        top: 92px !important; /* 52px address bar + 40px toolbar */
         left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
         width: calc(100vw - ${sidebarWidth}) !important;
-        height: calc(100vh - 52px) !important;
-        min-height: calc(100vh - 52px) !important;
-        max-height: calc(100vh - 52px) !important;
+        height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        min-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        max-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
         min-width: calc(100vw - ${sidebarWidth}) !important;
         max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
@@ -1183,12 +1627,12 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         // Ensure container has proper styling
         container.style.cssText = `
           position: fixed !important;
-          top: 52px !important;
+          top: 92px !important; /* 52px address bar + 40px toolbar */
           left: ${sidebarWidth} !important;
           right: 0 !important;
           bottom: 0 !important;
           width: calc(100vw - ${sidebarWidth}) !important;
-          height: calc(100vh - 52px) !important;
+          height: calc(100vh - 92px) !important; /* Adjusted for both bars */
           margin: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
@@ -1611,21 +2055,21 @@ export function applyPreNavigationStyles(browser) {
       ? 'var(--sidebar-collapsed-width, 70px)' 
       : 'var(--sidebar-width, 260px)';
     
-    // Apply direct styling to the webview element with transition support and dynamic sidebar width
+          // Apply direct styling to the webview element with transition support and dynamic sidebar width
     browser.webview.style.cssText = `
       display: flex !important;
       visibility: visible !important;
       opacity: 0 !important;
       z-index: 1 !important;
       position: fixed !important;
-      top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+      top: 92px !important; /* 52px address bar + 40px toolbar */
       left: ${sidebarWidth} !important;
       right: 0 !important;
       bottom: 0 !important;
       width: calc(100vw - ${sidebarWidth}) !important;
-      height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-      min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-      max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+      height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+      min-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+      max-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
       min-width: calc(100vw - ${sidebarWidth}) !important;
       max-width: calc(100vw - ${sidebarWidth}) !important;
       border: none !important;
@@ -1646,7 +2090,7 @@ export function applyPreNavigationStyles(browser) {
     void browser.webview.offsetHeight;
     
     // Directly manipulate key properties to ensure they're set correctly
-    browser.webview.style.top = '52px';
+    browser.webview.style.top = '92px'; // 52px address bar + 40px toolbar
     browser.webview.style.position = 'fixed';
     
     if (typeof browser.webview.applyAllCriticalStyles === 'function') {
@@ -1789,14 +2233,14 @@ export function scheduleStyleChecks(browser) {
         opacity: 1 !important;
         z-index: 1 !important;
         position: fixed !important;
-        top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+        top: 92px !important; /* 52px address bar + 40px toolbar */
         left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
         width: calc(100vw - ${sidebarWidth}) !important;
-        height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-        min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-        max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+        height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        min-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        max-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
         min-width: calc(100vw - ${sidebarWidth}) !important;
         max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
@@ -1874,6 +2318,19 @@ export function scheduleStyleChecks(browser) {
                     margin: 0 auto !important;
                     overflow-x: hidden !important;
                   }
+                  /* Fix Google Sign-in and other buttons at the top */
+                  .gb_2d, .gb_Ud, .gb_wd, .gb_xd, .gb_Id, .gb_Ed, .gb_be, .gb_Fc, .gb_3d, 
+                  .gbii, .gbip, .gbi, .gb_Dd, .gb_Cd {
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                  }
+                  /* Fix for Google header */
+                  #gb, .gb_1d, .gb_g, .gb_sc, .gb_pc, .gb_td {
+                    position: relative !important;
+                    top: 0 !important;
+                    z-index: 999 !important;
+                  }
                 \`;
               } else {
                 // Generic styles for other sites with enhanced targeting
@@ -1902,6 +2359,20 @@ export function scheduleStyleChecks(browser) {
                   * {
                     max-width: 100vw !important;
                     overflow-x: hidden !important;
+                  }
+                  /* Ensure top navigation elements are visible */
+                  nav, header, .header, .top-bar, .nav-bar, .navigation, .site-header, 
+                  .navbar, .topbar, .top-header, .app-header, .fixed-top {
+                    position: relative !important;
+                    top: 0 !important;
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    z-index: 100 !important;
+                  }
+                  /* Add padding to top content to prevent overlap */
+                  body {
+                    padding-top: 0 !important;
                   }
                 \`;
               }
@@ -1979,14 +2450,14 @@ export function scheduleStyleChecks(browser) {
   const safetyCheck = setTimeout(() => {
     if (browser.webview && !browser._isUnloading) {
       const rect = browser.webview.getBoundingClientRect();
-      const expectedHeight = window.innerHeight - 104; // Adjusted from 52px to 104px
+      const expectedHeight = window.innerHeight - 92; // 52px address bar + 40px toolbar
       const expectedWidth = window.innerWidth;
       
       // Only reapply if dimensions are significantly wrong (>10px difference)
       // Increased from previous 5px to reduce unnecessary style applications
       if (Math.abs(rect.width - expectedWidth) > 10 || 
           Math.abs(rect.height - expectedHeight) > 10 || 
-          rect.top !== 104 || rect.left !== 0) { // Adjusted from 52px to 104px
+          rect.top !== 92 || rect.left !== 0) { // 52px address bar + 40px toolbar
         console.log('Safety check: Webview dimensions need adjustment');
         browser.webview.applyAllCriticalStyles(true);
       }
