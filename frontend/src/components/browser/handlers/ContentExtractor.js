@@ -2,6 +2,12 @@
  * ContentExtractor - Functions for extracting and processing web page content
  */
 
+import logger from '../../../utils/logger';
+import extractionSystem from './ContentExtractionSystem';
+
+// Create a logger instance for this module
+const extractorLogger = logger.scope('ContentExtractor');
+
 /**
  * Extract and save page content to vector database
  * @param {Object} browser - Browser instance
@@ -12,37 +18,38 @@ export function extractPageContent(browser) {
   // Different extraction method based on environment
   try {
     // Track extraction attempt
-    console.log('Attempting to extract content from:', browser.currentUrl);
+    extractorLogger.info('Attempting to extract content from:', browser.currentUrl);
     
-    // Add safety check for webview readiness
-    if (browser.webview.tagName && browser.webview.tagName.toLowerCase() === 'webview' && 
-        browser.webview.isConnected && typeof browser.webview.executeJavaScript === 'function') {
-      // Execute a simple test first to verify webview is ready
-      browser.webview.executeJavaScript('true')
-        .then(() => {
-          // Webview is ready, proceed with content extraction
-          extractContentWithWebviewAPI(browser);
-        })
-        .catch(error => {
-          console.warn('Webview not ready for JavaScript execution:', error);
-          // Try fallback methods
-          if (browser.contentFrame) {
-            extractContentFromIframe(browser);
-          } else if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
-            extractContentViaProxy(browser);
+    // Use the new extraction system
+    extractionSystem.extractContent(browser, browser.currentUrl)
+      .then(contentResult => {
+        if (contentResult && contentResult.extractionSuccess !== false) {
+          savePageToVectorDB(browser, contentResult);
+        } else {
+          extractorLogger.warn('Extraction failed:', contentResult?.error || 'Unknown reason');
+          
+          // Try fallback methods if not already attempted
+          if (!contentResult || contentResult.extractionMethod === 'error') {
+            if (browser.contentFrame) {
+              extractContentFromIframe(browser);
+            } else if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
+              extractContentViaProxy(browser);
+            }
           }
-        });
-    } else if (browser.contentFrame) {
-      // Try to extract from iframe if available
-      extractContentFromIframe(browser);
-    } else {
-      // Try proxy extraction if available
-      if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
-        extractContentViaProxy(browser);
-      }
-    }
+        }
+      })
+      .catch(error => {
+        extractorLogger.error('Error using extraction system:', error);
+        
+        // Try legacy fallback methods
+        if (browser.contentFrame) {
+          extractContentFromIframe(browser);
+        } else if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
+          extractContentViaProxy(browser);
+        }
+      });
   } catch (error) {
-    console.error('Error extracting page content:', error);
+    extractorLogger.error('Error extracting page content:', error);
     
     // Try proxy extraction as last resort
     if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
@@ -229,7 +236,7 @@ function extractContentWithWebviewAPI(browser) {
   `)
   .then(result => {
     if (result.error) {
-      console.error('Error in content extraction script:', result.message);
+      extractorLogger.error('Error in content extraction script:', result.message);
       // Try a simpler extraction as fallback
       extractSimpleContent(browser);
     } else {
@@ -237,7 +244,7 @@ function extractContentWithWebviewAPI(browser) {
     }
   })
   .catch(error => {
-    console.error('Failed to execute content extraction script:', error);
+    extractorLogger.error('Failed to execute content extraction script:', error);
     extractSimpleContent(browser);
   });
 }
@@ -267,7 +274,7 @@ function extractContentFromIframe(browser) {
     
     savePageToVectorDB(browser, pageData);
   } catch (error) {
-    console.error('Failed to access iframe content (likely CORS restriction):', error);
+    extractorLogger.error('Failed to access iframe content (likely CORS restriction):', error);
     
     // Try proxy-based extraction if available
     if (window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function') {
@@ -302,7 +309,7 @@ function extractContentViaProxy(browser) {
       }
     })
     .catch(error => {
-      console.error('Error extracting content via proxy:', error);
+      extractorLogger.error('Error extracting content via proxy:', error);
       
       if (browser.notificationService) {
         browser.notificationService.show('Failed to extract content from this page', 'error');
@@ -328,7 +335,7 @@ function extractSimpleContent(browser) {
       savePageToVectorDB(browser, result);
     })
     .catch(error => {
-      console.error('Failed to extract simple content:', error);
+      extractorLogger.error('Failed to extract simple content:', error);
       
       if (browser.notificationService) {
         browser.notificationService.show('Failed to extract content from this page', 'error');
@@ -345,22 +352,22 @@ function extractSimpleContent(browser) {
 export function savePageToVectorDB(browser, content) {
   // Validate content
   if (!content) {
-    console.error('Invalid content: content is null or undefined');
+    extractorLogger.error('Invalid content: content is null or undefined');
     return;
   }
   
   if (!content.text) {
-    console.error('Invalid content: missing text property');
+    extractorLogger.error('Invalid content: missing text property');
     return;
   }
   
   if (typeof content.text !== 'string') {
-    console.error('Invalid content: text is not a string', typeof content.text);
+    extractorLogger.error('Invalid content: text is not a string', typeof content.text);
     return;
   }
   
   if (content.text.trim().length < 10) {
-    console.error('Invalid content: text is too short', content.text);
+    extractorLogger.error('Invalid content: text is too short', content.text);
     return;
   }
   
@@ -390,7 +397,7 @@ export function savePageToVectorDB(browser, content) {
       }
     })
     .catch(error => {
-      console.error('Error saving page to vector DB:', error);
+      extractorLogger.error('Error saving page to vector DB:', error);
       if (browser.notificationService) {
         browser.notificationService.show('Failed to save page to knowledge base', 'error');
       }
@@ -496,91 +503,39 @@ export function extractFullPageContent(doc, url) {
       url = doc.currentUrl || '';
     }
     
-    // We need to extract document from webview
-    if (doc.webview.getWebContents && typeof doc.webview.getWebContents === 'function') {
-      // Try to use webview's document via IPC
-      try {
-        // This will need to be handled asynchronously
-        return new Promise((resolve, reject) => {
-          const extractionScript = `
-            (() => {
-              try {
-                return {
-                  title: document.title || '',
-                  text: document.body ? document.body.textContent || '' : '',
-                  links: Array.from(document.querySelectorAll('a[href]')).map(link => ({
-                    text: link.textContent.trim(),
-                    url: link.href,
-                    title: link.getAttribute('title') || ''
-                  })).filter(link => link.url && link.url.startsWith('http')),
-                  headings: Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).map(heading => ({
-                    level: parseInt(heading.tagName.substring(1)),
-                    text: heading.textContent.trim()
-                  })),
-                  pageInfo: {
-                    title: document.title || '',
-                    metaDescription: document.querySelector('meta[name="description"]')?.content || '',
-                    canonicalUrl: document.querySelector('link[rel="canonical"]')?.href || '',
-                    ogImage: document.querySelector('meta[property="og:image"]')?.content || '',
-                    ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
-                    ogDescription: document.querySelector('meta[property="og:description"]')?.content || ''
-                  },
-                  mainContent: document.body ? document.body.textContent.replace(/\\s+/g, ' ').trim() : ''
-                };
-              } catch (err) {
-                return { 
-                  error: true,
-                  message: err.message,
-                  title: document.title || 'Error extracting content',
-                  text: 'Error extracting content: ' + err.message
-                };
-              }
-            })();
-          `;
-          
-          doc.webview.executeJavaScript(extractionScript)
-            .then(result => {
-              if (result.error) {
-                console.warn('Error in content extraction script:', result.message);
-                // Return minimal content to avoid complete failure
-                resolve({
-                  text: result.text || 'Content extraction failed',
-                  title: result.title || 'Unknown Title',
-                  links: [],
-                  headings: [],
-                  mainContent: result.text || ''
-                });
-              } else {
-                resolve(result);
-              }
-            })
-            .catch(err => {
-              console.error('Failed to execute content extraction script:', err);
-              // Return minimal content
-              resolve({
-                text: 'Failed to extract content',
-                links: [],
-                headings: [],
-                mainContent: 'Content extraction failed'
-              });
-            });
-        });
-      } catch (err) {
-        console.error('Error accessing webview content:', err);
+    // Use the new extraction system for browser objects
+    return extractionSystem.extractContent(doc, url)
+      .then(result => {
+        // Map the results to match the expected format
         return {
-          text: 'Error accessing webview content',
-          links: [],
-          headings: []
+          title: result.title || '',
+          text: result.text || '',
+          links: result.links || [],
+          headings: result.headings || [],
+          pageInfo: {
+            title: result.title || '',
+            metaDescription: result.metadata?.description || '',
+            canonicalUrl: result.metadata?.['canonical-url'] || '',
+            ogImage: result.metadata?.['og:image'] || '',
+            ogTitle: result.metadata?.['og:title'] || '',
+            ogDescription: result.metadata?.['og:description'] || ''
+          },
+          mainContent: result.mainContent || result.text || '',
+          extractionMethod: result.extractionMethod
         };
-      }
-    } else {
-      console.warn('Webview not available for content extraction');
-      return {
-        text: 'Webview not available for content extraction',
-        links: [],
-        headings: []
-      };
-    }
+      })
+      .catch(error => {
+        extractorLogger.error('Error using extraction system:', error);
+        // Return minimal content on error to avoid breaking the application
+        return {
+          title: doc.currentTitle || 'Unknown Title',
+          text: 'Error extracting content: ' + error.message,
+          links: [],
+          headings: [],
+          mainContent: 'Content extraction failed',
+          extractionError: error.message
+        };
+      });
   }
 
   // Original functionality for document object
@@ -606,7 +561,7 @@ export function extractFullPageContent(doc, url) {
           absoluteUrl = new URL(href, url).href;
         } catch (err) {
           // Keep original if URL construction fails
-          console.warn('Error converting relative URL:', err);
+          extractorLogger.warn('Error converting relative URL:', err);
         }
       }
       
@@ -628,7 +583,7 @@ export function extractFullPageContent(doc, url) {
       mainContent: extractMainContent(doc)
     };
   } catch (err) {
-    console.warn('Error extracting page content:', err);
+    extractorLogger.warn('Error extracting page content:', err);
     return { 
       text: doc.body ? doc.body.textContent : '',
       links: [],
@@ -709,7 +664,7 @@ export function extractMainContent(doc) {
     // Final fallback
     return doc.body.textContent.replace(/\s+/g, ' ').trim();
   } catch (err) {
-    console.warn('Error extracting main content:', err);
+    extractorLogger.warn('Error extracting main content:', err);
     return doc.body.textContent || '';
   }
 }
@@ -735,7 +690,7 @@ export function extractHeadingStructure(doc) {
       };
     });
   } catch (err) {
-    console.warn('Error extracting heading structure:', err);
+    extractorLogger.warn('Error extracting heading structure:', err);
     return [];
   }
 }

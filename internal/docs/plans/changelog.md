@@ -2198,3 +2198,12 @@
 - Added recursion prevention for tool call processing in `sendChatMessage` method with depth tracking
 - Enhanced recursion protection in `updateUI` method with depth tracking to prevent potential stack issues
 - Improved error handling for content extraction and DOM manipulation
+
+### 2023-XX-XX: Robust Content Extraction System
+
+- **Added** `ContentExtractionSystem.js` - A comprehensive content extraction system with multiple fallback mechanisms
+- **Updated** `ContentExtractor.js` - Integrated with new extraction system for reliable content extraction
+- **Updated** `ResearcherEventHandlers.js` - Improved event handlers for better webview readiness detection
+- **Updated** `Researcher.js` - Enhanced _processAndAnalyze method to work with pre-extracted content
+
+These changes address the "webview not ready" errors and provide a more robust extraction system with proper fallbacks when webview extraction fails.

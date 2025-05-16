@@ -1,180 +1,199 @@
 /**
- * ResearcherEventHandlers - Event handlers for Researcher component
+ * ResearcherEventHandlers.js - Event handlers for the Researcher component
+ * 
+ * These handlers manage webview events specifically for research and content extraction
+ * use cases, including webview readiness detection and error recovery.
  */
 
 import logger from '../../../utils/logger';
+import extractionSystem from './ContentExtractionSystem';
 
-// Create a logger instance for event handlers
-const eventLogger = logger.scope('ResearcherEvents');
-
-/**
- * Handle chat input changes
- * @param {Object} researcher - Researcher component instance
- * @param {Event} event - Input change event
- */
-export function handleChatInputChange(researcher, event) {
-  eventLogger.debug('Chat input changed');
-  researcher.setState({ chatInput: event.target.value });
-}
+// Create a dedicated logger for research event handlers
+const researchLogger = logger.scope('ResearchEvents');
 
 /**
- * Handle chat input key press (Enter to send)
+ * Handles page load completion in the webview for research purposes
+ * @param {Object} event - The load event
+ * @param {Object} browser - Browser instance
  * @param {Object} researcher - Researcher component instance
- * @param {KeyboardEvent} event - Keyboard event
  */
-export function handleChatInputKeyPress(researcher, event) {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    eventLogger.debug('Enter key pressed in chat input');
-    event.preventDefault();
-    researcher.sendChatMessage();
+export function handlePageLoadForResearch(event, browser, researcher) {
+  if (!browser || !browser.webview) return;
+  
+  // Mark webview as ready for extraction
+  if (browser.webview.isConnected) {
+    browser.webview.setAttribute('data-ready', 'true');
+    researchLogger.info('Webview marked as ready for extraction');
+  }
+  
+  // If researcher has auto-extract enabled, perform content extraction
+  if (researcher && researcher.state.autoExtract) {
+    researchLogger.info('Auto-extracting content for research');
+    extractContentForResearch(browser, researcher);
   }
 }
 
 /**
- * Handle research panel toggle
- * @param {Object} researcher - Researcher component instance
- * @returns {boolean} New active state
+ * Handle DOM ready event for research preparation
+ * @param {Object} event - The DOM ready event
+ * @param {Object} browser - Browser instance
  */
-export function handlePanelToggle(researcher) {
-  eventLogger.info('Toggling research panel');
+export function handleDomReadyForResearch(event, browser) {
+  if (!browser || !browser.webview) return;
   
-  // Get or create the research panel
-  const researchPanel = researcher.getResearchPanel();
-  if (!researchPanel) {
-    eventLogger.error('Could not get or create research panel');
-    return false;
+  // Mark webview as DOM-ready
+  browser.webview.setAttribute('data-ready', 'true');
+  
+  // Inject any necessary helper scripts or listeners
+  try {
+    // Add readiness detection script
+    browser.webview.executeJavaScript(`
+      document.body.setAttribute('data-extraction-ready', 'true');
+      // Listen for page mutations that might indicate content is still loading
+      const observer = new MutationObserver((mutations) => {
+        if (mutations.length > 10) {
+          document.body.setAttribute('data-content-changing', 'true');
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      // Signal readiness
+      true;
+    `)
+    .then(() => {
+      researchLogger.debug('Research readiness script injected');
+    })
+    .catch(error => {
+      researchLogger.warn('Failed to inject research readiness script:', error.message);
+    });
+  } catch (error) {
+    researchLogger.error('Error in DOM ready handler:', error);
+  }
+}
+
+/**
+ * Extract content from the current page for research
+ * @param {Object} browser - Browser instance 
+ * @param {Object} researcher - Researcher component instance
+ * @returns {Promise<Object>} Promise resolving to extracted content
+ */
+export function extractContentForResearch(browser, researcher) {
+  if (!browser || !browser.webview) {
+    return Promise.reject(new Error('Browser or webview not available'));
   }
   
-  // Remove any existing input containers first to prevent duplicates
-  const existingInputs = document.querySelectorAll('.research-chat-input');
-  existingInputs.forEach(input => {
-    input.remove();
-    const index = researcher.createdInputElements.indexOf(input);
-    if (index > -1) {
-      researcher.createdInputElements.splice(index, 1);
-    }
-  });
+  researchLogger.info(`Extracting content from ${browser.currentUrl}`);
   
-  // Update state and trigger initialization
-  const newActive = !researcher.state.isActive;
-  researcher._handleStateChange({ isActive: newActive });
-  
-  // If activating, ensure panel is visible and properly set up
-  if (newActive) {
-    researchPanel.classList.remove('hidden');
-    researchPanel.style.visibility = 'visible';
-    researchPanel.style.display = 'flex';
-    researcher.setupResearchPanelHeader(researchPanel);
+  // Check if webview is ready for extraction
+  if (!extractionSystem.isWebviewReady(browser.webview)) {
+    researchLogger.warn('Webview not ready for extraction, waiting...');
     
-    // Force chat interface update
-    setTimeout(() => {
-      researcher._ensureChatInterface();
-      researcher.updateChatInterface();
-    }, 100);
-  } else {
-    researchPanel.classList.add('hidden');
+    // Wait and retry once
+    return new Promise(resolve => {
+      setTimeout(() => {
+        // Check again if webview is ready
+        if (extractionSystem.isWebviewReady(browser.webview)) {
+          researchLogger.info('Webview now ready, proceeding with extraction');
+          resolve(performExtraction(browser, researcher));
+        } else {
+          researchLogger.warn('Webview still not ready, using fallback methods');
+          // Use fallback extraction that doesn't require webview readiness
+          resolve(performExtraction(browser, researcher, { skipWebview: true }));
+        }
+      }, 1000); // Wait 1 second before retrying
+    });
   }
   
-  return newActive;
+  // Webview is ready, proceed with extraction
+  return performExtraction(browser, researcher);
 }
 
 /**
- * Handle research panel collapse toggle
+ * Handle extraction for the researcher component
+ * @param {Object} browser - Browser instance
  * @param {Object} researcher - Researcher component instance
+ * @param {Object} options - Extraction options
+ * @returns {Promise<Object>} Promise resolving to extracted content
  */
-export function handleCollapseToggle(researcher) {
-  eventLogger.debug('Toggling panel collapse state');
+function performExtraction(browser, researcher, options = {}) {
+  const url = browser.currentUrl;
   
-  researcher.setState(prevState => ({
-    isCollapsed: !prevState.isCollapsed
-  }), () => {
-    const researchPanel = researcher.getResearchPanel();
-    if (researchPanel) {
-      if (researcher.state.isCollapsed) {
-        researchPanel.classList.add('collapsed');
-      } else {
-        researchPanel.classList.remove('collapsed');
+  return extractionSystem.extractContent(browser, url, options)
+    .then(content => {
+      researchLogger.info(`Content extracted successfully: ${content.title}`);
+      
+      // If researcher is available, pass content to it
+      if (researcher && typeof researcher._processAndAnalyze === 'function') {
+        // Instead of returning directly, let the researcher component handle the content
+        researcher._processAndAnalyze(browser, content);
       }
-    }
-  });
+      
+      return content;
+    })
+    .catch(error => {
+      researchLogger.error(`Content extraction failed: ${error.message}`);
+      
+      // If researcher is available, notify of error
+      if (researcher && typeof researcher.setState === 'function') {
+        researcher.setState({
+          error: `Content extraction failed: ${error.message}`,
+          isProcessing: false
+        });
+      }
+      
+      return {
+        title: browser.webview.getTitle?.() || 'Failed Extraction',
+        text: `Failed to extract content: ${error.message}`,
+        url: url,
+        extractionSuccess: false,
+        error: error.message
+      };
+    });
 }
 
 /**
- * Handle research panel close
+ * Handle navigation events for research tracking
+ * @param {Object} event - Navigation event
+ * @param {Object} browser - Browser instance
  * @param {Object} researcher - Researcher component instance
  */
-export function handlePanelClose(researcher) {
-  eventLogger.info('Closing research panel');
+export function handleNavigationForResearch(event, browser, researcher) {
+  if (!researcher) return;
   
-  researcher.setState({ isActive: false }, () => {
-    const researchPanel = researcher.getResearchPanel();
-    if (researchPanel) {
-      researchPanel.classList.add('hidden');
-      researchPanel.style.display = 'none';
-    }
-    
-    // Clean up any input elements
-    researcher.cleanupInputElements();
+  // Track the navigation in research state
+  researcher.setState({
+    currentUrl: browser.currentUrl,
+    currentTitle: browser.webview.getTitle?.() || 'Unknown Page'
+  });
+  
+  // Reset any existing extraction state
+  researcher.setState({
+    isProcessing: false,
+    error: null
   });
 }
 
 /**
- * Handle analyze button click
- * @param {Object} researcher - Researcher component instance
- * @param {string} entryId - ID of the research entry to analyze
- */
-export function handleAnalyzeClick(researcher, entryId) {
-  eventLogger.info(`Analyzing research entry: ${entryId}`);
-  researcher.analyzeContent(entryId);
-}
-
-/**
- * Handle save to knowledge base button click
- * @param {Object} researcher - Researcher component instance
- * @param {string} entryId - ID of the research entry to save
- */
-export function handleSaveClick(researcher, entryId) {
-  eventLogger.info(`Saving research entry to knowledge base: ${entryId}`);
-  researcher.saveToKnowledgeBase(entryId);
-}
-
-/**
- * Handle clear research button click
+ * Handle crashes or errors in the webview for research
+ * @param {Object} event - Error event
+ * @param {Object} browser - Browser instance
  * @param {Object} researcher - Researcher component instance
  */
-export function handleClearClick(researcher) {
-  eventLogger.info('Clearing all research entries');
-  researcher.clearResearch();
-}
-
-/**
- * Handle export research button click
- * @param {Object} researcher - Researcher component instance
- * @param {string} format - Export format ('markdown', 'json', or 'html')
- */
-export function handleExportClick(researcher, format = 'markdown') {
-  eventLogger.info(`Exporting research in ${format} format`);
-  researcher.exportResearch(format);
-}
-
-/**
- * Handle research summary button click
- * @param {Object} researcher - Researcher component instance
- */
-export function handleSummaryClick(researcher) {
-  eventLogger.info('Generating research summary');
-  researcher.getResearchSummary();
+export function handleErrorForResearch(event, browser, researcher) {
+  if (!researcher) return;
+  
+  researchLogger.error(`Webview error in research: ${event.type}`);
+  
+  // Notify researcher of error
+  researcher.setState({
+    error: `Browser error: ${event.type}`,
+    isProcessing: false
+  });
 }
 
 export default {
-  handleChatInputChange,
-  handleChatInputKeyPress,
-  handlePanelToggle,
-  handleCollapseToggle,
-  handlePanelClose,
-  handleAnalyzeClick,
-  handleSaveClick,
-  handleClearClick,
-  handleExportClick,
-  handleSummaryClick
+  handlePageLoadForResearch,
+  handleDomReadyForResearch,
+  extractContentForResearch,
+  handleNavigationForResearch,
+  handleErrorForResearch
 }; 

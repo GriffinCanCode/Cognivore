@@ -14,6 +14,7 @@ import { nanoid } from 'nanoid';
 import LlmService from '../../../services/LlmService';
 import logger from '../../../utils/logger';
 import { extractFullPageContent } from '../handlers/ContentExtractor';
+import extractionSystem from '../handlers/ContentExtractionSystem';
 
 /**
  * Debounce function to limit how often a function can be called
@@ -2536,39 +2537,48 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
   /**
    * Private helper to process page content and then analyze it
    * This avoids duplicating entries and ensures analysis happens
+   * @param {Object} browser - The browser instance
+   * @param {Object} preExtractedContent - Optional pre-extracted content
+   * @returns {Promise} - Promise that resolves when processing and analysis is complete
    */
-  _processAndAnalyze(browser) {
+  _processAndAnalyze(browser, preExtractedContent = null) {
     const url = browser.currentUrl;
     const title = browser.webview.getTitle?.() || 'Untitled Page';
     
-    // Add a small delay to ensure the page is fully loaded
-    return new Promise(resolve => setTimeout(resolve, 500))
-      .then(() => {
-        // Use the current URL from the browser
-        const currentUrl = browser.currentUrl || url;
-        const currentTitle = browser.webview.getTitle?.() || title || 'Untitled Page';
-        
-        this.logger.info(`Processing current page: ${currentUrl} (${currentTitle})`);
-        
-        // Extract the content from the page
-        return Promise.resolve().then(async () => {
-          try {
-            const result = extractFullPageContent(browser, currentUrl);
-            
-            // Check if result is already a Promise
-            if (result instanceof Promise) {
-              return await result; // Await the Promise
-            }
-            
-            // If not a Promise, return the result directly
-            return result;
-          } catch (error) {
-            // Log the error and reject the Promise
-            console.error('Error in extractFullPageContent:', error);
-            return Promise.reject(error);
-          }
+    this.logger.info(`Processing current page: ${url} (${title})`);
+    
+    // Set processing state
+    this.setState({
+      isProcessing: true,
+      currentUrl: url,
+      currentTitle: title,
+      error: null
+    });
+    
+    // Use pre-extracted content if provided, otherwise extract it ourselves
+    let contentPromise;
+    if (preExtractedContent) {
+      this.logger.info('Using pre-extracted content');
+      contentPromise = Promise.resolve(preExtractedContent);
+    } else {
+      // Add a small delay to ensure the page is fully loaded
+      contentPromise = new Promise(resolve => setTimeout(resolve, 500))
+        .then(() => {
+          // Use the current URL from the browser
+          const currentUrl = browser.currentUrl || url;
+          const currentTitle = browser.webview.getTitle?.() || title || 'Untitled Page';
+          
+          this.logger.info(`Processing current page: ${currentUrl} (${currentTitle})`);
+          
+          // Use our new robust extraction system with multiple fallback methods
+          return extractionSystem.extractContent(browser, currentUrl, {
+            // Set extraction options if needed
+            preferredMethod: 'auto'
+          });
         });
-      })
+    }
+    
+    return contentPromise
       .then(content => {
         if (!content) {
           throw new Error('No content extracted');
@@ -2600,6 +2610,9 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
             researchEntries: updatedEntries,
             isProcessing: false
           });
+          
+          // Update the research panel UI
+          this.updateResearchPanel(updatedEntries[existingEntryIndex]);
           
           // Immediately analyze the content using the existing entry ID
           if (this.state.llmConnected) {
@@ -2641,6 +2654,13 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
           isProcessing: false,
           error: error.message || 'Error processing page'
         });
+        
+        // If we have the notification service, show an error
+        if (browser.notificationService) {
+          browser.notificationService.show('Failed to extract page content: ' + error.message, 'error');
+        }
+        
+        return null;
       });
   }
 }
