@@ -138,62 +138,52 @@ class Researcher {
       // Get research panel element first
       const researchPanel = this.getResearchPanel();
       
-      // Update state with the new active status
-      this.setState({ 
-        isActive: newIsActive,
-        // Reset input handlers if toggling on
-        inputHandlersRegistered: newIsActive ? false : this.state.inputHandlersRegistered 
-      }, () => {
-        if (researchPanel) {
-          // Directly manipulate DOM for immediate visual feedback
-          if (newIsActive) {
-            researchPanel.classList.remove('hidden');
-            researchPanel.style.visibility = 'visible';
-            researchPanel.style.display = 'flex';
-            researchPanel.style.opacity = '1';
-            document.body.classList.add('research-panel-active');
-            
-            // Ensure chat interface is initialized if LLM is connected
-            if (this.state.llmConnected) {
-              // Use a timeout to ensure state update is complete
-              setTimeout(() => {
-                this._ensureChatInterface();
-                
-                // Ensure we focus the input field
-                const inputEl = researchPanel.querySelector('.research-chat-input input');
-                if (inputEl) {
-                  setTimeout(() => {
-                    inputEl.focus();
-                  }, 100);
-                }
-              }, 50);
-            }
-          } else {
-            researchPanel.classList.add('hidden');
-            researchPanel.style.visibility = 'hidden';
-            researchPanel.style.display = 'none';
-            document.body.classList.remove('research-panel-active');
-            
-            // Clean up input elements when hiding
-            this.cleanupInputElements();
-          }
-        }
+      if (!researchPanel) {
+        this.logger.error('Research panel element not found');
+        this.setState({ toggleInProgress: false });
+        return false;
+      }
+      
+      if (newIsActive) {
+        // Make visible but with 0 opacity first
+        researchPanel.style.visibility = 'visible';
+        researchPanel.style.display = 'flex';
         
-        // If becoming active, ensure panel header is set up
-        if (newIsActive && researchPanel) {
-          this.setupResearchPanelHeader(researchPanel);
-        }
-        
-        // Notify parent if callback provided
-        if (this.props.onToggle) {
-          this.props.onToggle(newIsActive);
-        }
-        
-        // Release toggle lock after a short delay
+        // Add animation class after a small delay to ensure the display property is applied
         setTimeout(() => {
+          researchPanel.classList.remove('hidden');
+          researchPanel.classList.add('panel-appear');
+          researchPanel.classList.remove('panel-disappear');
+          
+          // Remove animation class when done and set final state
+          const onAnimationEnd = () => {
+            researchPanel.classList.remove('panel-appear');
+            researchPanel.removeEventListener('animationend', onAnimationEnd);
+            this.setState({ toggleInProgress: false });
+          };
+          
+          researchPanel.addEventListener('animationend', onAnimationEnd);
+        }, 10);
+      } else {
+        // Add animation class
+        researchPanel.classList.add('panel-disappear');
+        researchPanel.classList.remove('panel-appear');
+        
+        // When animation ends, hide the panel
+        const onAnimationEnd = () => {
+          researchPanel.classList.add('hidden');
+          researchPanel.classList.remove('panel-disappear');
+          researchPanel.style.visibility = 'hidden';
+          researchPanel.style.display = 'none';
+          researchPanel.removeEventListener('animationend', onAnimationEnd);
           this.setState({ toggleInProgress: false });
-        }, 300);
-      });
+        };
+        
+        researchPanel.addEventListener('animationend', onAnimationEnd);
+      }
+      
+      // Update state with the new active status
+      this.setState({ isActive: newIsActive });
       
       return newIsActive;
     };
@@ -294,8 +284,14 @@ class Researcher {
         if (panel) {
           if (newState) {
             panel.classList.add('collapsed');
+            // Adjust browser content when collapsed
+            document.body.classList.add('research-panel-collapsed');
+            document.body.classList.remove('research-panel-active');
           } else {
             panel.classList.remove('collapsed');
+            // Adjust browser content when expanded
+            document.body.classList.remove('research-panel-collapsed');
+            document.body.classList.add('research-panel-active');
             // Re-focus input when expanded
             setTimeout(() => {
               const input = panel.querySelector('.research-chat-input input');
@@ -860,28 +856,7 @@ class Researcher {
    * @returns {HTMLElement|null} The research panel element or null if not found
    */
   getResearchPanel() {
-    this.logger.debug('Attempting to get research panel');
-    
-    // First check if we already have a reference
-    if (this.researchPanel && document.body.contains(this.researchPanel)) {
-      return this.researchPanel;
-    }
-    
-    // Try to find existing panel
-    let panel = document.querySelector('.browser-research-panel');
-    
-    // If no panel exists, create one
-    if (!panel) {
-      panel = document.createElement('div');
-      panel.className = 'browser-research-panel hidden';
-      document.body.appendChild(panel);
-      this.logger.debug('Created new research panel');
-    }
-    
-    // Store reference
-    this.researchPanel = panel;
-    
-    return panel;
+    return document.querySelector('.researcher-panel');
   }
   
   /**
@@ -1360,6 +1335,18 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
     // Check if entry already exists in panel
     const existingEntry = entriesContainer.querySelector(`[data-entry-id="${entry.id}"]`);
     
+    // Extract base domain from URL
+    const getBaseDomain = (url) => {
+      try {
+        const urlObj = new URL(url);
+        return urlObj.hostname.replace(/^www\./, '');
+      } catch (e) {
+        return url;
+      }
+    };
+    
+    const baseDomain = getBaseDomain(entry.url);
+    
     if (existingEntry) {
       // Update existing entry
       const analysisSection = existingEntry.querySelector('.research-entry-analysis');
@@ -1392,13 +1379,24 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
       
       const timestamp = new Date(entry.timestamp).toLocaleTimeString();
       
-      // Build entry HTML
+      // Build entry HTML with collapsible content
       let entryHTML = `
         <div class="research-entry-header">
-          <h4>${DOMPurify.sanitize(entry.title)}</h4>
-          <span class="research-timestamp">${timestamp}</span>
+          <div class="research-entry-domain">
+            <div class="research-favicon"></div>
+            <h4>${DOMPurify.sanitize(baseDomain)}</h4>
+          </div>
+          <div class="research-entry-controls">
+            <span class="research-timestamp">${timestamp}</span>
+            <button class="research-collapse-btn" title="Toggle content">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="research-entry-url">${DOMPurify.sanitize(entry.url)}</div>
+        <div class="research-entry-content">
+          <div class="research-entry-url">${DOMPurify.sanitize(entry.url)}</div>
       `;
       
       // Add analysis section if available
@@ -1421,11 +1419,12 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
                          '';
       
       entryHTML += `
-        <div class="research-entry-preview">${textContent.substring(0, 200)}...</div>
-        <div class="research-entry-actions">
-          <button class="research-analyze-btn" data-entry-id="${entry.id}">Analyze</button>
-          <button class="research-save-btn" data-entry-id="${entry.id}">Save to KB</button>
-          <span class="research-save-indicator">${entry.savedToKB ? 'Saved to Knowledge Base' : ''}</span>
+          <div class="research-entry-preview">${textContent.substring(0, 200)}...</div>
+          <div class="research-entry-actions">
+            <button class="research-analyze-btn" data-entry-id="${entry.id}">Analyze</button>
+            <button class="research-save-btn" data-entry-id="${entry.id}">Save to KB</button>
+            <span class="research-save-indicator">${entry.savedToKB ? 'Saved to Knowledge Base' : ''}</span>
+          </div>
         </div>
       `;
       
@@ -1434,6 +1433,7 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
       // Add event listeners to buttons
       const analyzeBtn = entryElement.querySelector('.research-analyze-btn');
       const saveBtn = entryElement.querySelector('.research-save-btn');
+      const collapseBtn = entryElement.querySelector('.research-collapse-btn');
       
       if (analyzeBtn) {
         analyzeBtn.addEventListener('click', () => {
@@ -1445,6 +1445,19 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
       if (saveBtn) {
         saveBtn.addEventListener('click', () => {
           this.saveToKnowledgeBase(entry.id);
+        });
+      }
+      
+      if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+          entryElement.classList.toggle('collapsed');
+          
+          // Rotate the collapse button icon
+          if (entryElement.classList.contains('collapsed')) {
+            collapseBtn.querySelector('svg').style.transform = 'rotate(180deg)';
+          } else {
+            collapseBtn.querySelector('svg').style.transform = 'rotate(0deg)';
+          }
         });
       }
       
@@ -1588,6 +1601,9 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
         const tools = this.getResearchTools();
         this.logger.debug('Using research tools:', tools.map(t => t.name));
         
+        // Ensure UI shows loading state with ThinkingVisualization
+        this.updateChatInterface();
+        
         const response = await this.llmService.sendMessage(messageText, chatHistory, {
             systemPrompt: systemInstructions,
             temperature: 0.3,
@@ -1710,7 +1726,8 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
                     // Add tool message to chat
                     await new Promise(resolve => {
                         this.setState(prevState => ({
-                            chatMessages: [...prevState.chatMessages, toolMessage]
+                            chatMessages: [...prevState.chatMessages, toolMessage],
+                            isSendingMessage: true // Set to true to show thinking state during tool execution
                         }), () => {
                             this.updateChatInterface();
                             resolve();
@@ -1749,7 +1766,10 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
                                     };
                                 }
                                 
-                                return { chatMessages: messages };
+                                return { 
+                                  chatMessages: messages,
+                                  isSendingMessage: false // Reset loading state after tool completion
+                                };
                             }, () => {
                                 this.updateChatInterface();
                                 resolve();
@@ -1779,7 +1799,10 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
                                     };
                                 }
                                 
-                                return { chatMessages: messages };
+                                return { 
+                                  chatMessages: messages,
+                                  isSendingMessage: false // Reset loading state after error
+                                };
                             }, () => {
                                 this.updateChatInterface();
                                 resolve();
@@ -1795,6 +1818,10 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
                 this._processingToolCalls = false;
                 // Reset tool call depth
                 this._toolCallDepth = 0;
+                // Ensure loading state is off
+                this.setState({ isSendingMessage: false }, () => {
+                    this.updateChatInterface();
+                });
             }
         }
     } catch (error) {
@@ -1930,6 +1957,7 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
     this.logger.debug('Updating chat interface', {
         messageCount: this.state.chatMessages?.length || 0,
         isSending: this.state.isSendingMessage,
+        processingType: this.state.processingType || 'default',
         inputHandlersRegistered: this.state.inputHandlersRegistered
     });
     
@@ -1937,6 +1965,8 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
     const stateHash = JSON.stringify({
       messagesLength: this.state.chatMessages?.length,
       isSending: this.state.isSendingMessage,
+      processingType: this.state.processingType || 'default',
+      processingMessage: this.state.processingMessage,
       lastMessageId: this.state.chatMessages?.[this.state.chatMessages.length - 1]?.id,
       isActive: this.state.isActive,
       inputHandlersRegistered: this.state.inputHandlersRegistered
@@ -2121,22 +2151,136 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
             }, 10);
         });
 
-        // Add loading indicator if sending
+        // Add thinking visualization if message is being sent
         if (this.state.isSendingMessage) {
-            const loadingEl = document.createElement('div');
-            loadingEl.className = 'research-message assistant loading';
-            loadingEl.innerHTML = `
-                <div class="typing-indicator">
-                    <div class="message-role">Research Assistant</div>
-                    <div style="display: flex; align-items: center;">
-                        <span>Thinking</span>
+            // Create a unique ID for this loading indicator to prevent duplicates
+            const loadingId = `loading-${Date.now()}`;
+            
+            // Check if a loading indicator already exists
+            const existingLoading = messagesContainer.querySelector('.research-message.loading');
+            if (!existingLoading) {
+                const loadingEl = document.createElement('div');
+                loadingEl.className = 'research-message assistant loading';
+                loadingEl.id = loadingId;
+                
+                // Create the thinking visualization wrapper
+                const thinkingWrapper = document.createElement('div');
+                thinkingWrapper.className = 'thinking-visualization-wrapper';
+                
+                // Add role label
+                const roleLabel = document.createElement('div');
+                roleLabel.className = 'message-role';
+                roleLabel.textContent = 'Research Assistant';
+                thinkingWrapper.appendChild(roleLabel);
+                
+                try {
+                    // Try to create the thinking visualization dynamically
+                    // First, check if ResearcherThinkingVisualization is available in the global scope
+                    if (window.ResearcherThinkingVisualization || 
+                        window.renderers?.ResearcherThinkingVisualization || 
+                        window.components?.researcher?.ResearcherThinkingVisualization) {
+                        
+                        const ThinkingVisComponent = window.ResearcherThinkingVisualization || 
+                                                window.renderers?.ResearcherThinkingVisualization || 
+                                                window.components?.researcher?.ResearcherThinkingVisualization;
+                        
+                        // Create a container for the thinking visualization
+                        const thinkingContainer = document.createElement('div');
+                        thinkingContainer.className = 'researcher-thinking-container';
+                        thinkingContainer.style.minHeight = '30px';
+                        thinkingContainer.style.display = 'flex';
+                        thinkingContainer.style.alignItems = 'center';
+                        thinkingContainer.style.justifyContent = 'center';
+                        
+                        // Get the processing type and message from state
+                        const processingType = this.state.processingType || 'default';
+                        const processingMessage = this.state.processingMessage || (
+                            processingType === 'analysis' ? 'Analyzing document content' :
+                            processingType === 'extraction' ? 'Extracting document content' :
+                            'Thinking'
+                        );
+                        
+                        // Render ResearcherThinkingVisualization if available (React component rendered to DOM)
+                        if (window.ReactDOM && ThinkingVisComponent) {
+                            window.ReactDOM.render(
+                                window.React.createElement(ThinkingVisComponent, {
+                                    message: processingMessage,
+                                    type: processingType,
+                                    size: 'medium'
+                                }),
+                                thinkingContainer
+                            );
+                        } else {
+                            // Fallback to a simpler implementation if React components aren't available
+                            // Create a similar-styled visualization with CSS
+                            thinkingContainer.innerHTML = `
+                                <div class="researcher-thinking-visualization ${processingType}">
+                                    <div class="researcher-thinking-content">
+                                        <div class="researcher-thinking-message">
+                                            <span>${processingMessage}</span>
+                                            <div class="researcher-thinking-dots">
+                                                <span>.</span>
+                                                <span>.</span>
+                                                <span>.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        thinkingWrapper.appendChild(thinkingContainer);
+                    } else {
+                        // If our component isn't available, use a simple animation
+                        const fallbackEl = document.createElement('div');
+                        fallbackEl.style.display = 'flex';
+                        fallbackEl.style.alignItems = 'center';
+                        
+                        // Get the processing message from state
+                        const processingMessage = this.state.processingMessage || 'Thinking';
+                        
+                        fallbackEl.innerHTML = `
+                            <span>${processingMessage}</span>
+                            <span style="display: inline-block; margin-left: 4px; animation: blink 1.4s infinite both;">.</span>
+                            <span style="display: inline-block; margin-left: 0; animation: blink 1.4s 0.2s infinite both;">.</span>
+                            <span style="display: inline-block; margin-left: 0; animation: blink 1.4s 0.4s infinite both;">.</span>
+                        `;
+                        thinkingWrapper.appendChild(fallbackEl);
+                    }
+                } catch (e) {
+                    // If any error occurs during ThinkingVisualization rendering, use fallback
+                    const fallbackEl = document.createElement('div');
+                    fallbackEl.style.display = 'flex';
+                    fallbackEl.style.alignItems = 'center';
+                    
+                    // Get the processing message from state
+                    const processingMessage = this.state.processingMessage || 'Thinking';
+                    
+                    fallbackEl.innerHTML = `
+                        <span>${processingMessage}</span>
                         <span style="display: inline-block; margin-left: 4px; animation: blink 1.4s infinite both;">.</span>
                         <span style="display: inline-block; margin-left: 0; animation: blink 1.4s 0.2s infinite both;">.</span>
                         <span style="display: inline-block; margin-left: 0; animation: blink 1.4s 0.4s infinite both;">.</span>
-                    </div>
-                </div>
-            `;
-            messagesContainer.appendChild(loadingEl);
+                    `;
+                    thinkingWrapper.appendChild(fallbackEl);
+                    console.error('Error rendering ThinkingVisualization:', e);
+                }
+                
+                loadingEl.appendChild(thinkingWrapper);
+                messagesContainer.appendChild(loadingEl);
+                
+                // Add animation
+                loadingEl.style.opacity = '0';
+                loadingEl.style.transform = 'translateY(10px)';
+                
+                // Trigger animation
+                setTimeout(() => {
+                    if (document.getElementById(loadingId)) {
+                        loadingEl.style.opacity = '1';
+                        loadingEl.style.transform = 'translateY(0)';
+                    }
+                }, 10);
+            }
         }
     }
 
@@ -2157,15 +2301,44 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
             inputEl.value !== this.state.chatInput) {
             inputEl.value = this.state.chatInput || '';
         }
+        
+        // Disable input while message is being sent
+        if (inputEl) {
+            inputEl.disabled = this.state.isSendingMessage;
+            
+            // Show disabled message when input is disabled
+            if (this.state.isSendingMessage) {
+                inputContainer.classList.add('disabled');
+                
+                // Add a disabled message if it doesn't exist
+                let disabledMessage = inputContainer.querySelector('.research-chat-input-disabled-message');
+                if (!disabledMessage) {
+                    disabledMessage = document.createElement('div');
+                    disabledMessage.className = 'research-chat-input-disabled-message';
+                    disabledMessage.textContent = 'Please wait while I process your request...';
+                    inputContainer.appendChild(disabledMessage);
+                }
+            } else {
+                inputContainer.classList.remove('disabled');
+                
+                // Remove disabled message if it exists
+                const disabledMessage = inputContainer.querySelector('.research-chat-input-disabled-message');
+                if (disabledMessage) {
+                    disabledMessage.remove();
+                }
+            }
+        }
     }
 
     // Scroll to bottom
     this.scrollChatToBottom();
 
-    // Focus input
-    const inputEl = inputContainer?.querySelector('input');
-    if (inputEl) {
-        setTimeout(() => inputEl.focus(), 100);
+    // Focus input if not sending message
+    if (!this.state.isSendingMessage) {
+        const inputEl = inputContainer?.querySelector('input');
+        if (inputEl) {
+            setTimeout(() => inputEl.focus(), 100);
+        }
     }
   }
   
@@ -2491,8 +2664,7 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
   }
 
   /**
-   * When the analyze button is clicked in the research panel
-   * Extracts current page content and immediately analyzes it
+   * Analyze current page with the new thinking visualization
    */
   analyzeCurrentPage() {
     if (!this.props.browser || !this.props.browser.webview) {
@@ -2505,6 +2677,20 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
     const title = browser.webview.getTitle?.() || 'Untitled Page';
     
     this.logger.info(`Analyzing current page: ${url} (${title})`);
+    
+    // Set processing state and show thinking visualization with extraction type
+    this.setState({
+      isProcessing: true,
+      isSendingMessage: true, // This triggers the thinking visualization
+      processingType: 'extraction', // Set the processing type to extraction for the visualization
+      processingMessage: 'Extracting webpage content', // Custom message for extraction phase
+      currentUrl: url,
+      currentTitle: title,
+      error: null
+    }, () => {
+      // Update UI to show thinking visualization
+      this.updateChatInterface();
+    });
     
     // First check if the webview has finished loading
     if (browser.isLoading) {
@@ -2546,14 +2732,6 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
     const title = browser.webview.getTitle?.() || 'Untitled Page';
     
     this.logger.info(`Processing current page: ${url} (${title})`);
-    
-    // Set processing state
-    this.setState({
-      isProcessing: true,
-      currentUrl: url,
-      currentTitle: title,
-      error: null
-    });
     
     // Use pre-extracted content if provided, otherwise extract it ourselves
     let contentPromise;
@@ -2605,10 +2783,12 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
             analysis: updatedEntries[existingEntryIndex].analysis
           };
           
-          // Update state with new content
+          // Update state with new content and change visualization to analysis type
           this.setState({
             researchEntries: updatedEntries,
-            isProcessing: false
+            isProcessing: false,
+            processingType: 'analysis', // Change to analysis type for visualization
+            processingMessage: 'Analyzing extracted content', // Update message for analysis phase
           });
           
           // Update the research panel UI
@@ -2631,10 +2811,12 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
             analysis: null
           };
           
-          // Add to research entries
+          // Add to research entries and change visualization to analysis type
           this.setState(prevState => ({
             researchEntries: [entry, ...prevState.researchEntries],
-            isProcessing: false
+            isProcessing: false,
+            processingType: 'analysis', // Change to analysis type for visualization
+            processingMessage: 'Analyzing extracted content', // Update message for analysis phase
           }));
           
           // Update the research panel UI
@@ -2652,6 +2834,9 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
         console.error('Error processing page:', error);
         this.setState({
           isProcessing: false,
+          isSendingMessage: false, // Turn off thinking visualization
+          processingType: 'default', // Reset processing type
+          processingMessage: null,  // Clear processing message
           error: error.message || 'Error processing page'
         });
         

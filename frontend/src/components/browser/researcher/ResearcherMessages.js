@@ -4,7 +4,7 @@
 
 import messageFormatter from '../../../utils/messageFormatter.js';
 import logger from '../../../utils/logger.js';
-import ThinkingVisualization from '../../renderers/ThinkingVisualization.js';
+import ResearcherThinkingVisualization from './ResearcherThinkingVisualization.js';
 import DOMPurify from 'dompurify';
 import React, { memo, useMemo } from 'react';
 import './ResearcherMessages.css';
@@ -162,27 +162,42 @@ const Message = memo(({ message }) => {
 });
 
 /**
- * Loading indicator component for when messages are being processed
+ * Enhanced loading indicator component using ResearcherThinkingVisualization
+ * Shows different visualizations based on the task being performed
  */
-const LoadingIndicator = () => (
-  <div className="research-message assistant loading">
-    <div className="typing-indicator">
-      <div className="message-role">Research Assistant</div>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <span>Thinking</span>
-        <span style={{ display: 'inline-block', marginLeft: '4px', animation: 'blink 1.4s infinite both' }}>.</span>
-        <span style={{ display: 'inline-block', marginLeft: 0, animation: 'blink 1.4s 0.2s infinite both' }}>.</span>
-        <span style={{ display: 'inline-block', marginLeft: 0, animation: 'blink 1.4s 0.4s infinite both' }}>.</span>
+const LoadingIndicator = ({ type = 'default', message = null }) => {
+  // Determine appropriate message based on type
+  const loadingMessage = message || (
+    type === 'analysis' ? 'Analyzing document content' :
+    type === 'extraction' ? 'Extracting document content' :
+    'Thinking'
+  );
+  
+  return (
+    <div className="research-message assistant loading">
+      <div className="thinking-visualization-wrapper">
+        <div className="message-role">Research Assistant</div>
+        <ResearcherThinkingVisualization 
+          message={loadingMessage}
+          type={type}
+          size="medium"
+        />
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /**
  * Messages container component
  * Memoized to only re-render when the messages list actually changes
  */
-const ResearcherMessages = memo(({ messages, loading, onRetry }) => {
+const ResearcherMessages = memo(({ 
+  messages, 
+  loading, 
+  loadingType = 'default', 
+  loadingMessage = null, 
+  onRetry 
+}) => {
   // Track the last set of message IDs to only re-render when messages actually change
   const messageIds = useMemo(() => {
     return messages ? messages.map(m => m.id).join(',') : '';
@@ -216,13 +231,15 @@ const ResearcherMessages = memo(({ messages, loading, onRetry }) => {
           onRetry={onRetry} 
         />
       ))}
-      {loading && <LoadingIndicator />}
+      {loading && <LoadingIndicator type={loadingType} message={loadingMessage} />}
     </div>
   );
 }, (prevProps, nextProps) => {
   // Only re-render if any of these change
   return (
     prevProps.loading === nextProps.loading &&
+    prevProps.loadingType === nextProps.loadingType &&
+    prevProps.loadingMessage === nextProps.loadingMessage &&
     // Compare message IDs as a string to efficiently check if the array changed
     prevProps.messages.map(m => m.id).join(',') === nextProps.messages.map(m => m.id).join(',') &&
     // Check if any existing message status changed

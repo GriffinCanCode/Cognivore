@@ -1,0 +1,544 @@
+/* ResearcherThinkingVisualization styles - Modern animated visualization for document analysis */
+
+.researcher-thinking-visualization {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--assistant-message-bg, rgba(245, 245, 245, 0.9));
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  width: 100%;
+  min-height: 100px;
+  animation: researcherFadeIn 0.5s ease-out forwards;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Size variants */
+.researcher-thinking-visualization.small {
+  padding: 12px;
+  min-height: 80px;
+}
+
+.researcher-thinking-visualization.large {
+  padding: 20px;
+  min-height: 140px;
+}
+
+/* Type-based styling */
+.researcher-thinking-visualization.analysis {
+  background: linear-gradient(135deg, rgba(74, 142, 255, 0.1), rgba(74, 142, 255, 0.05));
+  border-left: 3px solid rgba(74, 142, 255, 0.6);
+}
+
+.researcher-thinking-visualization.extraction {
+  background: linear-gradient(135deg, rgba(255, 152, 74, 0.1), rgba(255, 152, 74, 0.05));
+  border-left: 3px solid rgba(255, 152, 74, 0.6);
+}
+
+/* Main content container */
+.researcher-thinking-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  z-index: 2;
+}
+
+/* Icon styling */
+.researcher-thinking-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  margin-bottom: 8px;
+  color: var(--primary-color, #4a8eff);
+  position: relative;
+  animation: researcherPulse 2s infinite ease-in-out;
+}
+
+.researcher-thinking-icon svg {
+  width: 24px;
+  height: 24px;
+  opacity: 0.8;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.2));
+  animation: researcherIconSpin 8s infinite linear;
+}
+
+.researcher-thinking-visualization.analysis .researcher-thinking-icon {
+  color: #4a8eff;
+}
+
+.researcher-thinking-visualization.extraction .researcher-thinking-icon {
+  color: #ff984a;
+}
+
+/* Spinner styling */
+.researcher-thinking-spinner {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.4;
+}
+
+.researcher-spinner-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px dashed transparent;
+}
+
+.ring-1 {
+  width: 80px;
+  height: 80px;
+  border-top-color: var(--primary-color, #4a8eff);
+  animation: researcherSpin 8s linear infinite;
+}
+
+.ring-2 {
+  width: 65px;
+  height: 65px;
+  border-right-color: var(--accent-color, #38bdf8);
+  animation: researcherSpin 6s linear infinite reverse;
+}
+
+.ring-3 {
+  width: 50px;
+  height: 50px;
+  border-bottom-color: var(--secondary-color, #4a8eff);
+  animation: researcherSpin 4s linear infinite;
+}
+
+/* Message styling */
+.researcher-thinking-message {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-color, #333);
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.researcher-thinking-dots {
+  display: inline-flex;
+  margin-left: 2px;
+}
+
+.researcher-thinking-dots span {
+  font-size: 20px;
+  animation: researcherTypingDots 1.4s infinite;
+  margin-left: -1px;
+}
+
+.researcher-thinking-dots span:nth-of-type(1) {
+  animation-delay: 0s;
+}
+
+.researcher-thinking-dots span:nth-of-type(2) {
+  animation-delay: 0.2s;
+}
+
+.researcher-thinking-dots span:nth-of-type(3) {
+  animation-delay: 0.4s;
+}
+
+/* Particles styling */
+.researcher-thinking-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.researcher-thinking-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--primary-color, #4a8eff);
+  border-radius: 50%;
+  opacity: 0.4;
+  filter: blur(1px);
+  animation: researcherFloat 8s infinite ease-in-out;
+}
+
+.researcher-thinking-visualization.analysis .researcher-thinking-particle {
+  background: #4a8eff;
+}
+
+.researcher-thinking-visualization.extraction .researcher-thinking-particle {
+  background: #ff984a;
+}
+
+/* Progress bar styling */
+.researcher-thinking-progress {
+  width: 100%;
+  margin-top: 16px;
+  padding: 0 12px;
+}
+
+.researcher-thinking-progress-track {
+  height: 4px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.researcher-thinking-progress-bar {
+  height: 100%;
+  width: 30%;
+  background: var(--primary-color, #4a8eff);
+  border-radius: 4px;
+  animation: researcherProgressBar 2s ease-in-out infinite alternate;
+}
+
+.researcher-thinking-visualization.analysis .researcher-thinking-progress-bar {
+  background: #4a8eff;
+}
+
+.researcher-thinking-visualization.extraction .researcher-thinking-progress-bar {
+  background: #ff984a;
+}
+
+/* Shimmer effect */
+.researcher-thinking-visualization::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  right: -50%;
+  bottom: -50%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(30deg) translateY(-120%);
+  animation: researcherShimmer 6s infinite;
+  z-index: 1;
+}
+
+/* Animations */
+@keyframes researcherFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes researcherSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes researcherIconSpin {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(10deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes researcherPulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+@keyframes researcherTypingDots {
+  0% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 0.3; transform: translateY(0); }
+}
+
+@keyframes researcherFloat {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(10px, -10px); }
+  50% { transform: translate(20px, 0); }
+  75% { transform: translate(10px, 10px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes researcherProgressBar {
+  0% { width: 20%; opacity: 0.7; }
+  50% { width: 60%; opacity: 0.9; }
+  100% { width: 80%; opacity: 0.7; }
+}
+
+@keyframes researcherShimmer {
+  0% { transform: rotate(30deg) translateY(-120%); }
+  100% { transform: rotate(30deg) translateY(120%); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .researcher-thinking-visualization {
+    padding: 12px;
+    min-height: 90px;
+  }
+  
+  .researcher-thinking-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .researcher-thinking-message {
+    font-size: 14px;
+  }
+  
+  .researcher-thinking-spinner {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .ring-1 { width: 60px; height: 60px; }
+  .ring-2 { width: 48px; height: 48px; }
+  .ring-3 { width: 36px; height: 36px; }
+}
+
+@media (max-width: 480px) {
+  .researcher-thinking-visualization {
+    padding: 10px;
+    min-height: 80px;
+  }
+  
+  .researcher-thinking-icon {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 6px;
+  }
+  
+  .researcher-thinking-message {
+    font-size: 13px;
+  }
+  
+  .researcher-thinking-spinner {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .ring-1 { width: 50px; height: 50px; }
+  .ring-2 { width: 40px; height: 40px; }
+  .ring-3 { width: 30px; height: 30px; }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .researcher-thinking-visualization {
+    background: var(--assistant-message-bg, rgba(30, 30, 30, 0.85));
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  
+  .researcher-thinking-icon {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  
+  .researcher-thinking-message {
+    color: var(--text-color, #e0e0e0);
+  }
+  
+  .researcher-thinking-progress-track {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .researcher-thinking-visualization::before {
+    background: linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(0, 0, 0, 0) 100%
+    );
+  }
+  
+  .researcher-thinking-visualization.analysis {
+    background: linear-gradient(135deg, rgba(74, 142, 255, 0.15), rgba(74, 142, 255, 0.05));
+  }
+  
+  .researcher-thinking-visualization.extraction {
+    background: linear-gradient(135deg, rgba(255, 152, 74, 0.15), rgba(255, 152, 74, 0.05));
+  }
+}
+
+.thinking-visualization {
+  --thinking-vis-color: #4f46e5;
+  --thinking-vis-dot-size: 6px;
+  --thinking-vis-spacing: 3px;
+  --thinking-vis-container-padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--thinking-vis-container-padding);
+  background-color: rgba(240, 240, 245, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  margin: 12px 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.thinking-visualization::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.thinking-dot {
+  width: var(--thinking-vis-dot-size);
+  height: var(--thinking-vis-dot-size);
+  background-color: var(--thinking-vis-color);
+  border-radius: 50%;
+  margin: 0 var(--thinking-vis-spacing);
+  position: relative;
+  will-change: transform, opacity;
+}
+
+.thinking-dot:nth-child(1) {
+  animation: dotPulse 1.4s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+.thinking-dot:nth-child(2) {
+  animation: dotPulse 1.4s ease-in-out 0.2s infinite;
+  opacity: 0.7;
+}
+
+.thinking-dot:nth-child(3) {
+  animation: dotPulse 1.4s ease-in-out 0.4s infinite;
+  opacity: 0.8;
+}
+
+.thinking-dot:nth-child(4) {
+  animation: dotPulse 1.4s ease-in-out 0.6s infinite;
+  opacity: 0.9;
+}
+
+.thinking-dot:nth-child(5) {
+  animation: dotPulse 1.4s ease-in-out 0.8s infinite;
+  opacity: 1;
+}
+
+@keyframes dotPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 1;
+  }
+}
+
+.thinking-label {
+  margin-left: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(60, 60, 67, 0.6);
+  animation: labelPulse 3s ease-in-out infinite;
+  user-select: none;
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes labelPulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Glow effect behind dots */
+.thinking-dots-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.thinking-dots-container::after {
+  content: '';
+  position: absolute;
+  width: 36px;
+  height: 12px;
+  border-radius: 12px;
+  background: var(--thinking-vis-color);
+  opacity: 0.2;
+  filter: blur(6px);
+  z-index: -1;
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0.15;
+    width: 28px;
+  }
+  50% {
+    opacity: 0.3;
+    width: 36px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .thinking-visualization {
+    background-color: rgba(30, 30, 35, 0.4);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  }
+  
+  .thinking-label {
+    color: rgba(235, 235, 245, 0.6);
+  }
+  
+  .thinking-dots-container::after {
+    opacity: 0.25;
+  }
+}
+
+/* When inactive/stopped */
+.thinking-visualization.inactive {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+} 

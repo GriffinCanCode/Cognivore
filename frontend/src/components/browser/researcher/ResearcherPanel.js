@@ -18,6 +18,8 @@ const panelLogger = logger.scope('ResearcherPanel');
 const ResearcherPanel = memo(({
   messages = [],
   isLoading = false,
+  loadingType = 'default',
+  loadingMessage = null,
   onSubmit,
   onClose,
   onCollapse,
@@ -73,7 +75,7 @@ const ResearcherPanel = memo(({
       const container = messagesRef.current;
       container.scrollTop = container.scrollHeight;
     }
-  }, [messages, isCollapsed]);
+  }, [messages, isCollapsed, isLoading]);
   
   return (
     <div 
@@ -176,6 +178,8 @@ const ResearcherPanel = memo(({
             <ResearcherMessages 
               messages={messages} 
               loading={isLoading}
+              loadingType={loadingType}
+              loadingMessage={loadingMessage}
             />
           </div>
           <div className="researcher-input-wrapper">
@@ -195,6 +199,8 @@ const ResearcherPanel = memo(({
 }, (prevProps, nextProps) => {
   // Custom comparison function to prevent unnecessary re-renders
   if (prevProps.isLoading !== nextProps.isLoading) return false;
+  if (prevProps.loadingType !== nextProps.loadingType) return false;
+  if (prevProps.loadingMessage !== nextProps.loadingMessage) return false;
   if (prevProps.inputDisabled !== nextProps.inputDisabled) return false;
   if (prevProps.disabledMessage !== nextProps.disabledMessage) return false;
   

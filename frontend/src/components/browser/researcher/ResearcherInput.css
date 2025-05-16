@@ -2,17 +2,41 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  background-color: #f5f5f5;
-  border-radius: 8px;
-  padding: 8px 12px;
+  background-color: rgba(245, 245, 245, 0.12);
+  border-radius: 12px;
+  padding: 10px 14px;
   margin-top: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   position: relative;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: inputContainerAppear 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes inputContainerAppear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.researcher-input-container:focus-within {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 0 0 2px rgba(79, 70, 229, 0.2);
+  background-color: rgba(245, 245, 245, 0.15);
 }
 
 .researcher-input-container.disabled {
   opacity: 0.7;
   pointer-events: none;
+  position: relative;
+  filter: saturate(0.8);
 }
 
 .researcher-input-disabled-message {
@@ -27,6 +51,15 @@
   padding: 3px 8px;
   border-radius: 4px;
   z-index: 5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  animation: fade-in 0.2s ease-in-out;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .researcher-input {
@@ -35,52 +68,149 @@
   background: transparent;
   font-size: 14px;
   line-height: 1.5;
-  padding: 4px 8px;
+  padding: 8px 12px;
   resize: none;
   outline: none;
   color: #333;
+  transition: all 0.3s ease;
 }
 
 .researcher-input:focus {
   outline: none;
 }
 
+.researcher-input:disabled {
+  cursor: not-allowed;
+  color: #888;
+}
+
 .researcher-send-button {
   background-color: #4a8eff;
   color: white;
   border: none;
-  border-radius: 4px;
-  width: 32px;
-  height: 32px;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 5px rgba(74, 142, 255, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 
 .researcher-send-button:hover {
   background-color: #3a7eff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(74, 142, 255, 0.4);
+}
+
+.researcher-send-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 3px rgba(74, 142, 255, 0.3);
+}
+
+.researcher-send-button svg {
+  transform: rotate(-30deg) translateX(-1px);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.researcher-send-button:hover svg {
+  transform: rotate(-15deg) translateX(1px) scale(1.1);
+}
+
+.researcher-send-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.researcher-send-button:focus:not(:active)::after {
+  animation: ripple 0.6s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  20% {
+    transform: scale(25, 25);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(50, 50);
+    opacity: 0;
+  }
 }
 
 .researcher-send-button.disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Thinking visualization container styles */
+.thinking-visualization-container {
+  margin: 8px 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: containerFadeIn 0.5s ease-out forwards;
+}
+
+@keyframes containerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Override ThinkingVisualization component styles to match app theme */
+div[class*="thinking-visualization"] {
+  --thinking-vis-color: #4a8eff;
 }
 
 @media (prefers-color-scheme: dark) {
   .researcher-input-container {
-    background-color: #2a2a2a;
-    border: 1px solid #3a3a3a;
+    background-color: rgba(42, 42, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .researcher-input-container:focus-within {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 0 0 2px rgba(74, 142, 255, 0.25);
+    background-color: rgba(42, 42, 42, 0.75);
   }
   
   .researcher-input {
     color: #e0e0e0;
   }
   
+  .researcher-input:disabled {
+    color: #999;
+  }
+  
   .researcher-input-disabled-message {
     background: rgba(42, 42, 42, 0.9);
     color: #bbb;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   }
   
   .researcher-send-button {
@@ -89,5 +219,10 @@
   
   .researcher-send-button.disabled {
     background-color: #555555;
+  }
+  
+  /* Dark mode thinking visualization styling */
+  div[class*="thinking-visualization"] {
+    --thinking-vis-color: #4a8eff;
   }
 } 

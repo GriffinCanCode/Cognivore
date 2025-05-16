@@ -4,7 +4,7 @@
  */
 
 :root {
-  --research-panel-width: 340px;
+  --research-panel-width: 45%;
   --research-panel-bg: rgba(15, 23, 42, 0.95);
   --research-panel-border: rgba(255, 255, 255, 0.1);
   --research-accent-color: #4f46e5;
@@ -14,6 +14,8 @@
   --research-entry-bg: rgba(255, 255, 255, 0.08);
   --research-header-bg: rgba(0, 0, 0, 0.25);
   --research-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --research-transition-duration: 0.4s;
+  --research-transition-timing: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .browser-research-panel {
@@ -38,7 +40,7 @@
   overflow-x: hidden !important;
   overflow-y: auto !important;
   left: auto !important;
-  transform: none !important;
+  transform: translateX(0) !important;
   margin: 0 !important;
   padding: 0 !important;
   background-color: var(--research-panel-bg) !important;
@@ -47,9 +49,24 @@
   box-shadow: -4px 0 32px rgba(0, 0, 0, 0.4) !important;
   border-radius: 0 !important;
   border-left: 1px solid var(--research-panel-border) !important;
-  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out !important;
+  transition: transform var(--research-transition-duration) var(--research-transition-timing),
+              opacity var(--research-transition-duration) var(--research-transition-timing),
+              visibility var(--research-transition-duration) !important;
   contain: content !important;
   isolation: isolate !important;
+  will-change: transform, opacity !important;
+  animation: panelSlideIn var(--research-transition-duration) var(--research-transition-timing) forwards;
+}
+
+@keyframes panelSlideIn {
+  from {
+    transform: translateX(100%) !important;
+    opacity: 0 !important;
+  }
+  to {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+  }
 }
 
 /* Ensure the research panel content is scrollable */
@@ -67,6 +84,18 @@
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
   position: relative !important;
   width: 100% !important;
+  animation: contentFadeIn 0.5s ease-out 0.2s both;
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Customize scrollbar for webkit browsers */
@@ -86,7 +115,9 @@
 /* Add styles for collapsed state - simplify to avoid conflicts */
 .browser-research-panel.collapsed {
   transform: translateX(calc(100% - 40px)) !important;
-  box-shadow: none !important;
+  box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2) !important;
+  transition: transform var(--research-transition-duration) var(--research-transition-timing),
+              box-shadow var(--research-transition-duration) var(--research-transition-timing) !important;
 }
 
 /* Hide panel completely when hidden class is applied */
@@ -95,6 +126,9 @@
   opacity: 0 !important;
   transform: translateX(100%) !important;
   pointer-events: none !important;
+  transition: transform var(--research-transition-duration) var(--research-transition-timing),
+              opacity var(--research-transition-duration) var(--research-transition-timing),
+              visibility 0s linear var(--research-transition-duration) !important;
 }
 
 /* Keep main content alongside the panel */
@@ -105,7 +139,21 @@ body.research-panel-active .voyager-content {
   right: var(--research-panel-width) !important;
   position: fixed !important;
   left: 0 !important;
-  transition: width 0.3s ease-in-out, right 0.3s ease-in-out, max-width 0.3s ease-in-out !important;
+  transition: width var(--research-transition-duration) var(--research-transition-timing), 
+              right var(--research-transition-duration) var(--research-transition-timing), 
+              max-width var(--research-transition-duration) var(--research-transition-timing) !important;
+}
+
+body.research-panel-collapsed .browser-webview-container,
+body.research-panel-collapsed .voyager-content {
+  width: calc(100% - 48px) !important;
+  max-width: calc(100% - 48px) !important;
+  right: 48px !important;
+  position: fixed !important;
+  left: 0 !important;
+  transition: width var(--research-transition-duration) var(--research-transition-timing), 
+              right var(--research-transition-duration) var(--research-transition-timing), 
+              max-width var(--research-transition-duration) var(--research-transition-timing) !important;
 }
 
 /* Adjust main content when panel is hidden or collapsed */
@@ -118,6 +166,9 @@ body:not(.research-panel-active) .voyager-content {
   width: 100% !important;
   max-width: 100% !important;
   right: 0 !important;
+  transition: width var(--research-transition-duration) var(--research-transition-timing), 
+              right var(--research-transition-duration) var(--research-transition-timing), 
+              max-width var(--research-transition-duration) var(--research-transition-timing) !important;
 }
 
 .research-panel-header {
@@ -131,6 +182,20 @@ body:not(.research-panel-active) .voyager-content {
   min-height: 56px !important;
   box-sizing: border-box !important;
   background-color: var(--research-header-bg) !important;
+  animation: headerSlideDown 0.4s ease-out forwards;
+  position: relative;
+  z-index: 5;
+}
+
+@keyframes headerSlideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .research-panel-title {
@@ -141,15 +206,41 @@ body:not(.research-panel-active) .voyager-content {
   font-weight: 600 !important;
   color: var(--research-text-color) !important;
   margin: 0 !important;
+  opacity: 0;
+  animation: fadeIn 0.5s ease-out 0.2s forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
 }
 
 .research-panel-title svg {
   color: var(--research-accent-color) !important;
+  animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
 }
 
 .research-panel-controls {
   display: flex !important;
   gap: 8px !important;
+  opacity: 0;
+  animation: fadeIn 0.5s ease-out 0.3s forwards;
 }
 
 .research-panel-btn,
@@ -168,6 +259,8 @@ body:not(.research-panel-active) .voyager-content {
   transition: all 0.2s ease !important;
   height: 28px !important;
   width: 28px !important;
+  position: relative;
+  overflow: hidden;
 }
 
 .research-close-btn,
@@ -181,6 +274,30 @@ body:not(.research-panel-active) .voyager-content {
 .research-expand-btn:hover {
   background-color: rgba(255, 255, 255, 0.2) !important;
   color: rgba(255, 255, 255, 0.9) !important;
+  transform: translateY(-1px) !important;
+}
+
+.research-panel-btn:hover::after,
+.research-collapse-btn:hover::after,
+.research-expand-btn:hover::after,
+.research-close-btn:hover::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  border-radius: 50%;
+  animation: buttonRipple 0.6s ease-out;
+}
+
+@keyframes buttonRipple {
+  to {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
 }
 
 .research-close-btn:hover {
@@ -197,6 +314,7 @@ body:not(.research-panel-active) .voyager-content {
   text-align: center !important;
   color: rgba(255, 255, 255, 0.7) !important;
   padding: 32px !important;
+  animation: fadeIn 0.5s ease-out 0.4s both;
 }
 
 .research-expand-btn {
@@ -215,6 +333,22 @@ body:not(.research-panel-active) .voyager-content {
 
 .browser-research-panel.collapsed .research-expand-btn {
   opacity: 1 !important;
+  animation: expandButtonPulse 2s infinite ease-in-out;
+}
+
+@keyframes expandButtonPulse {
+  0% {
+    transform: translateY(-50%) scale(1);
+    box-shadow: -4px 0 8px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.3);
+  }
+  100% {
+    transform: translateY(-50%) scale(1);
+    box-shadow: -4px 0 8px rgba(0, 0, 0, 0.2);
+  }
 }
 
 /* Research entries styling */
@@ -228,6 +362,18 @@ body:not(.research-panel-active) .voyager-content {
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   position: relative !important;
   overflow: hidden !important;
+  animation: entrySlideIn 0.5s ease-out both;
+}
+
+@keyframes entrySlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .research-entry:hover {
@@ -362,6 +508,18 @@ body:not(.research-panel-active) .voyager-content {
   background-color: rgba(15, 23, 42, 0.3) !important;
   border-radius: 12px !important;
   box-shadow: var(--research-shadow) !important;
+  animation: containerGrow 0.5s var(--research-transition-timing) both;
+}
+
+@keyframes containerGrow {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .research-chat-messages {
@@ -534,6 +692,18 @@ body:not(.research-panel-active) .voyager-content {
   visibility: visible !important;
   opacity: 1 !important;
   backdrop-filter: blur(8px) !important;
+  animation: inputSlideUp 0.5s var(--research-transition-timing) 0.3s both;
+}
+
+@keyframes inputSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .research-chat-input input,
@@ -584,6 +754,8 @@ body:not(.research-panel-active) .voyager-content {
   transition: all 0.2s ease !important;
   box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3) !important;
   flex-shrink: 0 !important;
+  position: relative;
+  overflow: hidden;
 }
 
 .research-send-btn:hover,
@@ -594,21 +766,48 @@ body:not(.research-panel-active) .voyager-content {
   box-shadow: 0 4px 8px rgba(79, 70, 229, 0.4) !important;
 }
 
-.research-send-btn:disabled,
-.research-analyze-button:disabled,
-.research-submit-button:disabled {
-  background-color: rgba(79, 70, 229, 0.4) !important;
-  cursor: not-allowed !important;
-  transform: none !important;
-  box-shadow: none !important;
+.research-send-btn:active,
+.research-analyze-button:active,
+.research-submit-button:active {
+  transform: translateY(1px) !important;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3) !important;
 }
 
-.research-chat-input input:disabled,
-.research-chat-input textarea:disabled {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  color: rgba(255, 255, 255, 0.4) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  cursor: not-allowed !important;
+.research-send-btn::after,
+.research-analyze-button::after,
+.research-submit-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%);
+  transform-origin: 50% 50%;
+}
+
+.research-send-btn:focus:not(:active)::after,
+.research-analyze-button:focus:not(:active)::after,
+.research-submit-button:focus:not(:active)::after {
+  animation: sendRipple 0.6s ease-out;
+}
+
+@keyframes sendRipple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  20% {
+    transform: scale(25, 25);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(50, 50);
+    opacity: 0;
+  }
 }
 
 /* Input related styling */
@@ -880,7 +1079,8 @@ html body .browser-research-panel {
   z-index: 9999 !important;
   margin: 0 !important;
   padding: 0 !important;
-  transition: transform 0.3s ease !important;
+  transition: transform var(--research-transition-duration) var(--research-transition-timing),
+              opacity var(--research-transition-duration) var(--research-transition-timing) !important;
   box-sizing: border-box !important;
 }
 
@@ -900,6 +1100,8 @@ html body.research-panel-active .voyager-content {
   margin: 0 !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
+  transition: width var(--research-transition-duration) var(--research-transition-timing),
+              right var(--research-transition-duration) var(--research-transition-timing) !important;
 }
 
 /* Reset when panel is hidden */
@@ -909,5 +1111,6 @@ html body .voyager-content {
   max-width: 100vw !important;
   right: 0 !important;
   margin: 0 !important;
-  transition: width 0.3s ease, right 0.3s ease !important;
+  transition: width var(--research-transition-duration) var(--research-transition-timing),
+              right var(--research-transition-duration) var(--research-transition-timing) !important;
 } 

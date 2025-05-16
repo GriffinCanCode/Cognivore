@@ -1,5 +1,18 @@
 # Changelog
 
+### [0.5.76] - Enhanced Document Analysis Visualization
+- Added new ResearcherThinkingVisualization component for document analysis states:
+  - Created dedicated React component for visualizing document analysis process
+  - Added support for different analysis types (extraction, analysis, default)
+  - Implemented advanced animations with custom CSS for a premium user experience
+  - Added responsive design with size variants (small, medium, large)
+  - Enhanced dark mode support with automatic theme detection
+  - Improved progress indication with animated progress bar
+  - Added particle effects and shimmer animations for modern UI
+  - Integrated with ResearcherMessages for seamless visualization
+  - Updated Researcher component to use different visualization types based on processing state
+  - Enhanced user feedback during document analysis workflow
+
 ### [0.5.75] - Fixed Wikipedia/Google Content Extraction Synchronization
 - Fixed issue where research panel was analyzing Google content when on Wikipedia pages
 - Fixed analyze button creating duplicate entries instead of analyzing existing entries
@@ -2207,3 +2220,9 @@
 - **Updated** `Researcher.js` - Enhanced _processAndAnalyze method to work with pre-extracted content
 
 These changes address the "webview not ready" errors and provide a more robust extraction system with proper fallbacks when webview extraction fails.
+
+## 2023-07-10
+- UI: Improved Research Panel layout to occupy 45% of screen width
+- UI: Enhanced message styling for better readability and visual appeal
+- UI: Added better collapsed panel behavior and transitions
+- UI: Improved spacing and background styling for research messages
