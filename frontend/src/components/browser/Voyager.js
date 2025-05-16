@@ -635,18 +635,51 @@ class Voyager extends Component {
     
     // Initialize researcher if needed
     if (newResearchMode && !this.researcher) {
-      this.initializeResearcher();
+      if (!this.initializeResearcher()) {
+        console.error('Failed to initialize researcher component');
+        return false;
+      }
     }
     
     // Use the researcher component instance if available
     if (this.researcher && typeof this.researcher.toggleActive === 'function') {
       console.log('Delegating research mode toggle to Researcher component');
       
+      // Prepare current page info for the researcher
+      if (newResearchMode && this.webview) {
+        try {
+          // Capture the current page content for research context
+          this.capturePageContent().then(content => {
+            if (this.researcher && typeof this.researcher.processPage === 'function') {
+              // Process the current page in the research panel
+              this.researcher.processPage(this.state.url, this.state.title, content);
+            }
+          }).catch(err => {
+            console.warn('Error capturing page content for research:', err);
+          });
+        } catch (err) {
+          console.warn('Error preparing research content:', err);
+        }
+      }
+      
       // Add body class for proper layout BEFORE toggling
       if (newResearchMode) {
         document.body.classList.add('research-panel-active');
+        
+        // Adjust the webview container width to make room for the panel
+        const webviewContainer = this.containerRef.current?.querySelector('.voyager-browser-container');
+        if (webviewContainer) {
+          webviewContainer.style.width = 'calc(100% - 340px)';
+          webviewContainer.style.transition = 'width 0.3s ease';
+        }
       } else {
         document.body.classList.remove('research-panel-active');
+        
+        // Restore webview container width
+        const webviewContainer = this.containerRef.current?.querySelector('.voyager-browser-container');
+        if (webviewContainer) {
+          webviewContainer.style.width = '100%';
+        }
       }
       
       // Call the researcher's toggleActive method which will handle the UI
@@ -670,9 +703,10 @@ class Voyager extends Component {
       });
       
       return result;
+    } else {
+      console.error('Researcher component not available or missing toggleActive method');
+      return false;
     }
-    
-    return false;
   }
   
   /**

@@ -25,6 +25,40 @@
         },
         "required": []
       }
+    },
+    {
+      "name": "searchKnowledgeBase",
+      "description": "Search the knowledge base for relevant information using semantic search",
+      "version": "1.0.0",
+      "location": "backend",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query to find relevant information"
+          },
+          "filters": {
+            "type": "object",
+            "description": "Optional filters for the search",
+            "properties": {
+              "sourceType": {
+                "type": "string",
+                "description": "Filter by content source type (e.g., 'web', 'pdf', 'youtube')"
+              },
+              "dateAdded": {
+                "type": "string",
+                "description": "Filter by date added (e.g., 'today', 'this_week', 'this_month')"
+              }
+            }
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of results to return (default: 5)"
+          }
+        },
+        "required": ["query"]
+      }
     }
   ]
 } 

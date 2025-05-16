@@ -14,7 +14,7 @@ class MuseLoader {
     this.renderer = null;
     this.model = null;
     this.mixer = null;
-    this.clock = new THREE.Clock();
+    this.clock = null;
     this.animations = {};
     this.currentAnimation = null;
     
@@ -26,6 +26,7 @@ class MuseLoader {
     
     // Initialize if THREE is available
     if (typeof THREE !== 'undefined' && this.container) {
+      this.clock = new THREE.Clock();
       this.init();
     } else {
       console.warn('MuseLoader: THREE.js not loaded or container not found');
@@ -51,7 +52,7 @@ class MuseLoader {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.outputEncoding = THREE.sRGBEncoding;
+    this.renderer.outputEncoding = THREE.sRGBEncoding || THREE.LinearSRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.container.appendChild(this.renderer.domElement);
     
@@ -75,58 +76,66 @@ class MuseLoader {
   }
   
   loadModel() {
-    // Check if GLTFLoader is available
-    if (typeof THREE.GLTFLoader === 'undefined') {
-      console.warn('MuseLoader: GLTFLoader not available');
-      return;
-    }
-    
-    const loader = new THREE.GLTFLoader();
-    
-    // Use a placeholder model path - update this to your actual model path
-    const modelPath = './assets/models/muse.glb';
-    
-    loader.load(
-      modelPath,
-      (gltf) => {
-        this.model = gltf.scene;
-        this.model.scale.set(1, 1, 1);
-        this.model.position.set(0, 0, 0);
-        
-        // Apply shadows
-        this.model.traverse((node) => {
-          if (node.isMesh) {
-            node.castShadow = true;
-            node.receiveShadow = true;
-          }
-        });
-        
-        this.scene.add(this.model);
-        
-        // Set up animations if available
-        if (gltf.animations && gltf.animations.length) {
-          this.mixer = new THREE.AnimationMixer(this.model);
+    try {
+      // Load GLTFLoader if using modules version
+      if (typeof THREE.GLTFLoader === 'undefined') {
+        // Try to import from THREE module namespace
+        const loader = new window.THREE.GLTFLoader || null;
+        if (!loader) {
+          console.warn('MuseLoader: GLTFLoader not available');
+          return;
+        }
+      }
+      
+      const loader = new THREE.GLTFLoader();
+      
+      // Use a placeholder model path - update this to your actual model path
+      const modelPath = './assets/models/muse.glb';
+      
+      loader.load(
+        modelPath,
+        (gltf) => {
+          this.model = gltf.scene;
+          this.model.scale.set(1, 1, 1);
+          this.model.position.set(0, 0, 0);
           
-          gltf.animations.forEach(animation => {
-            const action = this.mixer.clipAction(animation);
-            this.animations[animation.name] = action;
-            
-            // Play the first animation by default
-            if (!this.currentAnimation) {
-              this.currentAnimation = animation.name;
-              action.play();
+          // Apply shadows
+          this.model.traverse((node) => {
+            if (node.isMesh) {
+              node.castShadow = true;
+              node.receiveShadow = true;
             }
           });
+          
+          this.scene.add(this.model);
+          
+          // Set up animations if available
+          if (gltf.animations && gltf.animations.length) {
+            this.mixer = new THREE.AnimationMixer(this.model);
+            
+            gltf.animations.forEach(animation => {
+              const action = this.mixer.clipAction(animation);
+              this.animations[animation.name] = action;
+              
+              // Play the first animation by default
+              if (!this.currentAnimation) {
+                this.currentAnimation = animation.name;
+                action.play();
+              }
+            });
+          }
+        },
+        (xhr) => {
+          // Loading progress 
+          console.log(`Loading model: ${Math.floor(xhr.loaded / xhr.total * 100)}%`);
+        },
+        (error) => {
+          console.error('Error loading model:', error);
         }
-      },
-      (xhr) => {
-        // Loading progress 
-        console.log(`Loading model: ${Math.floor(xhr.loaded / xhr.total * 100)}%`);
-      },
-      (error) => {
-        console.error('Error loading model:', error);
-      }
-    );
+      );
+    } catch (error) {
+      console.error('Error in loadModel:', error);
+    }
   }
   
   animate() {

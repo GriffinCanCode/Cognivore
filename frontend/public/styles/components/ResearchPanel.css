@@ -3,43 +3,53 @@
  * Styling for the research panel component used in the Voyager browser
  */
 
+:root {
+  --research-panel-width: 340px;
+  --research-panel-bg: rgba(15, 23, 42, 0.95);
+  --research-panel-border: rgba(255, 255, 255, 0.1);
+  --research-accent-color: #4f46e5;
+  --research-text-color: #e2e8f0;
+  --research-message-user-bg: #4f46e5;
+  --research-message-assistant-bg: rgba(30, 41, 59, 0.8);
+  --research-entry-bg: rgba(255, 255, 255, 0.08);
+  --research-header-bg: rgba(0, 0, 0, 0.25);
+  --research-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
 .browser-research-panel {
   display: flex !important;
   flex-direction: column !important;
-  /* Set explicit flex properties to prevent growing */
-  flex: 0 0 340px !important;
+  flex: 0 0 var(--research-panel-width) !important;
   flex-grow: 0 !important;
   flex-shrink: 0 !important;
-  flex-basis: 340px !important;
-  /* Fixed dimensions - do not allow expanding */
+  flex-basis: var(--research-panel-width) !important;
   z-index: 100 !important;
   opacity: 1 !important;
   visibility: visible !important;
   position: fixed !important;
   right: 0 !important;
   top: 0 !important;
-  bottom: 0 !important; /* Ensure it covers full height */
+  bottom: 0 !important;
   height: 100vh !important;
-  width: 340px !important; /* Fixed width as a side panel */
-  max-width: 30% !important; /* Use percentage for responsiveness */
-  min-width: 280px !important; /* Prevent panel from becoming too narrow */
-  box-sizing: border-box !important; /* Ensure padding doesn't expand width */
-  overflow-x: hidden !important; /* Prevent horizontal overflow */
-  overflow-y: auto !important; /* Allow vertical scrolling */
-  left: auto !important; /* Ensure it doesn't stretch from left side */
-  transform: none !important; /* Prevent transforms from affecting positioning */
-  margin: 0 !important; /* No margins */
-  padding: 0 !important; /* No padding */
-  background-color: var(--glass-bg, rgba(15, 23, 42, 0.9)) !important;
+  width: var(--research-panel-width) !important;
+  max-width: 50% !important;
+  min-width: 280px !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  left: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: var(--research-panel-bg) !important;
   backdrop-filter: blur(12px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
   box-shadow: -4px 0 32px rgba(0, 0, 0, 0.4) !important;
   border-radius: 0 !important;
-  border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-left: 1px solid var(--research-panel-border) !important;
   transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out !important;
-  /* Additional constraints to prevent full-screen */
-  contain: content !important; /* Contain the rendering */
-  isolation: isolate !important; /* Create a new stacking context */
+  contain: content !important;
+  isolation: isolate !important;
 }
 
 /* Ensure the research panel content is scrollable */
@@ -47,11 +57,11 @@
   flex: 1 1 auto !important; 
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  height: calc(100% - 56px) !important; /* Subtract header height */
+  height: calc(100% - 56px) !important;
   display: flex !important;
   flex-direction: column !important;
   padding: 16px !important;
-  color: #fff !important;
+  color: var(--research-text-color) !important;
   box-sizing: border-box !important;
   scrollbar-width: thin !important;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
@@ -90,9 +100,9 @@
 /* Keep main content alongside the panel */
 body.research-panel-active .browser-webview-container, 
 body.research-panel-active .voyager-content {
-  width: calc(100% - 340px) !important;
-  max-width: calc(100% - 340px) !important;
-  right: 340px !important;
+  width: calc(100% - var(--research-panel-width)) !important;
+  max-width: calc(100% - var(--research-panel-width)) !important;
+  right: var(--research-panel-width) !important;
   position: fixed !important;
   left: 0 !important;
   transition: width 0.3s ease-in-out, right 0.3s ease-in-out, max-width 0.3s ease-in-out !important;
@@ -115,19 +125,26 @@ body:not(.research-panel-active) .voyager-content {
   justify-content: space-between !important;
   align-items: center !important;
   padding: 16px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-bottom: 1px solid var(--research-panel-border) !important;
   flex-shrink: 0 !important;
   height: 56px !important;
   min-height: 56px !important;
   box-sizing: border-box !important;
-  background-color: rgba(0, 0, 0, 0.25) !important;
+  background-color: var(--research-header-bg) !important;
 }
 
 .research-panel-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
   font-size: 16px !important;
   font-weight: 600 !important;
-  color: #fff !important;
+  color: var(--research-text-color) !important;
   margin: 0 !important;
+}
+
+.research-panel-title svg {
+  color: var(--research-accent-color) !important;
 }
 
 .research-panel-controls {
@@ -139,23 +156,35 @@ body:not(.research-panel-active) .voyager-content {
 .research-close-btn,
 .research-collapse-btn,
 .research-expand-btn {
-  background: none !important;
+  background: rgba(255, 255, 255, 0.12) !important;
   border: none !important;
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
   cursor: pointer !important;
-  padding: 4px !important;
-  border-radius: 4px !important;
+  padding: 6px !important;
+  border-radius: 6px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: background-color 0.2s, color 0.2s !important;
+  transition: all 0.2s ease !important;
+  height: 28px !important;
+  width: 28px !important;
+}
+
+.research-close-btn,
+.research-collapse-btn,
+.research-expand-btn {
+  border-radius: 50% !important;
 }
 
 .research-panel-btn:hover,
-.research-close-btn:hover,
 .research-collapse-btn:hover,
 .research-expand-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.research-close-btn:hover {
+  background-color: rgba(255, 100, 100, 0.3) !important;
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
@@ -166,193 +195,36 @@ body:not(.research-panel-active) .voyager-content {
   justify-content: center !important;
   height: 100% !important;
   text-align: center !important;
-  color: rgba(255, 255, 255, 0.6) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
   padding: 32px !important;
 }
 
 .research-expand-btn {
   position: absolute !important;
-  left: 0 !important; /* Position at the edge of the panel */
+  left: 0 !important;
   top: 50% !important;
   transform: translateY(-50%) !important;
-  background-color: var(--glass-bg, rgba(15, 23, 42, 0.9)) !important;
+  background-color: var(--research-panel-bg) !important;
   border-radius: 4px 0 0 4px !important;
   padding: 8px 4px !important;
   box-shadow: -4px 0 8px rgba(0, 0, 0, 0.2) !important;
   opacity: 0 !important;
   transition: opacity 0.3s ease-in-out !important;
-  z-index: 10 !important; /* Ensure it's above other content but below panel */
+  z-index: 10 !important;
 }
 
 .browser-research-panel.collapsed .research-expand-btn {
   opacity: 1 !important;
 }
 
-/* Override mobile styles to maintain side panel behavior */
-@media (max-width: 1024px) {
-  .browser-research-panel {
-    width: 320px !important;
-    max-width: 40% !important; /* Slightly wider on smaller screens */
-  }
-}
-
-@media (max-width: 768px) {
-  .browser-research-panel {
-    width: 300px !important;
-    max-width: 50% !important; /* Wider on very small screens */
-    /* Maintain the right position */
-    right: 0 !important;
-    /* Keep full height */
-    top: 0 !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-  }
-  
-  .research-panel-title {
-    font-size: 15px !important;
-  }
-  
-  .research-panel-btn {
-    font-size: 12px !important;
-    padding: 5px 8px !important;
-  }
-  
-  .research-message {
-    padding: 8px 12px !important;
-    font-size: 13px !important;
-  }
-  
-  .research-chat-input {
-    padding: 10px !important;
-  }
-  
-  .research-chat-input input {
-    padding: 8px 12px !important;
-  }
-}
-
-/* Never go full screen on mobile - keep as side panel */
-@media (max-width: 480px) {
-  .browser-research-panel {
-    width: 280px !important;
-    max-width: 80% !important;
-    /* Maintain right position */
-    right: 0 !important;
-    left: auto !important; /* Override the left: 10px from original CSS */
-    /* Keep full height */
-    height: 100vh !important;
-    max-height: 100vh !important;
-  }
-  
-  .research-entry {
-    padding: 10px 12px !important;
-  }
-  
-  .research-entry-header h4 {
-    font-size: 14px !important;
-  }
-  
-  .research-panel-controls {
-    gap: 5px !important;
-  }
-  
-  .research-analyze-btn, 
-  .research-save-btn {
-    padding: 5px 8px !important;
-    font-size: 11px !important;
-  }
-}
-
-.research-panel-header {
-  padding: 12px 16px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-  display: flex !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  background-color: rgba(0, 0, 0, 0.25) !important;
-  height: 56px !important;
-  min-height: 56px !important;
-  box-sizing: border-box !important;
-}
-
-.research-panel-title::before {
-  content: "💬" !important;
-  font-size: 18px !important;
-}
-
-.research-panel-controls {
-  display: flex !important;
-  gap: 8px !important;
-  align-items: center !important;
-}
-
-.research-panel-btn {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border: none !important;
-  cursor: pointer !important;
-  font-size: 13px !important;
-  padding: 6px 10px !important;
-  border-radius: 6px !important;
-  color: inherit !important;
-  opacity: 0.85 !important;
-  transition: all 0.2s !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
-}
-
-.research-panel-btn:hover {
-  opacity: 1 !important;
-  background-color: rgba(255, 255, 255, 0.2) !important;
-  transform: translateY(-1px) !important;
-}
-
-/* Collapse button styles */
-.research-collapse-btn {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border: none !important;
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 50% !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
-  transition: all 0.2s !important;
-  font-size: 16px !important;
-}
-
-.research-collapse-btn:hover {
-  background-color: rgba(255, 255, 255, 0.2) !important;
-}
-
-.research-close-btn {
-  background: rgba(255, 255, 255, 0.12) !important;
-  border: none !important;
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 50% !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
-  transition: all 0.2s !important;
-  font-size: 16px !important;
-}
-
-.research-close-btn:hover {
-  background-color: rgba(255, 100, 100, 0.3) !important;
-  transform: rotate(90deg) !important;
-}
-
+/* Research entries styling */
 .research-entry {
   margin-bottom: 14px !important;
-  background-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: var(--research-entry-bg) !important;
   border-radius: 12px !important;
-  padding: 12px 14px !important;
+  padding: 14px 16px !important;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15) !important;
-  transition: transform 0.2s, box-shadow 0.2s !important;
+  transition: transform 0.15s, box-shadow 0.15s !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   position: relative !important;
   overflow: hidden !important;
@@ -392,14 +264,13 @@ body:not(.research-panel-active) .voyager-content {
   opacity: 0.7 !important;
   margin-bottom: 10px !important;
   word-break: break-all !important;
-  padding-left: 2px !important;
   border-left: 2px solid rgba(79, 70, 229, 0.5) !important;
   padding-left: 8px !important;
 }
 
 .research-entry-analysis {
   margin-bottom: 12px !important;
-  padding: 10px 12px !important;
+  padding: 12px 14px !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   border-radius: 8px !important;
   border-left: 2px solid rgba(79, 70, 229, 0.7) !important;
@@ -411,12 +282,7 @@ body:not(.research-panel-active) .voyager-content {
   color: rgba(255, 255, 255, 0.95) !important;
   display: flex !important;
   align-items: center !important;
-}
-
-.research-entry-analysis h4::before {
-  content: "🧠" !important;
-  margin-right: 6px !important;
-  font-size: 14px !important;
+  gap: 6px !important;
 }
 
 .research-entry-preview {
@@ -443,7 +309,7 @@ body:not(.research-panel-active) .voyager-content {
   display: flex !important;
   gap: 8px !important;
   align-items: center !important;
-  padding-top: 6px !important;
+  padding-top: 8px !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -455,23 +321,13 @@ body:not(.research-panel-active) .voyager-content {
   border-radius: 6px !important;
   font-size: 12px !important;
   cursor: pointer !important;
-  color: inherit !important;
+  color: var(--research-text-color) !important;
   transition: all 0.2s !important;
   font-weight: 500 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 4px !important;
+  gap: 6px !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-}
-
-.research-analyze-btn::before {
-  content: "💡" !important;
-  font-size: 12px !important;
-}
-
-.research-save-btn::before {
-  content: "💾" !important;
-  font-size: 12px !important;
 }
 
 .research-analyze-btn:hover,
@@ -491,7 +347,7 @@ body:not(.research-panel-active) .voyager-content {
 }
 
 .research-entry.saved-to-kb {
-  border-left: 3px solid var(--accent-color, #4f46e5) !important;
+  border-left: 3px solid var(--research-accent-color) !important;
   background-color: rgba(79, 70, 229, 0.1) !important;
 }
 
@@ -504,23 +360,24 @@ body:not(.research-panel-active) .voyager-content {
   position: relative !important;
   overflow: hidden !important;
   background-color: rgba(15, 23, 42, 0.3) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--research-shadow) !important;
 }
 
 .research-chat-messages {
   flex: 1 !important;
   overflow-y: auto !important;
-  padding: 14px !important;
+  padding: 16px !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 12px !important;
   overflow-x: hidden !important;
-  height: calc(100% - 80px) !important; /* Increased to allow more space for input */
+  height: calc(100% - 80px) !important;
   scrollbar-width: thin !important;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
-  padding-bottom: 20px !important; /* Add padding at bottom to ensure messages don't get hidden */
-  margin-bottom: 60px !important; /* Make room for input */
+  padding-bottom: 20px !important;
+  margin-bottom: 60px !important;
+  position: relative !important;
 }
 
 .research-chat-messages::-webkit-scrollbar {
@@ -537,25 +394,56 @@ body:not(.research-panel-active) .voyager-content {
 }
 
 .research-message {
-  padding: 10px 14px !important;
-  border-radius: 18px !important;
+  display: flex !important;
+  gap: 8px !important;
+  padding: 12px 16px !important;
+  border-radius: 16px !important;
   max-width: 85% !important;
   word-break: break-word !important;
-  font-size: 13.5px !important;
+  font-size: 14px !important;
   line-height: 1.5 !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
   position: relative !important;
   animation: message-fade-in 0.3s ease !important;
+  margin-bottom: 8px !important;
+}
+
+.message-avatar {
+  display: flex !important;
+  align-items: flex-start !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  padding-top: 4px !important;
+  flex-shrink: 0 !important;
+}
+
+.message-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  flex: 1 !important;
 }
 
 .message-role {
-  font-weight: bold !important;
-  margin-bottom: 6px !important;
-  font-size: 14px !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  margin-bottom: 2px !important;
 }
 
 .message-text {
   line-height: 1.5 !important;
+  color: white !important;
+  font-size: 14px !important;
+}
+
+.message-text pre {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  padding: 8px !important;
+  border-radius: 6px !important;
+  overflow-x: auto !important;
+  font-family: monospace !important;
+  font-size: 12px !important;
+  margin: 8px 0 !important;
 }
 
 @keyframes message-fade-in {
@@ -565,46 +453,51 @@ body:not(.research-panel-active) .voyager-content {
 
 .research-message.user {
   align-self: flex-end !important;
-  background-color: var(--accent-color, #4f46e5) !important;
+  background-color: var(--research-message-user-bg) !important;
   color: white !important;
   border-bottom-right-radius: 4px !important;
   margin-left: auto !important;
 }
 
-.research-message.user::after {
-  content: "" !important;
-  position: absolute !important;
-  bottom: 0 !important;
-  right: -6px !important;
-  width: 12px !important;
-  height: 12px !important;
-  background-color: var(--accent-color, #4f46e5) !important;
-  border-radius: 0 0 0 12px !important;
-  clip-path: polygon(0 0, 0% 100%, 100% 100%) !important;
-}
-
 .research-message.assistant {
   align-self: flex-start !important;
-  background-color: rgba(30, 41, 59, 0.7) !important;
+  background-color: var(--research-message-assistant-bg) !important;
   color: white !important;
   border-bottom-left-radius: 4px !important;
+  margin-right: auto !important;
 }
 
-.research-message.assistant::after {
-  content: "" !important;
-  position: absolute !important;
-  bottom: 0 !important;
-  left: -6px !important;
-  width: 12px !important;
-  height: 12px !important;
-  background-color: rgba(30, 41, 59, 0.7) !important;
-  border-radius: 0 0 12px 0 !important;
-  clip-path: polygon(100% 0, 0% 100%, 100% 100%) !important;
+.research-message.tool {
+  align-self: flex-start !important;
+  background-color: rgba(20, 30, 45, 0.8) !important;
+  color: white !important;
+  border-radius: 12px !important;
+  margin-right: auto !important;
+  border-left: 2px solid rgba(79, 70, 229, 0.7) !important;
+}
+
+.tool-status {
+  display: inline-block !important;
+  margin-right: 6px !important;
+  font-weight: bold !important;
+}
+
+.tool-status.completed {
+  color: #10B981 !important;
+}
+
+.tool-status.error {
+  color: #EF4444 !important;
+}
+
+.tool-status.running {
+  color: #F59E0B !important;
 }
 
 .research-message.loading {
-  background-color: rgba(30, 41, 59, 0.7) !important;
+  background-color: var(--research-message-assistant-bg) !important;
   color: rgba(255, 255, 255, 0.7) !important;
+  align-self: flex-start !important;
   display: flex !important;
   align-items: center !important;
   padding-right: 18px !important;
@@ -623,7 +516,7 @@ body:not(.research-panel-active) .voyager-content {
 }
 
 .research-chat-input {
-  position: fixed !important;
+  position: absolute !important;
   bottom: 0 !important;
   left: 0 !important;
   right: 0 !important;
@@ -631,11 +524,11 @@ body:not(.research-panel-active) .voyager-content {
   margin: 0 12px 12px 12px !important;
   min-height: 54px !important;
   background-color: rgba(15, 23, 42, 0.95) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   padding: 12px !important;
   display: flex !important;
   gap: 10px !important;
-  z-index: 20000 !important;
+  z-index: 2000 !important;
   border-radius: 12px !important;
   box-shadow: 0 -2px 20px rgba(0,0,0,0.3) !important;
   visibility: visible !important;
@@ -643,10 +536,11 @@ body:not(.research-panel-active) .voyager-content {
   backdrop-filter: blur(8px) !important;
 }
 
-.research-chat-input input {
+.research-chat-input input,
+.research-chat-input textarea {
   flex: 1 !important;
   background-color: rgba(255, 255, 255, 0.1) !important;
-  color: #E2E8F0 !important;
+  color: var(--research-text-color) !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 8px !important;
   padding: 10px 14px !important;
@@ -657,21 +551,27 @@ body:not(.research-panel-active) .voyager-content {
   width: calc(100% - 50px) !important;
   visibility: visible !important;
   opacity: 1 !important;
+  resize: none !important;
+  font-family: inherit !important;
   transition: all 0.2s ease-in-out !important;
 }
 
-.research-chat-input input:focus {
+.research-chat-input input:focus,
+.research-chat-input textarea:focus {
   background-color: rgba(255, 255, 255, 0.15) !important;
-  border-color: rgba(56, 189, 248, 0.5) !important;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) !important;
+  border-color: rgba(79, 70, 229, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.25) !important;
 }
 
-.research-chat-input input::placeholder {
+.research-chat-input input::placeholder,
+.research-chat-input textarea::placeholder {
   color: rgba(255, 255, 255, 0.5) !important;
 }
 
-.research-send-btn {
-  background-color: #3B82F6 !important;
+.research-send-btn,
+.research-analyze-button,
+.research-submit-button {
+  background-color: var(--research-accent-color) !important;
   color: white !important;
   border: none !important;
   border-radius: 8px !important;
@@ -682,127 +582,286 @@ body:not(.research-panel-active) .voyager-content {
   justify-content: center !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
-  box-shadow: 0 2px 5px rgba(59, 130, 246, 0.3) !important;
+  box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3) !important;
+  flex-shrink: 0 !important;
 }
 
-.research-send-btn:hover {
-  background-color: #2563EB !important;
+.research-send-btn:hover,
+.research-analyze-button:hover,
+.research-submit-button:hover {
+  background-color: #4338ca !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4) !important;
+  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.4) !important;
 }
 
-/* Emergency chat input styles */
-.emergency-chat-input {
-  position: fixed !important;
-  bottom: 20px !important;
-  right: 20px !important;
-  width: 340px !important;
-  height: 50px !important;
-  background-color: rgba(20, 20, 20, 0.95) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+.research-send-btn:disabled,
+.research-analyze-button:disabled,
+.research-submit-button:disabled {
+  background-color: rgba(79, 70, 229, 0.4) !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.research-chat-input input:disabled,
+.research-chat-input textarea:disabled {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  cursor: not-allowed !important;
+}
+
+/* Input related styling */
+.research-input-container {
+  position: relative !important;
+  width: 100% !important;
+}
+
+.research-input-form {
   display: flex !important;
-  align-items: center !important;
-  padding: 0 8px !important;
-  z-index: 99999 !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  gap: 8px !important;
+  align-items: flex-end !important;
+  width: 100% !important;
 }
 
-.emergency-chat-input input {
+.research-input {
   flex: 1 !important;
-  height: 36px !important;
   background-color: rgba(255, 255, 255, 0.1) !important;
-  border: none !important;
-  border-radius: 4px !important;
-  color: white !important;
-  padding: 0 10px !important;
-  margin-right: 8px !important;
+  color: var(--research-text-color) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
   outline: none !important;
+  resize: none !important;
+  max-height: 150px !important;
+  min-height: 38px !important;
+  width: 100% !important;
+  font-family: inherit !important;
+  transition: all 0.2s ease !important;
 }
 
-.emergency-chat-input button {
-  width: 36px !important;
-  height: 36px !important;
-  background-color: #4c6ef5 !important;
-  border: none !important;
-  border-radius: 4px !important;
-  color: white !important;
+.research-input:focus {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(79, 70, 229, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.25) !important;
+}
+
+.research-input-buttons {
   display: flex !important;
+  gap: 8px !important;
   align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
 }
 
-.emergency-chat-input button.close-button {
-  width: 24px !important;
-  height: 24px !important;
-  background-color: transparent !important;
-  border: none !important;
-  border-radius: 50% !important;
-  color: rgba(255, 255, 255, 0.7) !important;
-  font-size: 18px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
-  margin-left: 8px !important;
-  padding: 0 !important;
-}
-
-/* Debug indicator styles */
-.researcher-debug-indicator {
-  position: fixed !important;
-  top: 10px !important;
-  left: 10px !important;
-  background-color: red !important;
-  color: white !important;
-  padding: 5px 10px !important;
-  border-radius: 4px !important;
-  z-index: 999999 !important;
-  font-family: sans-serif !important;
-  font-size: 12px !important;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3) !important;
-}
-
-/* Debug button styles */
-.force-show-input-btn {
+.research-analyze-button .tooltip,
+.research-submit-button .tooltip {
   position: absolute !important;
-  top: 5px !important;
-  right: 5px !important;
-  z-index: 20000 !important;
-  padding: 5px !important;
-  background: red !important;
+  top: -30px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  background-color: rgba(0, 0, 0, 0.8) !important;
   color: white !important;
-  border: none !important;
+  padding: 4px 8px !important;
   border-radius: 4px !important;
-  cursor: pointer !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s !important;
+  pointer-events: none !important;
 }
 
-/* Add body class when panel is active to help with layout */
-body.research-panel-active {
+.research-analyze-button:hover .tooltip,
+.research-submit-button:hover .tooltip {
+  opacity: 1 !important;
+}
+
+.command-suggestions {
+  position: absolute !important;
+  bottom: 100% !important;
+  left: 0 !important;
+  width: 100% !important;
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2) !important;
+  margin-bottom: 4px !important;
+  z-index: 10 !important;
   overflow: hidden !important;
 }
 
-/* Main container positioning when panel is active */
-body.research-panel-active .browser-webview-container {
-  width: calc(100vw - 340px) !important;
-  max-width: calc(100vw - 340px) !important;
-  right: 340px !important;
-  position: fixed !important;
-  transition: width 0.3s ease, right 0.3s ease !important;
-  z-index: 1 !important;
+.command-item {
+  padding: 8px 12px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: background-color 0.2s !important;
 }
 
-/* Ensure the research panel stays fixed to the right with correct width */
-body.research-panel-active .browser-research-panel {
-  width: 340px !important;
-  max-width: 340px !important;
-  position: fixed !important;
-  right: 0 !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  left: auto !important;
-  z-index: 100 !important;
+.command-item:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.command-name {
+  font-weight: 600 !important;
+  color: var(--research-accent-color) !important;
+}
+
+.command-desc {
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Tool calls styling */
+.tool-calls {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin-top: 8px !important;
+  width: 100% !important;
+}
+
+.tool-call {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 8px !important;
+  padding: 10px !important;
+  font-size: 13px !important;
+}
+
+.tool-call-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-weight: 600 !important;
+  margin-bottom: 6px !important;
+  color: var(--research-accent-color) !important;
+}
+
+.tool-call-args {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  border-radius: 6px !important;
+  padding: 8px !important;
+  font-family: monospace !important;
+  font-size: 12px !important;
+  overflow-x: auto !important;
+  max-height: 200px !important;
+  overflow-y: auto !important;
+}
+
+.tool-header {
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+  color: var(--research-accent-color) !important;
+}
+
+.tool-result {
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 6px !important;
+  padding: 8px !important;
+  font-family: monospace !important;
+  font-size: 12px !important;
+  margin: 0 !important;
+  overflow-x: auto !important;
+  max-height: 300px !important;
+  overflow-y: auto !important;
+}
+
+/* Welcome message styles */
+.welcome-message {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  padding: 32px 20px !important;
+  color: var(--research-text-color) !important;
+}
+
+.welcome-icon {
+  color: var(--research-accent-color) !important;
+  margin-bottom: 16px !important;
+}
+
+.welcome-message h2 {
+  margin: 0 0 12px 0 !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+}
+
+.welcome-message p {
+  margin: 0 !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  opacity: 0.8 !important;
+  max-width: 90% !important;
+}
+
+.message-timestamp {
+  font-size: 11px !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  margin-top: 4px !important;
+  text-align: right !important;
+}
+
+.research-message.user .message-timestamp {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Responsive styles */
+@media (max-width: 1024px) {
+  :root {
+    --research-panel-width: 320px;
+  }
+  
+  .browser-research-panel {
+    max-width: 40% !important;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --research-panel-width: 300px;
+  }
+  
+  .browser-research-panel {
+    max-width: 50% !important;
+  }
+  
+  .research-panel-title {
+    font-size: 15px !important;
+  }
+  
+  .research-message {
+    font-size: 13px !important;
+    padding: 10px 14px !important;
+  }
+  
+  .research-chat-input {
+    padding: 10px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --research-panel-width: 280px;
+  }
+  
+  .browser-research-panel {
+    max-width: 80% !important;
+  }
+  
+  .research-entry {
+    padding: 12px !important;
+  }
+  
+  .research-entry-header h4 {
+    font-size: 14px !important;
+  }
+  
+  .research-panel-controls {
+    gap: 5px !important;
+  }
 }
 
 /* Override with extremely specific selectors to ensure the side panel layout */
@@ -813,8 +872,8 @@ html body .browser-research-panel {
   top: 0 !important;
   bottom: 0 !important;
   left: auto !important;
-  width: 340px !important;
-  max-width: 340px !important;
+  width: var(--research-panel-width) !important;
+  max-width: var(--research-panel-width) !important;
   min-width: 280px !important;
   height: 100vh !important;
   transform: none !important;
@@ -829,11 +888,11 @@ html body .browser-research-panel {
 html body.research-panel-active .browser-webview-container,
 html body.research-panel-active .voyager-content {
   position: fixed !important;
-  width: calc(100vw - 340px) !important;
-  max-width: calc(100vw - 340px) !important;
-  left: 0 !important; /* Start from left side */
-  right: 340px !important; /* Leave space for panel */
-  top: 92px !important; /* 52px address bar + 40px toolbar */
+  width: calc(100vw - var(--research-panel-width)) !important;
+  max-width: calc(100vw - var(--research-panel-width)) !important;
+  left: 0 !important;
+  right: var(--research-panel-width) !important;
+  top: 92px !important;
   bottom: 0 !important;
   height: calc(100vh - 92px) !important;
   transform: none !important;
@@ -851,17 +910,4 @@ html body .voyager-content {
   right: 0 !important;
   margin: 0 !important;
   transition: width 0.3s ease, right 0.3s ease !important;
-}
-
-/* Add styles for the welcome message icon */
-.research-empty-state-icon {
-  font-size: 2rem !important;
-  margin-bottom: 1rem !important;
-  color: #38bdf8 !important;
-}
-
-/* Add styles for the italic text in welcome message */
-.research-hint-text {
-  font-style: italic !important;
-  opacity: 0.7 !important;
 } 

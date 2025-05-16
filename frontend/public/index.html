@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://localhost:3001 https://*.googleapis.com; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self' https://* http://*;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://localhost:3001 https://*.googleapis.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src 'self' https:; object-src 'none';">
   <meta name="color-scheme" content="dark">
   <title>Cognivore</title>
   <link href="./styles/main.css" rel="stylesheet">
@@ -27,10 +27,11 @@
   <!-- GSAP Animation Library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
   <!-- Three.js and GLTF Loader for 3D Muse Model -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r149/three.min.js"></script>
+  <!-- Don't load as module to avoid CORS issues -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r149/examples/js/loaders/GLTFLoader.js"></script>
   <!-- Custom Muse Loader -->
-  <script src="/scripts/muse-loader.js"></script>
+  <script src="./scripts/muse-loader.js"></script>
 </head>
 <body class="dark-theme">
   <div id="app"></div>

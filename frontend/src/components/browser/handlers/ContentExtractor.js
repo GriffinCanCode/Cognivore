@@ -59,6 +59,9 @@ function extractContentWithWebviewAPI(browser) {
   browser.webview.executeJavaScript(`
     (function() {
       try {
+        // Check if we're on Wikipedia
+        const isWikipedia = window.location.hostname.includes('wikipedia.org');
+        
         // Collect page data
         const extractedContent = {
           title: document.title || '',
@@ -74,46 +77,93 @@ function extractContentWithWebviewAPI(browser) {
           }
         };
         
-        // Extract main text content
-        const contentNodes = Array.from(document.querySelectorAll('article, [role="main"], main, #content, .content, .article, .post, .entry, .news-content, .page-content'));
+        // Extract main text content - with special handling for Wikipedia
+        let mainContentNode;
         
-        // If no content nodes are found, fallback to body
-        const mainContentNode = contentNodes.length > 0 
-          ? contentNodes[0] 
-          : document.body;
-        
-        // Extract readable text
-        extractedContent.content.text = (function getReadableText() {
-          // Use Readability if available
-          if (typeof Readability === 'function') {
-            try {
-              const documentClone = document.cloneNode(true);
-              const reader = new Readability(documentClone);
-              const article = reader.parse();
-              if (article && article.textContent) {
-                return article.textContent.trim();
-              }
-            } catch (e) {
-              console.warn('Readability extraction failed:', e);
+        if (isWikipedia) {
+          // Wikipedia-specific content extraction
+          mainContentNode = document.getElementById('content') || 
+                           document.getElementById('mw-content-text') || 
+                           document.querySelector('.mw-parser-output');
+          
+          // If we found Wikipedia content, get the paragraphs and headings
+          if (mainContentNode) {
+            const paragraphs = Array.from(mainContentNode.querySelectorAll('p, h1, h2, h3, h4, h5, h6'));
+            extractedContent.content.text = paragraphs
+              .map(el => el.textContent.trim())
+              .filter(text => text.length > 0)
+              .join('\\n\\n');
+            
+            // Also get the infobox if available
+            const infobox = document.querySelector('.infobox');
+            if (infobox) {
+              const infoboxText = Array.from(infobox.querySelectorAll('tr'))
+                .map(row => {
+                  const label = row.querySelector('th')?.textContent?.trim() || '';
+                  const value = row.querySelector('td')?.textContent?.trim() || '';
+                  return label && value ? label + ': ' + value : '';
+                })
+                .filter(text => text.length > 0)
+                .join('\\n');
+              
+              extractedContent.content.text = 'INFOBOX:\\n' + infoboxText + '\\n\\nCONTENT:\\n' + extractedContent.content.text;
             }
           }
+        } else {
+          // Standard content extraction for non-Wikipedia sites
+          const contentNodes = Array.from(document.querySelectorAll('article, [role="main"], main, #content, .content, .article, .post, .entry, .news-content, .page-content'));
           
-          // Fallback text extraction
-          const paragraphs = Array.from(mainContentNode.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, div:not(:has(*))'))
-            .filter(el => {
-              // Filter out elements that are too short or hidden
-              const text = el.textContent.trim();
-              const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
-              return text.length > 10 && isVisible;
-            })
+          // If no content nodes are found, fallback to body
+          mainContentNode = contentNodes.length > 0 
+            ? contentNodes[0] 
+            : document.body;
+          
+          // Extract readable text
+          extractedContent.content.text = (function getReadableText() {
+            // Use Readability if available
+            if (typeof Readability === 'function') {
+              try {
+                const documentClone = document.cloneNode(true);
+                const reader = new Readability(documentClone);
+                const article = reader.parse();
+                if (article && article.textContent) {
+                  return article.textContent.trim();
+                }
+              } catch (e) {
+                console.warn('Readability extraction failed:', e);
+              }
+            }
+            
+            // Fallback text extraction
+            const paragraphs = Array.from(mainContentNode.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, td, th, div:not(:has(*))'))
+              .filter(el => {
+                // Filter out elements that are too short or hidden
+                const text = el.textContent.trim();
+                const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
+                return text.length > 10 && isVisible;
+              })
+              .map(el => el.textContent.trim())
+              .filter(text => text.length > 0);
+            
+            return paragraphs.join('\\n\\n').trim();
+          })();
+        }
+        
+        // Make sure we have some text content
+        if (!extractedContent.content.text || extractedContent.content.text.length < 50) {
+          // Last resort fallback: get all visible text from the page
+          extractedContent.content.text = Array.from(document.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6'))
             .map(el => el.textContent.trim())
-            .filter(text => text.length > 0);
-          
-          return paragraphs.join('\\n\\n').trim();
-        })();
+            .filter(text => text.length > 0)
+            .join('\\n\\n');
+        }
         
         // Extract basic HTML content
-        extractedContent.content.html = mainContentNode.innerHTML;
+        if (mainContentNode) {
+          extractedContent.content.html = mainContentNode.innerHTML;
+        } else {
+          extractedContent.content.html = document.body.innerHTML;
+        }
         
         // Extract headlines
         extractedContent.content.headlines = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'))
@@ -434,11 +484,106 @@ export function extractPageInfo(doc) {
 
 /**
  * Extract all page content including text, links, and structure
- * @param {Document} doc - DOM document object
+ * @param {Object|Document} doc - DOM document object or browser instance
  * @param {string} url - Current page URL
  * @returns {Object} Extracted content
  */
 export function extractFullPageContent(doc, url) {
+  // Handle case when browser object is passed instead of document
+  if (doc && doc.webview && !doc.querySelector) {
+    // Get URL from browser if not provided
+    if (!url) {
+      url = doc.currentUrl || '';
+    }
+    
+    // We need to extract document from webview
+    if (doc.webview.getWebContents && typeof doc.webview.getWebContents === 'function') {
+      // Try to use webview's document via IPC
+      try {
+        // This will need to be handled asynchronously
+        return new Promise((resolve, reject) => {
+          const extractionScript = `
+            (() => {
+              try {
+                return {
+                  title: document.title || '',
+                  text: document.body ? document.body.textContent || '' : '',
+                  links: Array.from(document.querySelectorAll('a[href]')).map(link => ({
+                    text: link.textContent.trim(),
+                    url: link.href,
+                    title: link.getAttribute('title') || ''
+                  })).filter(link => link.url && link.url.startsWith('http')),
+                  headings: Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).map(heading => ({
+                    level: parseInt(heading.tagName.substring(1)),
+                    text: heading.textContent.trim()
+                  })),
+                  pageInfo: {
+                    title: document.title || '',
+                    metaDescription: document.querySelector('meta[name="description"]')?.content || '',
+                    canonicalUrl: document.querySelector('link[rel="canonical"]')?.href || '',
+                    ogImage: document.querySelector('meta[property="og:image"]')?.content || '',
+                    ogTitle: document.querySelector('meta[property="og:title"]')?.content || '',
+                    ogDescription: document.querySelector('meta[property="og:description"]')?.content || ''
+                  },
+                  mainContent: document.body ? document.body.textContent.replace(/\\s+/g, ' ').trim() : ''
+                };
+              } catch (err) {
+                return { 
+                  error: true,
+                  message: err.message,
+                  title: document.title || 'Error extracting content',
+                  text: 'Error extracting content: ' + err.message
+                };
+              }
+            })();
+          `;
+          
+          doc.webview.executeJavaScript(extractionScript)
+            .then(result => {
+              if (result.error) {
+                console.warn('Error in content extraction script:', result.message);
+                // Return minimal content to avoid complete failure
+                resolve({
+                  text: result.text || 'Content extraction failed',
+                  title: result.title || 'Unknown Title',
+                  links: [],
+                  headings: [],
+                  mainContent: result.text || ''
+                });
+              } else {
+                resolve(result);
+              }
+            })
+            .catch(err => {
+              console.error('Failed to execute content extraction script:', err);
+              // Return minimal content
+              resolve({
+                text: 'Failed to extract content',
+                links: [],
+                headings: [],
+                mainContent: 'Content extraction failed'
+              });
+            });
+        });
+      } catch (err) {
+        console.error('Error accessing webview content:', err);
+        return {
+          text: 'Error accessing webview content',
+          links: [],
+          headings: []
+        };
+      }
+    } else {
+      console.warn('Webview not available for content extraction');
+      return {
+        text: 'Webview not available for content extraction',
+        links: [],
+        headings: []
+      };
+    }
+  }
+
+  // Original functionality for document object
   if (!doc) return { text: '', links: [], headings: [] };
   
   try {

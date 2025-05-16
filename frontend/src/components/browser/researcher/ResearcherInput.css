@@ -1,0 +1,93 @@
+.researcher-input-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.researcher-input-container.disabled {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.researcher-input-disabled-message {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  background: rgba(245, 245, 245, 0.9);
+  padding: 3px 8px;
+  border-radius: 4px;
+  z-index: 5;
+}
+
+.researcher-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 4px 8px;
+  resize: none;
+  outline: none;
+  color: #333;
+}
+
+.researcher-input:focus {
+  outline: none;
+}
+
+.researcher-send-button {
+  background-color: #4a8eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.researcher-send-button:hover {
+  background-color: #3a7eff;
+}
+
+.researcher-send-button.disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .researcher-input-container {
+    background-color: #2a2a2a;
+    border: 1px solid #3a3a3a;
+  }
+  
+  .researcher-input {
+    color: #e0e0e0;
+  }
+  
+  .researcher-input-disabled-message {
+    background: rgba(42, 42, 42, 0.9);
+    color: #bbb;
+  }
+  
+  .researcher-send-button {
+    background-color: #4a8eff;
+  }
+  
+  .researcher-send-button.disabled {
+    background-color: #555555;
+  }
+} 

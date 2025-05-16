@@ -1,5 +1,61 @@
 # Changelog
 
+### [0.5.75] - Fixed Wikipedia/Google Content Extraction Synchronization
+- Fixed issue where research panel was analyzing Google content when on Wikipedia pages
+- Fixed analyze button creating duplicate entries instead of analyzing existing entries
+- Added `_processAndAnalyze` method to update existing entries and trigger LLM analysis
+- Added entry de-duplication by URL to prevent multiple entries for the same page
+- Added delay and retry mechanism to ensure page is fully loaded before content extraction
+- Enhanced content extraction with specific Wikipedia handling to extract article content
+- Added `analyzeCurrentPage` method to always use the most current URL and title
+- Improved page content extraction by using browser's current URL instead of passed URL
+- Added infobox extraction for Wikipedia pages to capture key information
+- Enhanced error handling with more informative messages for extraction failures
+
+### [0.5.74] - Fixed Content Extraction Error in Research Panel
+- Fixed critical "TypeError: e.querySelector is not a function" error in ContentExtractor.js
+- Enhanced extractFullPageContent to properly handle browser objects vs document objects
+- Improved processPage method in Researcher.js to handle asynchronous content extraction
+- Added proper Promise handling for extractFullPageContent when it returns a Promise
+- Added safer content property access in analyzeContent to prevent null reference errors
+- Implemented browser-specific content extraction script using executeJavaScript
+
+### [0.5.73] - Fixed Researcher Tool Call Processing and Tool Registry
+- Added searchKnowledgeBase tool definition to toolRegistry.json for proper tool execution
+- Fixed recursive tool call issues in Researcher component with proper validation
+- Added validation for toolCallId and tool name before execution
+- Enhanced error handling in tool call execution process
+- Added safeguards to prevent maximum call stack exceeded errors
+- Improved tool arguments parsing and validation
+
+### [0.5.72] - Researcher Component Maximum Call Stack Prevention Fix
+- Fixed critical "Maximum call stack size exceeded" error in Researcher component
+- Added recursion prevention guards in state handling and UI updates
+- Fixed circular dependencies between LLM initialization and UI updates
+- Improved chat interface initialization with safer state management
+- Added flags to track and prevent recursive method calls
+- Enhanced setState to support skipping UI updates for input changes
+- Fixed input handler registration to avoid duplicate event handlers
+- Added proper cleanup of flags when methods complete execution
+
+### [0.5.71] - Research Panel Chat Input Rendering Fix
+- Fixed chat input rendering issues in Researcher component
+- Improved updateUI method to properly handle active state changes
+- Enhanced _ensureChatInterface to better clean up and create input elements
+- Fixed cleanupInputElements to remove all input containers and event listeners
+- Added improved state tracking with inputHandlersRegistered flag
+- Enhanced updateChatInterface to check for missing input container
+- Improved toggleActive to better handle panel visibility transitions
+- Fixed memoization cache initialization in constructor
+
+### [0.5.70] - Three.js and WebPack Fixes
+- Fixed "global is not defined" error by adding window.global polyfill
+- Updated Three.js CDN paths to use consistent versions and formats
+- Fixed GLTFLoader path to use CDN version that works with direct script tags
+- Updated muse-loader.js to handle Three.js version differences
+- Fixed relative path to muse-loader.js to ensure proper loading
+- Added process.env polyfill for better webpack compatibility
+
 ### [0.5.69] - Research Panel Event Handlers
 - Added dedicated event handlers for Researcher component:
   - Created new ResearcherEventHandlers.js for better code organization
@@ -2099,3 +2155,46 @@
   - Removed fallback mechanisms in toggleResearchMode to properly surface errors
   - Updated event handlers to handle errors gracefully
   - Improved component lifecycle integration between Voyager 
+
+## Researcher Component Styling Improvements (2023-07-08)
+- Enhanced ResearcherPanel.css with improved color scheme and consistent spacing
+- Fixed styling issues in ResearcherMessages.js while preserving existing functionality
+- Improved ResearcherInput.js visual appearance with better button styling
+- Refined Researcher.js styling consistency with existing code patterns
+
+### 2023-07-01
+- Added memoization to Researcher components to prevent unnecessary re-renders on keystrokes
+  - Converted class-based components to React functional components with memo
+  - Added debouncing for input handling in Researcher.js
+  - Implemented custom comparison functions for efficient component updates
+  - Created CSS files for the new React components
+
+### 2023-06-30
+- Improved conversation summarization with dynamic highlights
+  - Added new visualization component for summary highlights
+  - Integrated with GPT models for more accurate summary generation
+
+### 2023-06-28
+- Added voice chat features
+  - Integrated with browser speech recognition API
+  - Added controls for voice input and output
+  - Implemented real-time speech-to-text processing
+
+### 2023-07-02
+- Fixed Researcher component initialization error
+  - Restored proper class-based Researcher functionality
+  - Fixed "O is not a constructor" error in toggleResearchMode
+  - Maintained memoization for child components while preserving class structure
+
+### 2023-05-10
+
+- Fixed chat input rendering issue in Researcher component by integrating React components properly
+- Modified Researcher.js to use React-based UI components instead of direct DOM manipulation
+- Added proper cleanup for React components in componentWillUnmount
+
+## 2023-05-31
+### Fixed
+- Fixed issue in `Researcher.js` where `extractFullPageContent` was not returning a Promise correctly, causing "then is not a function" error
+- Added recursion prevention for tool call processing in `sendChatMessage` method with depth tracking
+- Enhanced recursion protection in `updateUI` method with depth tracking to prevent potential stack issues
+- Improved error handling for content extraction and DOM manipulation

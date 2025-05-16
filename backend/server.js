@@ -7,6 +7,7 @@ const dotenv = require('dotenv');
 const { app: electronApp, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { logger, createContextLogger } = require('./src/utils/logger');
 
 // Load environment variables
 dotenv.config();
@@ -527,17 +528,29 @@ function setupIpcHandlers() {
     };
   });
 
+  // Create a context-specific logger for the chat handler
+  const chatLogger = createContextLogger('ChatHandler');
+
   // Chat - only used if not already registered
   safelyRegisterHandler('chat', async (event, args) => {
     try {
+      chatLogger.info('Chat request received', { 
+        messagePreview: args.message?.substring(0, 100) + '...',
+        model: args.model,
+        historyLength: args.chatHistory?.length || 0
+      });
+      
       // First check if API is available
       if (!isApiAvailable()) {
+        chatLogger.error('Google API key missing or invalid');
         throw new Error('Google API key is missing or invalid. Please add a valid API key to your .env file or config.json and restart the application.');
       }
       
       const { message, chatHistory, model, temperature, maxTokens, tools } = args;
       
       const modelId = model || LLM_MODEL;
+      chatLogger.debug('Using model', { modelId, temperature, maxTokens });
+      
       const genModel = genAI.getGenerativeModel({
         model: modelId,
         tools: tools || [],
@@ -563,6 +576,11 @@ function setupIpcHandlers() {
         })
       })) || [];
       
+      chatLogger.debug('Formatted chat history', { 
+        historyLength: formattedHistory.length,
+        roles: formattedHistory.map(msg => msg.role)
+      });
+      
       // Create a chat session
       const chat = genModel.startChat({
         history: formattedHistory,
@@ -574,63 +592,74 @@ function setupIpcHandlers() {
         },
       });
       
+      chatLogger.info('Sending message to Gemini API');
+      
       // Generate a response
       const result = await chat.sendMessage(message);
       const response = result.response;
       
+      chatLogger.debug('Received raw response from Gemini', { 
+        responseType: typeof response,
+        hasResponse: !!response
+      });
+      
       // Process the response
-      const responseText = response.text();
+      const responseText = await response.text();
+      
+      chatLogger.debug('Extracted response text', { 
+        textLength: responseText?.length,
+        preview: responseText?.substring(0, 100) + '...'
+      });
       
       // Check if there are any tool calls
       let toolCalls = [];
-      
-      // Try to extract function calls from candidates if they exist
-      if (response.candidates && response.candidates.length > 0) {
-        const candidate = response.candidates[0];
-        if (candidate.content && candidate.content.parts) {
-          // Look through all parts for function calls
-          toolCalls = candidate.content.parts.flatMap(part => {
-            if (part.functionCall) {
-              return [{
-                id: Date.now().toString(),
-                name: part.functionCall.name,
-                args: part.functionCall.args
-              }];
-            }
-            return [];
-          });
+      if (response.candidates && response.candidates[0]?.content?.parts) {
+        const parts = response.candidates[0].content.parts;
+        for (const part of parts) {
+          if (part.functionCall || part.toolCall) {
+            const call = part.functionCall || part.toolCall;
+            toolCalls.push({
+              name: call.name,
+              toolCallId: call.id || `call-${Date.now()}-${toolCalls.length}`,
+              args: call.args || call.arguments || {}
+            });
+          }
         }
       }
       
-      // If no tool calls found, check older response format (functionCalls)
-      if (toolCalls.length === 0 && response.functionCalls && response.functionCalls.length > 0) {
-        toolCalls = response.functionCalls.map(call => ({
-          id: Date.now().toString(),
-          name: call.name,
-          args: call.args || {}
-        }));
-      }
-      
-      // Log for debugging
       if (toolCalls.length > 0) {
-        console.log(`Found ${toolCalls.length} tool calls in response`, toolCalls);
-      } else if (responseText.includes('searchKnowledgeBase') || responseText.includes('getItemContent')) {
-        console.warn('Response text contains tool references but no tool calls were properly extracted');
+        chatLogger.info('Found tool calls in response', { 
+          count: toolCalls.length,
+          tools: toolCalls.map(t => t.name)
+        });
       }
       
-      // Return the response
-      return {
+      // Return formatted response
+      const formattedResponse = {
+        role: 'assistant',
+        content: responseText,
         text: responseText,
-        toolCalls: toolCalls,
-        model: modelId
+        timestamp: new Date().toISOString(),
+        ...(toolCalls.length > 0 && { toolCalls })
       };
+      
+      chatLogger.info('Sending formatted response', {
+        role: formattedResponse.role,
+        contentLength: formattedResponse.content?.length,
+        hasToolCalls: toolCalls.length > 0,
+        timestamp: formattedResponse.timestamp
+      });
+      
+      return formattedResponse;
     } catch (error) {
-      console.error('Error in chat handler:', error);
-      // For IPC, we need to return an object with error information rather than throw
+      chatLogger.error('Error in chat handler', { 
+        error: error.message,
+        stack: error.stack
+      });
       return {
         error: true,
         message: error.message,
-        details: error.stack
+        stack: error.stack
       };
     }
   });

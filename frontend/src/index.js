@@ -1,3 +1,6 @@
+// Import polyfill for global object
+import './global-polyfill.js';
+
 // Main application entry point
 import App from './components/App.js';
 // Import public CSS directly instead of from src
