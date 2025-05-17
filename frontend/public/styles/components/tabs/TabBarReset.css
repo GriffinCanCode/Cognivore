@@ -1,0 +1,127 @@
+/**
+ * TabBarReset.css - Emergency reset for tab alignment issues
+ * This file contains ultra-specific selectors to override any conflicting styles
+ */
+
+/* Direct container reset - clear all padding and margin */
+.voyager-tab-bar-container {
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  overflow: visible !important;
+}
+
+/* Force first tab of any kind to have no left margin/padding */
+.voyager-tab-bar > div:first-child,
+.voyager-tab-bar > div:first-of-type,
+.voyager-tab-bar > *:first-child,
+.voyager-tab-bar > *:first-of-type,
+.voyager-tab-bar .tab-item:first-child,
+.voyager-tab-bar .tab-item:first-of-type,
+div[class*="tab-item"]:first-child,
+div[class*="tab-item"]:first-of-type {
+  margin-left: 0 !important;
+  padding-left: 10px !important; /* Keep some padding inside the tab for content */
+  border-left-width: 0 !important;
+  border-top-left-radius: 0 !important;
+  left: 0 !important;
+}
+
+/* Ensure the tab bar itself has no padding */
+.voyager-tab-bar {
+  padding: 0 !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+  margin-left: 0 !important;
+  left: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Ultra-specific selector for tab-bar */
+div.voyager-tab-bar-container > div.voyager-tab-bar {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* Ultra-specific selector for first tab */
+div.voyager-tab-bar-container > div.voyager-tab-bar > div.tab-item:first-child,
+div.voyager-tab-bar-container > div.voyager-tab-bar > div:first-child {
+  margin-left: 0 !important;
+  padding-left: 10px !important;
+  border-left-width: 0 !important;
+  border-top-left-radius: 0 !important;
+  left: 0 !important;
+}
+
+/* Reset any potential horizontal spacing in parent elements */
+body .voyager-tab-bar-wrapper,
+body .voyager-tab-bar-container,
+body .voyager-tab-bar,
+body .browser-header-container,
+body .browser-header {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* Prevent any potential translation or transform */
+.voyager-tab-bar-container,
+.voyager-tab-bar,
+.tab-item {
+  transform: none !important;
+  -webkit-transform: none !important;
+  -moz-transform: none !important;
+  -ms-transform: none !important;
+}
+
+/* Target specific element arrangement in the DOM */
+.browser-header-container > .voyager-tab-bar-wrapper > .voyager-tab-bar-container > .voyager-tab-bar > .tab-item:first-child {
+  margin-left: 0 !important;
+  padding-left: 10px !important;
+  left: 0 !important;
+}
+
+/* Fix for scroll buttons potentially adding space */
+.tab-scroll-button.tab-scroll-left {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Emergency fix for any container that might be shifting content */
+* {
+  text-indent: 0 !important;
+}
+
+/* Force the tab bar to align at the exact edge */
+.voyager-tab-bar {
+  text-align: left !important;
+  text-indent: 0 !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+}
+
+/* Absolutely insane selectors to fix any part of the tab structure */
+div[class*="voyager-tab-bar-container"],
+div[class*="voyager"] > div[class*="tab"],
+div[class*="tab-bar"] > div:first-child,
+div[class*="browser-header"] div[class*="tab"] div:first-child,
+*[class*="tab-bar"] > *[class*="tab-item"]:first-child,
+*[class*="voyager"] *[class*="tab"]:first-child,
+*[class*="browser"] *[class*="voyager"] div:first-child div:first-child {
+  margin-left: 0 !important;
+  padding-left: 10px !important;
+  left: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Fix potential flex issues */
+.voyager-tab-bar-container {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+} 

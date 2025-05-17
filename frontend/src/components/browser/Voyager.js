@@ -23,16 +23,17 @@ import TabBar from './tabs/TabBar';
 // Import browser component utilities
 import { 
   detectEnvironment,
-  formatUrl,
-  applySiteSpecificSettings
-} from './utils/BrowserEnv';
+  getIconForUrl,
+  formatBytes,
+  showToastNotification,
+  updatePageTitle
+} from './utils/BrowserUtilities';
 
-import {
-  handleBackAction,
-  handleForwardAction,
-  updateVisitedUrls,
-  createHistoryRecord
-} from './utils/HistoryManager';
+// Use centralized history service instead of directly using HistoryManager
+import * as HistoryService from './handlers/HistoryService';
+
+// Import centralized handlers 
+import { initBrowserHandlers, AddressBarManager } from './handlers/index.js';
 
 import {
   handleBookmarkCreation,
@@ -55,8 +56,9 @@ import {
 } from './renderers/BrowserRenderer';
 
 import {
-  renderErrorPage
-} from './renderers/ErrorPageRenderer';
+  renderErrorPage,
+  handlePageLoadError
+} from './handlers/ErrorHandler';
 
 import {
   handleLoadStart,
@@ -352,8 +354,8 @@ class Voyager extends Component {
       `);
     }
     
-    // Update history
-    updateVisitedUrls(this, formattedUrl);
+    // Update history using centralized HistoryService
+    HistoryService.recordVisit(this, formattedUrl, this.state.title);
   }
   
   /**
@@ -581,8 +583,8 @@ class Voyager extends Component {
       console.warn('Error in capturePageContent during load:', err);
     });
     
-    // Add to browsing history
-    const historyRecord = createHistoryRecord(
+    // Add to browsing history using centralized HistoryService
+    const historyRecord = HistoryService.createHistoryRecord(
       this.state.url, 
       this.state.title, 
       new Date().toISOString()
@@ -1105,6 +1107,9 @@ class Voyager extends Component {
     // Set up webview container
     setupWebViewContainer(this);
     
+    // Initialize centralized browser handlers
+    initBrowserHandlers(this);
+    
     // Initialize tab manager if needed
     if (!this.tabManager) {
       this.tabManager = new VoyagerTabManager(this);
@@ -1342,7 +1347,7 @@ class Voyager extends Component {
     if (e && e.errorCode !== -3) { // Ignore -3 error (aborted navigation)
       console.error(`Load failed with error code: ${e.errorCode}, description: ${e.errorDescription}`);
       
-      // Set error state
+      // Set error state and render error page using the centralized ErrorHandler
       this.setState({ 
         loading: false,
         loadError: true,
@@ -1350,109 +1355,8 @@ class Voyager extends Component {
         errorDescription: e.errorDescription || 'Failed to load page'
       });
       
-      // Render error page in the webview if possible
-      if (this.webview && typeof this.webview.executeJavaScript === 'function') {
-        try {
-          // Get the error details
-          const errorCode = e.errorCode || 'unknown';
-          const errorDesc = e.errorDescription || 'An error occurred while loading this page';
-          const validatedUrl = this.state.currentUrl || 'Unknown URL';
-          
-          // Create error page HTML using template literal
-          const errorPageHtml = `
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <style>
-                body {
-                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                  margin: 0;
-                  padding: 20px;
-                  background-color: #f7f7f7;
-                  color: #333;
-                }
-                .error-container {
-                  max-width: 800px;
-                  margin: 40px auto;
-                  background-color: white;
-                  border-radius: 8px;
-                  padding: 20px;
-                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                }
-                h1 {
-                  margin-top: 0;
-                  color: #d32f2f;
-                  font-size: 24px;
-                }
-                p {
-                  line-height: 1.6;
-                }
-                .error-code {
-                  font-family: monospace;
-                  background-color: #f1f1f1;
-                  padding: 4px 8px;
-                  border-radius: 4px;
-                }
-                .retry-btn {
-                  background-color: #2196f3;
-                  color: white;
-                  border: none;
-                  padding: 10px 16px;
-                  border-radius: 4px;
-                  cursor: pointer;
-                  font-size: 14px;
-                  margin-top: 20px;
-                }
-                .retry-btn:hover {
-                  background-color: #1976d2;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="error-container">
-                <h1>Page Load Failed</h1>
-                <p>The browser encountered an error while trying to load <strong>${validatedUrl}</strong></p>
-                <p>Error: <span class="error-code">${errorCode}</span> - ${errorDesc}</p>
-                <p>Possible solutions:</p>
-                <ul>
-                  <li>Check your internet connection</li>
-                  <li>Refresh the page</li>
-                  <li>Try a different URL</li>
-                </ul>
-                <button class="retry-btn" onclick="window.location.reload()">Try Again</button>
-              </div>
-            </body>
-            </html>
-          `;
-          
-          // Execute JavaScript to replace the page content with our error page
-          this.webview.executeJavaScript(`
-            (function() {
-              // Replace entire document content with error page
-              document.open();
-              document.write(${JSON.stringify(errorPageHtml)});
-              document.close();
-              
-              // Prevent further navigation
-              window.stop();
-              
-              // Override navigation functions to prevent changes
-              history.pushState = function() { console.log('Navigation prevented'); };
-              history.replaceState = function() { console.log('Navigation prevented'); };
-              
-              console.log('Error page rendered');
-            })();
-          `)
-          .catch(err => {
-            console.error('Failed to inject error page:', err);
-          });
-        } catch (err) {
-          console.error('Error injecting error page:', err);
-        }
-      } else {
-        console.warn('Cannot render error page - webview not available or missing executeJavaScript');
-      }
+      // Use the centralized error handler
+      handlePageLoadError(this, e, this.state.currentUrl || 'Unknown URL');
       
       // If error handler exists, call it
       if (typeof this.props.onError === 'function') {

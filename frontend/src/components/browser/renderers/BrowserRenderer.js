@@ -3,7 +3,7 @@
  */
 import { applySandboxSettings } from '../utils/BrowserEnv.js';
 import { createBrowserPlaceholder } from './ContentRenderer.js';
-import EventHandlers from '../handlers/EventHandlers.js';
+import { EventHandlers, AddressBarManager } from '../handlers/index.js';
 
 /**
  * Create the browser header with navigation controls

@@ -2,6 +2,10 @@
  * HistoryManager - Utility for browser navigation history management
  */
 
+// In-memory storage for recent history entries
+let historyEntries = [];
+const MAX_HISTORY_SIZE = 1000;
+
 /**
  * Add a URL to history
  * @param {Array} history - Current history array
@@ -298,6 +302,189 @@ export function createHistoryRecord(url, title, timestamp) {
   };
 }
 
+/**
+ * Add a history entry to the persistent history
+ * @param {Object} entry - History entry with url, title, favicon, visitedAt properties
+ * @returns {Promise<Object>} Promise resolving to the added entry
+ */
+export function addHistoryEntry(entry) {
+  if (!entry || !entry.url) {
+    return Promise.reject(new Error('Invalid history entry'));
+  }
+  
+  // Create a proper history record
+  const historyRecord = {
+    ...entry,
+    id: `hist_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+    visitedAt: entry.visitedAt || new Date().toISOString()
+  };
+  
+  try {
+    // Load existing history
+    let savedEntries = [];
+    try {
+      const savedHistory = localStorage.getItem('browser-history-entries');
+      if (savedHistory) {
+        savedEntries = JSON.parse(savedHistory);
+      }
+    } catch (e) {
+      console.error('Error loading history entries:', e);
+    }
+    
+    // Add the new entry
+    savedEntries.unshift(historyRecord);
+    
+    // Keep history size manageable
+    if (savedEntries.length > MAX_HISTORY_SIZE) {
+      savedEntries = savedEntries.slice(0, MAX_HISTORY_SIZE);
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('browser-history-entries', JSON.stringify(savedEntries));
+    
+    // Update in-memory cache
+    historyEntries = savedEntries;
+    
+    return Promise.resolve(historyRecord);
+  } catch (error) {
+    console.error('Error adding history entry:', error);
+    return Promise.reject(error);
+  }
+}
+
+/**
+ * Get recent history entries
+ * @param {number} limit - Maximum number of entries to return
+ * @returns {Promise<Array>} Promise resolving to recent history entries
+ */
+export function getRecentHistory(limit = 20) {
+  try {
+    // Try to use in-memory cache first
+    if (historyEntries.length > 0) {
+      return Promise.resolve(historyEntries.slice(0, limit));
+    }
+    
+    // Load from localStorage if cache is empty
+    const savedHistory = localStorage.getItem('browser-history-entries');
+    if (savedHistory) {
+      try {
+        const entries = JSON.parse(savedHistory);
+        // Update cache
+        historyEntries = entries;
+        return Promise.resolve(entries.slice(0, limit));
+      } catch (e) {
+        console.error('Error parsing history entries:', e);
+      }
+    }
+    
+    // Return empty array if nothing found
+    return Promise.resolve([]);
+  } catch (error) {
+    console.error('Error getting recent history:', error);
+    return Promise.reject(error);
+  }
+}
+
+/**
+ * Search history entries
+ * @param {string} query - Search query
+ * @param {number} limit - Maximum number of results
+ * @returns {Promise<Array>} Promise resolving to matching history entries
+ */
+export function searchHistory(query, limit = 10) {
+  if (!query) {
+    return Promise.resolve([]);
+  }
+  
+  try {
+    // Use in-memory cache or load from localStorage
+    let entries = historyEntries;
+    if (entries.length === 0) {
+      const savedHistory = localStorage.getItem('browser-history-entries');
+      if (savedHistory) {
+        try {
+          entries = JSON.parse(savedHistory);
+          // Update cache
+          historyEntries = entries;
+        } catch (e) {
+          console.error('Error parsing history entries during search:', e);
+          return Promise.resolve([]);
+        }
+      }
+    }
+    
+    // Search entries
+    const lowerQuery = query.toLowerCase();
+    const results = entries.filter(entry => 
+      (entry.url && entry.url.toLowerCase().includes(lowerQuery)) || 
+      (entry.title && entry.title.toLowerCase().includes(lowerQuery))
+    ).slice(0, limit);
+    
+    return Promise.resolve(results);
+  } catch (error) {
+    console.error('Error searching history:', error);
+    return Promise.reject(error);
+  }
+}
+
+/**
+ * Clear browser history
+ * @param {Object} options - Options for clearing history
+ * @param {string} options.timeRange - Time range to clear ('all', 'today', 'hour')
+ * @returns {Promise<boolean>} Promise resolving to success flag
+ */
+export function clearHistory(options = {}) {
+  try {
+    const { timeRange = 'all' } = options;
+    
+    if (timeRange === 'all') {
+      // Clear all history
+      localStorage.removeItem('browser-history-entries');
+      historyEntries = [];
+      return Promise.resolve(true);
+    }
+    
+    // Load existing history
+    let entries = [];
+    const savedHistory = localStorage.getItem('browser-history-entries');
+    if (savedHistory) {
+      try {
+        entries = JSON.parse(savedHistory);
+      } catch (e) {
+        console.error('Error parsing history entries during clear:', e);
+        return Promise.resolve(false);
+      }
+    }
+    
+    // Filter entries based on time range
+    const now = new Date();
+    let filteredEntries = [];
+    
+    if (timeRange === 'today') {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      filteredEntries = entries.filter(entry => {
+        const visitTime = new Date(entry.visitedAt);
+        return visitTime < today;
+      });
+    } else if (timeRange === 'hour') {
+      const hourAgo = new Date(now.getTime() - (60 * 60 * 1000));
+      filteredEntries = entries.filter(entry => {
+        const visitTime = new Date(entry.visitedAt);
+        return visitTime < hourAgo;
+      });
+    }
+    
+    // Save filtered entries
+    localStorage.setItem('browser-history-entries', JSON.stringify(filteredEntries));
+    historyEntries = filteredEntries;
+    
+    return Promise.resolve(true);
+  } catch (error) {
+    console.error('Error clearing history:', error);
+    return Promise.reject(error);
+  }
+}
+
 export default {
   addToHistory,
   goBack,
@@ -311,5 +498,10 @@ export default {
   handleBackAction,
   handleForwardAction,
   updateVisitedUrls,
-  createHistoryRecord
+  createHistoryRecord,
+  // New methods
+  addHistoryEntry,
+  getRecentHistory,
+  searchHistory,
+  clearHistory
 }; 

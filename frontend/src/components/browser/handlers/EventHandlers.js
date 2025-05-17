@@ -1,8 +1,9 @@
 /**
  * EventHandlers - Event handlers for browser component
  */
-import { renderErrorPage } from '../renderers/ErrorPageRenderer.js';
+import { renderErrorPage, handleWebviewError as handleWebviewErrorCentral, showNavigationErrorPage } from './ErrorHandler.js';
 import { applyRenderingFixes } from '../utils/ContentUtils.js';
+import * as HistoryService from './HistoryService.js';
 
 /**
  * Handle webview/iframe load event
@@ -454,68 +455,19 @@ function enforceFullscreenStyles(browser) {
  * @param {Event} e - Error event
  */
 export function handleWebviewError(browser, e) {
-  console.error('Webview error:', e);
-  
-  // If it's a very generic error without details, might not be serious
-  if (!e.errorDescription && !e.validatedURL) {
-    console.log('Generic error without details, might not be critical');
-    // Still allow the page to continue loading
-    return;
-  }
-  
-  // Hide loading content
-  browser.hideLoadingContent();
-  
-  // Handle specific errors
-  if (e.errorCode === -3) {
-    // -3 is ERR_ABORTED, which often happens during navigation and isn't serious
-    console.log('Navigation was aborted, likely due to redirect or user navigation');
-    return;
-  }
-  
-  if (e.errorCode === -2 || e.errorCode === -102 || e.errorCode === -118) {
-    // Connection aborted or navigation canceled - user might have clicked on a link
-    console.log('Connection interrupted, possibly by user or redirect');
-    return;
-  }
-  
-  // For errors in non-main frames (like iframes), we don't need to show the error page
-  if (e.isMainFrame === false) {
-    console.log('Error in subframe, not showing error page');
-    return;
-  }
-  
-  // Mark as not loading
-  browser.isLoading = false;
-  updateLoadingState(browser);
-  
-  // Set progress to 100% to complete the progress bar
-  browser.showLoadingProgress(100);
-  
-  // Show error page
-  const url = e.validatedURL || browser.currentUrl;
-  const errorMessage = e.errorDescription || 'Unknown error loading page';
-  browser.showNavigationErrorPage(url, errorMessage);
+  // Use the centralized error handler
+  return handleWebviewErrorCentral(browser, e);
 }
 
 /**
- * Render error page in content frame
+ * Render error in content frame
  * @param {Object} browser - Browser instance
  * @param {string} errorType - Type of error
  * @param {Object} data - Error data
  */
 function renderErrorInFrame(browser, errorType, data) {
-  if (!browser.contentFrame) return;
-  
-  try {
-    // Access the iframe document
-    const doc = browser.contentFrame.contentDocument;
-    if (doc) {
-      renderErrorPage(doc, errorType, data);
-    }
-  } catch (error) {
-    console.error('Failed to render error page:', error);
-  }
+  // Use the centralized handler
+  return renderErrorPage(browser, errorType, data);
 }
 
 /**
@@ -631,7 +583,7 @@ export function handleFrameMessages(browser, event) {
     }
     else if (event.data.type === 'webview-error') {
       console.error('Webview error:', event.data);
-      handleWebviewError(browser, event.data);
+      handleWebviewErrorCentral(browser, event.data);
       
       // Ensure timeouts are cleared on error
       if (browser.navigationTimeoutId) {
@@ -736,6 +688,26 @@ export function updateLoadingState(browser) {
 }
 
 /**
+ * Handle back button action
+ * @param {Object} browser - Browser instance
+ */
+export function handleBackAction(browser) {
+  // Use centralized HistoryService instead of direct webview manipulation
+  HistoryService.goBack(browser);
+  updateNavigationButtons(browser);
+}
+
+/**
+ * Handle forward button action
+ * @param {Object} browser - Browser instance
+ */
+export function handleForwardAction(browser) {
+  // Use centralized HistoryService instead of direct webview manipulation
+  HistoryService.goForward(browser);
+  updateNavigationButtons(browser);
+}
+
+/**
  * Update navigation buttons state
  * @param {Object} browser - Browser instance
  */
@@ -743,12 +715,18 @@ export function updateNavigationButtons(browser) {
   const backButton = browser.container?.querySelector('.browser-back-btn');
   const forwardButton = browser.container?.querySelector('.browser-forward-btn');
   
+  if (!browser || !browser.webview) return;
+  
+  // Get canGoBack/canGoForward from HistoryService
+  const canGoBack = HistoryService.canGoBack(browser);
+  const canGoForward = HistoryService.canGoForward(browser);
+  
   if (backButton) {
-    backButton.disabled = browser.historyIndex <= 0;
+    backButton.disabled = !canGoBack;
   }
   
   if (forwardButton) {
-    forwardButton.disabled = browser.historyIndex >= browser.history.length - 1;
+    forwardButton.disabled = !canGoForward;
   }
 }
 
@@ -1019,35 +997,11 @@ export function handlePageNavigation(browser, e) {
     browser.setState({ url: e.url });
   }
   
-  // Add to history if this is a new navigation and history is properly initialized
-  if (Array.isArray(browser.history) && typeof browser.historyIndex === 'number') {
-    // Check if this is a new URL compared to current history position
-    const currentHistoryUrl = browser.historyIndex >= 0 && browser.historyIndex < browser.history.length 
-      ? browser.history[browser.historyIndex] 
-      : null;
-      
-    if (currentHistoryUrl !== e.url) {
-      // Remove forward history if navigating from middle of history
-      if (browser.historyIndex < browser.history.length - 1) {
-        browser.history = browser.history.slice(0, browser.historyIndex + 1);
-      }
-      
-      // Add new URL to history
-      browser.history.push(e.url);
-      browser.historyIndex = browser.history.length - 1;
-      
-      // Update navigation buttons
-      updateNavigationButtons(browser);
-    }
-  } else {
-    // Initialize history if it doesn't exist
-    browser.history = browser.history || [];
-    browser.historyIndex = browser.historyIndex || 0;
-    
-    // Add URL to fresh history
-    browser.history.push(e.url);
-    browser.historyIndex = 0;
-  }
+  // Record the visit using HistoryService
+  HistoryService.recordVisit(browser, e.url, browser.pageTitle || '');
+  
+  // Update navigation buttons
+  updateNavigationButtons(browser);
   
   // Apply site-specific settings based on the new URL
   if (typeof browser.applySiteSpecificSettings === 'function') {
