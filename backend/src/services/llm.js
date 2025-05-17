@@ -226,6 +226,26 @@ function extractTextFromResponse(response) {
         
         if (chars.length > 0) {
           logger.info(`Extracted ${chars.length} characters from indexed response`);
+          
+          // Try to parse as JSON first (in case it's a JSON string)
+          try {
+            const parsed = JSON.parse(chars);
+            if (parsed.candidates && parsed.candidates.length > 0) {
+              const candidate = parsed.candidates[0];
+              if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+                const part = candidate.content.parts[0];
+                if (part && part.text) {
+                  logger.info('Successfully extracted text from parsed JSON candidates structure');
+                  return part.text;
+                }
+              }
+            }
+          } catch (jsonErr) {
+            // Not valid JSON or not in the expected format, just use the raw text
+            logger.debug('Extracted text is not valid JSON or doesn\'t contain candidates structure');
+          }
+          
+          // Return the raw extracted text if we couldn't parse as JSON
           return chars;
         }
       } catch (err) {

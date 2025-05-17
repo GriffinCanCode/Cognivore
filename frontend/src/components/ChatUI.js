@@ -261,12 +261,32 @@ class ChatUI {
         processedResponse.content = '';
       }
       
+      // Preserve code blocks and special formatting in content
+      if (typeof processedResponse.content === 'string') {
+        // Ensure code blocks and pre-formatted text are preserved
+        processedResponse.content = processedResponse.content.replace(
+          /```([\s\S]*?)```/g, 
+          (match, codeContent) => {
+            return `<pre class="code-block">${codeContent}</pre>`;
+          }
+        );
+        
+        // Ensure inline code is preserved
+        processedResponse.content = processedResponse.content.replace(
+          /`([^`]+)`/g,
+          (match, codeContent) => {
+            return `<code>${codeContent}</code>`;
+          }
+        );
+      }
+      
       // Create assistant message with processed content
       // Use direct property references to avoid undefined fields
       const assistantMessage = {
         role: processedResponse.role || 'assistant',
         content: processedResponse.content || '',
-        timestamp: processedResponse.timestamp || new Date().toISOString()
+        timestamp: processedResponse.timestamp || new Date().toISOString(),
+        rawFormatting: processedResponse.rawFormatting || false // Flag to preserve raw formatting
       };
       
       // Add toolCalls only if they exist

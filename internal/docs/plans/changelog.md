@@ -2226,3 +2226,79 @@ These changes address the "webview not ready" errors and provide a more robust e
 - UI: Enhanced message styling for better readability and visual appeal
 - UI: Added better collapsed panel behavior and transitions
 - UI: Improved spacing and background styling for research messages
+
+## [0.5.3] - Text Formatting and Special Word Rendering Fixes
+
+### Fixed
+- Fixed text formatting issues in chat messages:
+  - Enhanced `SpecialWordRenderer.js` to properly exclude code blocks and their children from special word styling
+  - Updated `ChatUI.js` to preserve code blocks and pre-formatted text during message processing
+  - Added CSS rules to protect code blocks from special word styling effects
+  - Implemented proper parent hierarchy checking for code elements to prevent formatting conflicts
+  - Fixed multiple rendering issues with special words in formatted messages
+  - Added explicit formatting protection for inline code elements
+
+## [0.5.2] - Import Path Issues Fix
+
+### Fixed
+- Fixed import path issues causing build failures with missing modules
+  - Updated import paths in App.js to match actual file locations in the project structure
+  - Fixed path references in SearchSection.js to correctly import from ../../services
+  - Fixed path references in Mnemosyne.js to correctly import from ../../services and ../../utils
+  - Resolved "Module not found" errors for multiple components including ChatUI, ThemeSwitcher, ContentViewer
+  - Ensured proper build output by correcting relative paths between different component directories
+  - Fixed hierarchy inconsistencies between actual file locations and import statements
+
+## [0.5.2] - Character-by-Character Response Handling Fix
+
+### Fixed
+- Fixed messages not rendering due to character-by-character Gemini API response format
+  - Enhanced messageFormatter.js to properly detect and reconstruct indexed character arrays
+  - Added proper handling for JSON-wrapped responses with candidates structure
+  - Fixed "[ChatMessages] Message at index 1 has no content, setting empty string" warning by improving response parsing
+  - Implemented recursive processing of reconstructed messages for consistent handling
+  - Added detailed logging to trace response format transformations
+  - Enhanced LlmService.js to directly handle character-by-character responses
+  - Added content field synchronization between text and content properties
+  - Improved ChatUI to explicitly ensure content field never becomes null/undefined
+  - Fixed extractToolCallsFromText to maintain both text and content fields
+  - Added multiple validation steps throughout message processing pipeline
+  - Fixed a critical issue where the frontend wasn't properly interpreting the character-by-character format
+
+## [0.5.1] - ToolRenderer Initialization Fix
+
+### Fixed
+- Fixed ToolRenderer initialization issue causing messages not to render properly
+  - Added explicit initialization call for ToolRenderer in ChatMessages component
+  - Implemented initialization check in ToolRenderer to prevent duplicate initialization
+  - Added safeguards in createToolCallElement to ensure ToolRenderer is always initialized
+  - Enhanced error handling in tool rendering process with better logging
+  - Fixed empty message content handling to prevent rendering issues
+  - Improved validation of toolCall objects before rendering
+  - Added runtime initialization check in render method as a last resort safety measure
+  - Fixed cleanup process to properly handle initialization state
+
+## [0.4.4] - Enhanced Settings Logging and Feedback
+
+### Added
+- Enhanced logging for settings operations to improve visibility and troubleshooting
+  - Added console.log statements for immediate visibility in developer tools
+  - Added detailed API key status logging with secure redaction
+  - Enhanced IPC handler logging for backend settings operations
+  - Added visual save confirmation with animated button feedback
+  - Implemented detailed environment variable update logging
+  - Added secure API key logging that shows only first/last 4 characters
+- Improved error handling and user feedback in settings functionality
+  - Added more detailed error messages with specific causes
+
+## [Unreleased]
+
+### Fixed
+- Fixed special word handling for words like "Cognivore" and "Mnemosyne" when they appear at line breaks
+- Improved character-by-character response processing to handle incomplete JSON responses better
+- Enhanced message formatting to properly maintain consistency with emphasized text and special words
+- Fixed issue with words being broken incorrectly across line breaks in chat messages
+- Added pre-processing step to handle words that might be split across lines
+
+## 2023-08-24
+- Modified Voyager browser component to always load Google.com on startup regardless of the initialUrl prop

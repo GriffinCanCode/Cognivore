@@ -229,62 +229,88 @@ class LlmService {
         
         // Try to parse it as JSON
         try {
-          const parsed = JSON.parse(reconstructedText);
-          console.log('[LlmService] Successfully parsed reconstructed text as JSON');
-          
-          // Extract the actual text from the candidates structure
-          if (parsed.candidates && parsed.candidates.length > 0) {
-            const candidate = parsed.candidates[0];
-            if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-              // Collect all text parts and check for tool calls
-              let textContent = '';
-              let toolCalls = [];
-              
-              // Process all parts of the candidate
-              candidate.content.parts.forEach((part, idx) => {
-                if (part.text) {
-                  textContent += part.text;
-                } else if (part.functionCall || part.toolCall) {
-                  const call = part.functionCall || part.toolCall;
-                  toolCalls.push({
-                    name: call.name,
-                    toolCallId: call.id || `call-${Date.now()}-${idx}`,
-                    args: call.args || call.arguments || {}
-                  });
+          // Check if the reconstructed text appears to be a complete JSON object
+          const trimmedText = reconstructedText.trim();
+          if (trimmedText.startsWith('{') && (trimmedText.endsWith('}') || trimmedText.includes('"candidates"'))) {
+            const parsed = JSON.parse(reconstructedText);
+            console.log('[LlmService] Successfully parsed reconstructed text as JSON');
+            
+            // Extract the actual text from the candidates structure
+            if (parsed.candidates && parsed.candidates.length > 0) {
+              const candidate = parsed.candidates[0];
+              if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+                // Collect all text parts and check for tool calls
+                let textContent = '';
+                let toolCalls = [];
+                
+                // Process all parts of the candidate
+                candidate.content.parts.forEach((part, idx) => {
+                  if (part.text) {
+                    textContent += part.text;
+                  } else if (part.functionCall || part.toolCall) {
+                    const call = part.functionCall || part.toolCall;
+                    toolCalls.push({
+                      name: call.name,
+                      toolCallId: call.id || `call-${Date.now()}-${idx}`,
+                      args: call.args || call.arguments || {}
+                    });
+                  }
+                });
+                
+                // Create a properly formatted message object
+                const message = {
+                  role: 'assistant',
+                  content: textContent,
+                  timestamp: new Date().toISOString()
+                };
+                
+                // Add tool calls if any were found
+                if (toolCalls.length > 0) {
+                  message.toolCalls = toolCalls;
+                  console.log('[LlmService] Found tool calls in candidates response:', toolCalls);
                 }
-              });
-              
-              // Create a properly formatted message object
-              const message = {
-                role: 'assistant',
-                content: textContent,
-                timestamp: new Date().toISOString()
-              };
-              
-              // Add tool calls if any were found
-              if (toolCalls.length > 0) {
-                message.toolCalls = toolCalls;
-                console.log('[LlmService] Found tool calls in candidates response:', toolCalls);
+                
+                // Now use messageFormatter to process the final content with proper markdown handling
+                return messageFormatter.processResponse(message);
               }
+            }
+            
+            // If we couldn't extract text in the expected format, use the entire response
+            return {
+              role: 'assistant',
+              content: JSON.stringify(parsed),
+              timestamp: new Date().toISOString()
+            };
+          } else {
+            // If the text doesn't look like a complete JSON object, treat it as plain text
+            console.log('[LlmService] Reconstructed text is not a complete JSON object, treating as plain text');
+            
+            // Handle the case where it's the character-by-character partial API response
+            // Look for text content that appears to be a direct message
+            if (reconstructedText.includes("Greetings") || 
+                reconstructedText.includes("Mnemosyne") || 
+                reconstructedText.includes("Cognivore")) {
               
-              return message;
+              // Process the text with messageFormatter to handle markdown formatting
+              const cleanedText = reconstructedText.replace(/\*\*([^*]+)\*\*/g, '$1');
+              return messageFormatter.processResponse({
+                role: 'assistant',
+                content: cleanedText,
+                timestamp: new Date().toISOString()
+              });
+            } else {
+              throw new Error('Unable to extract usable text from reconstructed response');
             }
           }
-          
-          // If we couldn't extract text in the expected format, use the entire response
-          return {
-            role: 'assistant',
-            content: JSON.stringify(parsed),
-            timestamp: new Date().toISOString()
-          };
         } catch (e) {
           console.error('[LlmService] Failed to parse reconstructed text:', e);
           // Return reconstructed text directly if not parseable
-          return {
+          // Use messageFormatter to process markdown
+          return messageFormatter.processResponse({
             role: 'assistant',
             content: reconstructedText,
             timestamp: new Date().toISOString()
-          };
+          });
         }
       }
 

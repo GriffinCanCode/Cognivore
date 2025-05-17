@@ -52,7 +52,7 @@
   transition: transform var(--research-transition-duration) var(--research-transition-timing),
               opacity var(--research-transition-duration) var(--research-transition-timing),
               visibility var(--research-transition-duration) !important;
-  contain: content !important;
+  contain: layout style paint !important;
   isolation: isolate !important;
   will-change: transform, opacity !important;
   animation: panelSlideIn var(--research-transition-duration) var(--research-transition-timing) forwards;

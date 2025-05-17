@@ -166,26 +166,48 @@ class MessageFormatter {
   }
 
   /**
-   * Format message content with markdown-like syntax and special word highlighting
-   * @param {string} content - The message content to format
-   * @returns {string} - HTML formatted content
+   * Format the message content with enhanced styling
+   * @param {string} content - Raw message content
+   * @returns {string} - Formatted HTML string
    */
   formatMessageContent(content) {
+    // Handle null or undefined content
     if (!content) return '';
-
-    // Convert content to string if not already
+    
+    // Convert to string if not already
     content = typeof content === 'string' ? content : String(content || '');
     
-    // Clean the content first
-    content = this.cleanContent(content);
-    
-    // Simple formatting for code blocks
-    let formatted = content.replace(/```(\w*)\n([^`]+)```/g, (match, language, code) => {
-      return `<pre class="code-block ${language ? `language-${language}` : ''}"><code>${this.escapeHtml(code)}</code></pre>`;
+    // Pre-process the content to handle line breaks better
+    // Join any words that might be broken across lines
+    content = content.replace(/(\w+)(\s*[\r\n]+\s*)(\w+)/g, (match, word1, linebreak, word2) => {
+      // Check if this might be part of a special word that's being broken
+      const combined = word1 + word2;
+      if (this.specialWords.some(word => combined.toLowerCase().includes(word.toLowerCase()))) {
+        return word1 + word2; // Remove the line break for special words
+      }
+      return match; // Keep the original text for non-special words
     });
     
-    // Format inline code
-    formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // IMPORTANT: Track code blocks and their positions to exclude them from other formatting
+    const codeBlocks = [];
+    const codeBlockIds = [];
+    
+    // Process multiline code blocks first and store them for later reinsertion
+    // Use a better regex that properly captures all types of code blocks including language
+    let formatted = content.replace(/```([\w]*)\n([\s\S]*?)```/g, (match, language, code, offset) => {
+      const id = `code-block-${codeBlocks.length}`;
+      codeBlocks.push(`<pre class="code-block ${language ? `language-${language}` : ''}"><code>${this.escapeHtml(code)}</code></pre>`);
+      codeBlockIds.push(id);
+      return id; // Replace with a placeholder
+    });
+    
+    // Process inline code and store them for later reinsertion
+    formatted = formatted.replace(/`([^`]+)`/g, (match, code, offset) => {
+      const id = `inline-code-${codeBlocks.length}`;
+      codeBlocks.push(`<code>${this.escapeHtml(code)}</code>`);
+      codeBlockIds.push(id);
+      return id; // Replace with a placeholder
+    });
     
     // Convert URLs to links
     formatted = formatted.replace(
@@ -193,25 +215,65 @@ class MessageFormatter {
       '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
     );
     
-    // Highlight special words
-    this.specialWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'g');
-      let cssClass = 'special-word';
-      
-      // Add specific classes for known special words
-      if (word === 'Mnemosyne') cssClass += ' mnemosyne-word';
-      if (word === 'Cognivore') cssClass += ' cognivore-word';
-      if (word === 'Griffin') cssClass += ' griffin-word';
-      if (['bloody', 'fucking', 'damn'].includes(word.toLowerCase())) cssClass += ' expletive-word';
-      
-      formatted = formatted.replace(regex, `<span class="${cssClass}" title="${word}">${word}</span>`);
-    });
-    
-    // Handle bold/strong emphasis via markdown-style double asterisks
+    // Handle bold/strong emphasis via markdown-style double asterisks first
+    // Important: process this BEFORE special words to prevent interference
     formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<span class="emphasized-text">$1</span>');
     
-    // Convert line breaks to <br>
+    // Process special words with exact matching
+    // First, ensure complete word matching for special words like Cognivore, Mnemosyne, etc.
+    this.specialWords.forEach(word => {
+      // Use a more precise regex to match complete words, case-insensitive
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      
+      // Collect all matches first to avoid nested replacements
+      const matches = [];
+      let match;
+      while ((match = regex.exec(formatted)) !== null) {
+        matches.push({
+          index: match.index,
+          text: match[0],
+          length: match[0].length
+        });
+      }
+      
+      // Process matches in reverse order to preserve indices
+      for (let i = matches.length - 1; i >= 0; i--) {
+        const m = matches[i];
+        
+        // Skip if inside a code block
+        let inCodeBlock = false;
+        for (let j = 0; j < codeBlockIds.length; j++) {
+          const id = codeBlockIds[j];
+          const idPos = formatted.substring(0, m.index).lastIndexOf(id);
+          if (idPos !== -1 && idPos + id.length > m.index) {
+            inCodeBlock = true;
+            break;
+          }
+        }
+        if (inCodeBlock) continue;
+        
+        // Apply appropriate styling based on word type
+        let cssClass = 'special-word';
+        const lowerMatch = m.text.toLowerCase();
+        
+        if (lowerMatch === 'mnemosyne') cssClass += ' mnemosyne-word';
+        if (lowerMatch === 'cognivore') cssClass += ' cognivore-word';
+        if (lowerMatch === 'griffin') cssClass += ' griffin-word';
+        if (['bloody', 'fucking', 'damn'].includes(lowerMatch)) cssClass += ' expletive-word';
+        
+        // Replace with styled span
+        const replacement = `<span class="${cssClass}" title="${m.text}">${m.text}</span>`;
+        formatted = formatted.substring(0, m.index) + replacement + formatted.substring(m.index + m.length);
+      }
+    });
+    
+    // Convert line breaks to <br> after processing special words
     formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Now restore all code blocks and inline code
+    codeBlockIds.forEach((id, index) => {
+      formatted = formatted.replace(id, codeBlocks[index]);
+    });
     
     return formatted;
   }
@@ -222,9 +284,18 @@ class MessageFormatter {
    * @returns {string} - The escaped string
    */
   escapeHtml(html) {
-    const div = document.createElement('div');
-    div.textContent = html;
-    return div.innerHTML;
+    if (!html) return '';
+    
+    // Convert to string if not already
+    html = typeof html === 'string' ? html : String(html || '');
+    
+    // Use a more reliable method than relying on DOM
+    return html
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   /**

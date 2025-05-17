@@ -248,8 +248,9 @@
   align-self: flex-start;
 }
 
-/* Code blocks */
-.message-content pre.code-block {
+/* Code blocks - Enhanced to prevent special word styling */
+.message-content pre.code-block,
+.message-content pre {
   background-color: rgba(36, 41, 51, 0.7);
   border-radius: 4px;
   padding: 0.75rem;
@@ -258,6 +259,21 @@
   font-family: 'Fira Code', monospace;
   font-size: 0.9em;
   border-left: 3px solid rgba(79, 209, 197, 0.7);
+  color: #e5e7eb !important;
+}
+
+/* Protect code blocks from special word styling */
+.message-content pre.code-block *,
+.message-content pre *,
+.message-content code * {
+  background: transparent !important;
+  background-image: none !important;
+  background-clip: border-box !important;
+  animation: none !important;
+  color: inherit !important;
+  text-shadow: none !important;
+  border: none !important;
+  font-weight: inherit !important;
 }
 
 /* Inline code */
@@ -267,6 +283,7 @@
   border-radius: 3px;
   font-family: 'Fira Code', monospace;
   font-size: 0.9em;
+  color: #e5e7eb !important;
 }
 
 /* Enhanced link styling */

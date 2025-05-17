@@ -112,30 +112,49 @@ class SpecialWordRenderer {
    * @param {Node} node - The DOM node to process
    */
   processTextNodes(node) {
-    // Skip processing for script, style, code, and pre elements
+    // Skip processing for certain elements and their children
     if (node.nodeName === 'SCRIPT' || 
         node.nodeName === 'STYLE' || 
         node.nodeName === 'CODE' ||
-        node.nodeName === 'PRE') {
+        node.nodeName === 'PRE' ||
+        node.closest('code, pre')) {
       return;
+    }
+    
+    // Skip processing if parent is a code or pre element
+    let parent = node.parentNode;
+    while (parent) {
+      if (parent.nodeName === 'CODE' || parent.nodeName === 'PRE') {
+        return;
+      }
+      parent = parent.parentNode;
     }
     
     // Process text nodes
     if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-      // Create a temporary span to hold the processed text
-      const span = document.createElement('span');
-      span.innerHTML = this.processText(node.textContent);
+      // Only process text that's not inside protected elements
+      const isInProtectedElement = ['CODE', 'PRE', 'SCRIPT', 'STYLE'].includes(
+        node.parentNode?.nodeName
+      );
       
-      // Replace the text node with the span's children
-      const parent = node.parentNode;
-      const nextSibling = node.nextSibling;
-      
-      while (span.firstChild) {
-        parent.insertBefore(span.firstChild, nextSibling);
+      if (!isInProtectedElement) {
+        // Create a temporary span to hold the processed text
+        const span = document.createElement('span');
+        span.innerHTML = this.processText(node.textContent);
+        
+        // Replace the text node with the span's children
+        const parent = node.parentNode;
+        const nextSibling = node.nextSibling;
+        
+        if (parent) {
+          while (span.firstChild) {
+            parent.insertBefore(span.firstChild, nextSibling);
+          }
+          
+          // Remove the original text node
+          parent.removeChild(node);
+        }
       }
-      
-      // Remove the original text node
-      parent.removeChild(node);
     } else {
       // Process child nodes recursively
       const children = [...node.childNodes];

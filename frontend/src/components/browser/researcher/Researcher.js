@@ -856,7 +856,7 @@ class Researcher {
    * @returns {HTMLElement|null} The research panel element or null if not found
    */
   getResearchPanel() {
-    return document.querySelector('.researcher-panel');
+    return document.querySelector('.browser-research-panel');
   }
   
   /**

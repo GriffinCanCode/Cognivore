@@ -1183,24 +1183,21 @@ class Voyager extends Component {
     if (refreshButton) refreshButton.addEventListener('click', this.refreshPage);
     if (stopButton) stopButton.addEventListener('click', this.stopLoading);
     
-    // Set initial URL if provided - with a longer delay to ensure webview is fully mounted
-    if (this.props?.initialUrl && this.props.initialUrl !== 'about:blank') {
-      // Enhanced timing to ensure webview is properly set up before navigation
-      setTimeout(() => {
-        // Double-check that webview still exists and is connected to DOM
-        if (this.webview && this.webview.isConnected) {
-          this.navigate(this.props.initialUrl);
-        } else {
-          console.warn('Webview not connected to DOM, delaying navigation');
-          // Try one more time with longer delay
-          setTimeout(() => {
-            if (this.webview && this.webview.isConnected) {
-              this.navigate(this.props.initialUrl);
-            }
-          }, 500);
-        }
-      }, 800); // Increased from 500ms to 800ms for better reliability
-    }
+    // Always load Google.com on startup, regardless of initialUrl
+    setTimeout(() => {
+      // Double-check that webview still exists and is connected to DOM
+      if (this.webview && this.webview.isConnected) {
+        this.navigate('https://www.google.com');
+      } else {
+        console.warn('Webview not connected to DOM, delaying navigation');
+        // Try one more time with longer delay
+        setTimeout(() => {
+          if (this.webview && this.webview.isConnected) {
+            this.navigate('https://www.google.com');
+          }
+        }, 500);
+      }
+    }, 800); // Increased from 500ms to 800ms for better reliability
     
     // Initialize researcher component if needed
     if (!this.researcher && this.props && this.props.enableResearch !== false) {
