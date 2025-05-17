@@ -15,9 +15,31 @@ export function createBrowserHeader(browser) {
   const headerContainer = document.createElement('div');
   headerContainer.className = 'browser-header-container';
   
+  // Add styling to ensure proper layout for all header elements
+  headerContainer.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background-color: var(--header-bg-color, #222);
+    border-bottom: 1px solid var(--border-color, #444);
+  `;
+  
   // Create address bar container (now at the top)
   const addressContainer = document.createElement('div');
   addressContainer.className = 'voyager-address-container';
+  
+  // Add styling to ensure proper connection with tab bar
+  addressContainer.style.cssText = `
+    width: 100%;
+    padding: 8px 10px;
+    background-color: var(--address-bg-color, #333);
+    border-bottom: 1px solid var(--border-color, #444);
+    margin: 0;
+    box-sizing: border-box;
+  `;
   
   // Create address form
   const addressForm = document.createElement('form');
@@ -891,12 +913,12 @@ export function createWebview(browser, implementation, sandboxLevel) {
   
   container.style.cssText = `
     position: fixed !important;
-    top: 92px !important; /* 52px address bar + 40px toolbar */
+    top: 128px !important; /* 52px address bar + 40px toolbar + 36px tab bar */
     left: ${sidebarWidth} !important;
     right: 0 !important;
     bottom: 0 !important;
     width: calc(100vw - ${sidebarWidth}) !important;
-    height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+    height: calc(100vh - 128px) !important; /* Adjusted for all three bars */
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -920,20 +942,21 @@ export function createWebview(browser, implementation, sandboxLevel) {
   
   // Apply styling to webview for proper containment
   // Use the same sidebar width variable we calculated for the container
+  // Adjust for additional tab bar height (36px)
   webview.style.cssText = `
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 1 !important;
     position: fixed !important;
-    top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+    top: 140px !important; /* Adjusted to 140px (52px address bar + 52px toolbar + 36px tab bar) */
     left: ${sidebarWidth} !important;
     right: 0 !important;
     bottom: 0 !important;
     width: calc(100vw - ${sidebarWidth}) !important;
-    height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-    min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
-    max-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+    height: calc(100vh - 140px) !important; /* Adjusted to account for tab bar (104px + 36px) */
+    min-height: calc(100vh - 140px) !important; /* Adjusted to account for tab bar (104px + 36px) */
+    max-height: calc(100vh - 140px) !important; /* Adjusted to account for tab bar (104px + 36px) */
     min-width: calc(100vw - ${sidebarWidth}) !important;
     max-width: calc(100vw - ${sidebarWidth}) !important;
     border: none !important;
@@ -1054,7 +1077,7 @@ export function showLoadingContent(browser, url) {
     
     loadingContent.style.cssText = `
       position: fixed !important;
-      top: 104px !important; /* Adjusted from 52px to 104px (52px address bar + 52px toolbar) */
+      top: 128px !important; /* Adjusted to 128px (52px address bar + 40px toolbar + 36px tab bar) */
       left: ${sidebarWidth} !important;
       right: 0 !important;
       bottom: 0 !important;
@@ -1066,11 +1089,11 @@ export function showLoadingContent(browser, url) {
       background-color: var(--bg-color, #1a1a1a) !important;
       z-index: 1000 !important;
       width: calc(100vw - ${sidebarWidth}) !important;
-      height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+      height: calc(100vh - 128px) !important; /* Adjusted to account for tab bar (92px + 36px) */
       transition: opacity 0.3s ease, left 0.3s ease, width 0.3s ease !important;
       margin: 0 !important;
       padding: 0 !important;
-      min-height: calc(100vh - 104px) !important; /* Adjusted from 52px to 104px */
+      min-height: calc(100vh - 128px) !important; /* Adjusted to account for tab bar (92px + 36px) */
       transform: none !important;
     `;
     
@@ -1267,14 +1290,14 @@ function _hideLoadingContent(loadingContent, browser) {
         opacity: 1 !important;
         z-index: 1 !important;
         position: fixed !important;
-        top: 92px !important; /* 52px address bar + 40px toolbar */
+        top: 128px !important; /* 52px address bar + 40px toolbar + 36px tab bar */
         left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
         width: calc(100vw - ${sidebarWidth}) !important;
-        height: calc(100vh - 92px) !important; /* Adjusted for both bars */
-        min-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
-        max-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        height: calc(100vh - 128px) !important; /* Adjusted for all three bars */
+        min-height: calc(100vh - 128px) !important; /* Adjusted for all three bars */
+        max-height: calc(100vh - 128px) !important; /* Adjusted for all three bars */
         min-width: calc(100vw - ${sidebarWidth}) !important;
         max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
@@ -1415,14 +1438,14 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         opacity: 1 !important;
         z-index: 1 !important;
         position: fixed !important;
-        top: 92px !important; /* 52px address bar + 40px toolbar */
+        top: 128px !important; /* Accounts for address bar + toolbar + tab bar */
         left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
         width: calc(100vw - ${sidebarWidth}) !important;
-        height: calc(100vh - 92px) !important; /* Adjusted for both bars */
-        min-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
-        max-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        height: calc(100vh - 128px) !important; /* Adjusted for all headers */
+        min-height: calc(100vh - 128px) !important;
+        max-height: calc(100vh - 128px) !important;
         min-width: calc(100vw - ${sidebarWidth}) !important;
         max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
@@ -1433,6 +1456,7 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         transform: none !important;
         overflow: hidden !important;
         flex: 1 1 auto !important;
+        transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
       `;
       
       // Use CSS class as well for extra reliability
@@ -1451,12 +1475,12 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
         // Ensure container has proper styling
         container.style.cssText = `
           position: fixed !important;
-          top: 92px !important; /* 52px address bar + 40px toolbar */
+          top: 128px !important; /* 52px address bar + 40px toolbar + 36px tab bar */
           left: ${sidebarWidth} !important;
           right: 0 !important;
           bottom: 0 !important;
           width: calc(100vw - ${sidebarWidth}) !important;
-          height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+          height: calc(100vh - 128px) !important; /* Adjusted for all three bars */
           margin: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
@@ -2057,14 +2081,14 @@ export function scheduleStyleChecks(browser) {
         opacity: 1 !important;
         z-index: 1 !important;
         position: fixed !important;
-        top: 92px !important; /* 52px address bar + 40px toolbar */
+        top: 128px !important; /* 52px address bar + 40px toolbar + 36px tab bar */
         left: ${sidebarWidth} !important;
         right: 0 !important;
         bottom: 0 !important;
         width: calc(100vw - ${sidebarWidth}) !important;
-        height: calc(100vh - 92px) !important; /* Adjusted for both bars */
-        min-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
-        max-height: calc(100vh - 92px) !important; /* Adjusted for both bars */
+        height: calc(100vh - 128px) !important; /* Adjusted for all bars */
+        min-height: calc(100vh - 128px) !important; /* Adjusted for all bars */
+        max-height: calc(100vh - 128px) !important; /* Adjusted for all bars */
         min-width: calc(100vw - ${sidebarWidth}) !important;
         max-width: calc(100vw - ${sidebarWidth}) !important;
         border: none !important;
@@ -2274,14 +2298,14 @@ export function scheduleStyleChecks(browser) {
   const safetyCheck = setTimeout(() => {
     if (browser.webview && !browser._isUnloading) {
       const rect = browser.webview.getBoundingClientRect();
-      const expectedHeight = window.innerHeight - 92; // 52px address bar + 40px toolbar
+      const expectedHeight = window.innerHeight - 128; // 52px address bar + 40px toolbar + 36px tab bar
       const expectedWidth = window.innerWidth;
       
       // Only reapply if dimensions are significantly wrong (>10px difference)
       // Increased from previous 5px to reduce unnecessary style applications
       if (Math.abs(rect.width - expectedWidth) > 10 || 
           Math.abs(rect.height - expectedHeight) > 10 || 
-          rect.top !== 92 || rect.left !== 0) { // 52px address bar + 40px toolbar
+          rect.top !== 128 || rect.left !== 0) { // 52px address bar + 40px toolbar + 36px tab bar
         console.log('Safety check: Webview dimensions need adjustment');
         browser.webview.applyAllCriticalStyles(true);
       }
@@ -2450,6 +2474,214 @@ export function setupBrowserLayout(browser) {
   const addressContainer = headerContainer.querySelector('.voyager-address-container');
   const header = headerContainer.querySelector('.browser-header');
   
+  // Create tab bar container and place it above the address bar
+  const tabBarContainer = document.createElement('div');
+  tabBarContainer.className = 'voyager-tab-bar-wrapper';
+  
+  // Add explicit styling to ensure proper connection with address bar and make tabs visible
+  tabBarContainer.style.cssText = `
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 4px;
+    min-height: 36px;
+    height: 36px;
+    border-bottom: 1px solid var(--border-color, #444);
+    background-color: var(--tab-bg-color, #222);
+    z-index: 102;
+    visibility: visible !important;
+    opacity: 1 !important;
+  `;
+  
+  // Insert tab bar above address container
+  headerContainer.insertBefore(tabBarContainer, addressContainer);
+  
+  // Ensure address container has no top margin to connect with tab bar
+  if (addressContainer) {
+    addressContainer.style.marginTop = '0';
+    addressContainer.style.borderTop = 'none';
+  }
+  
+  // Render TabBar component into the container
+  try {
+    // Ensure proper imports with error handling
+    let ReactDOM;
+    let React;
+    let TabBar;
+    
+    try {
+      // First try to directly append CSS to document head to ensure styles are loaded
+      const tabBarCssLink = document.createElement('link');
+      tabBarCssLink.rel = 'stylesheet';
+      tabBarCssLink.href = './components/browser/tabs/TabBar.css';
+      document.head.appendChild(tabBarCssLink);
+      
+      ReactDOM = require('react-dom');
+      React = require('react');
+      TabBar = require('../tabs/TabBar').default;
+      console.log('TabBar component loaded successfully:', !!TabBar);
+    } catch (error) {
+      console.error('Failed to import required modules for TabBar:', error);
+      
+      // Create a fallback element to show there was an error loading tabs
+      const errorElement = document.createElement('div');
+      errorElement.textContent = 'Tabs unavailable - React loading failed';
+      errorElement.style.cssText = 'padding: 8px; color: #ff5555; font-size: 12px;';
+      tabBarContainer.appendChild(errorElement);
+      
+      // Create basic fallback tabs if React failed
+      const fallbackTab = document.createElement('div');
+      fallbackTab.className = 'tab-item active';
+      fallbackTab.innerHTML = '<span class="tab-title">New Tab</span>';
+      fallbackTab.style.cssText = 'display: flex; align-items: center; height: 32px; padding: 0 10px; background-color: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0; margin: 4px 1px 0; color: white; font-size: 12px;';
+      tabBarContainer.appendChild(fallbackTab);
+      
+      const fallbackNewTab = document.createElement('div');
+      fallbackNewTab.className = 'new-tab-button';
+      fallbackNewTab.innerHTML = '+';
+      fallbackNewTab.style.cssText = 'display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 4px 1px 0; background-color: rgba(15, 23, 42, 0.4); border-radius: 8px 8px 0 0; color: white;';
+      tabBarContainer.appendChild(fallbackNewTab);
+      
+      throw error;
+    }
+    
+    // Try to ensure VoyagerTabManager exists
+    try {
+      if (!browser.tabManager) {
+        const VoyagerTabManager = require('../tabs/VoyagerTabManager').default;
+        browser.tabManager = new VoyagerTabManager(browser);
+        console.log('Created new VoyagerTabManager instance');
+      }
+    } catch (tabManagerError) {
+      console.error('Failed to create TabManager:', tabManagerError);
+    }
+    
+    // Get the tab manager instance from the browser
+    const tabManager = browser.tabManager ? browser.tabManager.getTabManager() : null;
+    
+    if (!tabManager) {
+      console.error('Tab manager not available - cannot render tabs');
+      const errorElement = document.createElement('div');
+      errorElement.textContent = 'Tab manager unavailable';
+      errorElement.style.cssText = 'padding: 8px; color: #ff5555; font-size: 12px;';
+      tabBarContainer.appendChild(errorElement);
+      
+      // Create a basic fallback tab if manager not available
+      const fallbackTab = document.createElement('div');
+      fallbackTab.className = 'tab-item active';
+      fallbackTab.innerHTML = '<span class="tab-title">New Tab</span>';
+      fallbackTab.style.cssText = 'display: flex; align-items: center; height: 32px; padding: 0 10px; background-color: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0; margin: 4px 1px 0; color: white; font-size: 12px;';
+      tabBarContainer.appendChild(fallbackTab);
+      
+      return;
+    }
+    
+    console.log('Tab manager retrieved:', tabManager);
+    console.log('Current tabs:', tabManager.getTabs());
+    
+    // Ensure there's at least one tab to display
+    if (tabManager.getTabs().length === 0) {
+      // Create initial tab if none exists
+      console.log('Creating initial tab since no tabs exist');
+      tabManager.createTab({
+        url: 'https://www.google.com',
+        title: 'New Tab',
+        active: true
+      });
+    }
+    
+    // Create a dedicated error handler for ReactDOM rendering
+    const renderTabBar = () => {
+      console.log('Attempting to render TabBar component...');
+      try {
+        ReactDOM.render(
+          React.createElement(TabBar, {
+            tabManager: tabManager,
+            activeTabId: tabManager.getActiveTabId(),
+            onTabClick: (tabId) => {
+              tabManager.setActiveTab(tabId);
+              
+              // Get tab data
+              const tab = tabManager.getTabById(tabId);
+              if (tab && tab.url) {
+                // Navigate to tab URL using browser
+                browser.navigate(tab.url);
+              }
+            },
+            onTabClose: (tabId) => {
+              tabManager.closeTab(tabId);
+            },
+            onNewTab: () => {
+              // Create a new tab and navigate to it
+              const newTab = tabManager.createTab({
+                url: 'https://www.google.com',
+                title: 'New Tab'
+              });
+              
+              // Navigate to the new tab's URL
+              browser.navigate(newTab.url);
+            }
+          }),
+          tabBarContainer
+        );
+        console.log('TabBar component rendered successfully');
+      } catch (renderError) {
+        console.error('Failed to render TabBar component:', renderError);
+        
+        // Show error in the tab bar container and create a basic fallback UI
+        tabBarContainer.innerHTML = '';
+        
+        const errorElement = document.createElement('div');
+        errorElement.textContent = 'Error rendering tabs';
+        errorElement.style.cssText = 'padding: 8px; color: #ff5555; font-size: 12px;';
+        tabBarContainer.appendChild(errorElement);
+        
+        // Create a basic fallback tab
+        const fallbackTab = document.createElement('div');
+        fallbackTab.className = 'tab-item active';
+        fallbackTab.innerHTML = '<span class="tab-title">New Tab</span>';
+        fallbackTab.style.cssText = 'display: flex; align-items: center; height: 32px; padding: 0 10px; background-color: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0; margin: 4px 1px 0; color: white; font-size: 12px;';
+        tabBarContainer.appendChild(fallbackTab);
+        
+        const fallbackNewTab = document.createElement('div');
+        fallbackNewTab.className = 'new-tab-button';
+        fallbackNewTab.innerHTML = '+';
+        fallbackNewTab.style.cssText = 'display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 4px 1px 0; background-color: rgba(15, 23, 42, 0.4); border-radius: 8px 8px 0 0; color: white;';
+        tabBarContainer.appendChild(fallbackNewTab);
+      }
+    };
+    
+    // Render immediately
+    renderTabBar();
+    
+    // Also set a short delay render in case the DOM isn't fully ready
+    setTimeout(renderTabBar, 100);
+    
+    // And one more with a longer delay as a final fallback
+    setTimeout(renderTabBar, 500);
+    
+  } catch (err) {
+    console.error('Failed to initialize tab bar:', err);
+    
+    // Last resort fallback - create a basic tab UI without React
+    tabBarContainer.innerHTML = '';
+    
+    // Add a simple "New Tab" tab
+    const fallbackTab = document.createElement('div');
+    fallbackTab.className = 'tab-item active';
+    fallbackTab.innerHTML = '<span class="tab-title">New Tab</span>';
+    fallbackTab.style.cssText = 'display: flex; align-items: center; height: 32px; padding: 0 10px; background-color: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0; margin: 4px 1px 0; color: white; font-size: 12px;';
+    tabBarContainer.appendChild(fallbackTab);
+    
+    // Add a "+" button for new tab
+    const fallbackNewTab = document.createElement('div');
+    fallbackNewTab.className = 'new-tab-button';
+    fallbackNewTab.innerHTML = '+';
+    fallbackNewTab.style.cssText = 'display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 4px 1px 0; background-color: rgba(15, 23, 42, 0.4); border-radius: 8px 8px 0 0; color: white;';
+    tabBarContainer.appendChild(fallbackNewTab);
+  }
+  
   // Create progress bar
   const progressBar = createProgressBar();
   container.appendChild(progressBar);
@@ -2472,6 +2704,7 @@ export function setupBrowserLayout(browser) {
   browser.header = header;
   browser.addressContainer = addressContainer;
   browser.headerContainer = headerContainer;
+  browser.tabBarContainer = tabBarContainer;
   browser.progressBar = progressBar.querySelector('.browser-progress-bar');
   browser.progressContainer = progressBar;
   browser.webviewContainer = webviewContainer;
@@ -2480,7 +2713,7 @@ export function setupBrowserLayout(browser) {
   // It will be set by the Researcher component when it initializes
   
   // Log layout creation for debugging
-  console.log('Browser layout created with address bar at the top');
+  console.log('Browser layout created with tab bar and address bar at the top');
 }
 
 /**

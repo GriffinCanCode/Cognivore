@@ -1,0 +1,109 @@
+.tab-graph-container {
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.tab-graph-container svg {
+  cursor: grab;
+}
+
+.tab-graph-container svg:active {
+  cursor: grabbing;
+}
+
+.node {
+  cursor: pointer;
+}
+
+.node:hover circle {
+  filter: brightness(1.2);
+}
+
+.node text {
+  pointer-events: none;
+}
+
+.node image {
+  pointer-events: none;
+}
+
+/* Context menu */
+.tab-graph-context-menu {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  display: none;
+}
+
+.tab-graph-context-menu.visible {
+  display: block;
+}
+
+.tab-graph-context-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tab-graph-context-menu li {
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.tab-graph-context-menu li:hover {
+  background-color: #f1f1f1;
+}
+
+/* Controls */
+.tab-graph-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 4px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tab-graph-controls button {
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.tab-graph-controls button:hover {
+  background-color: #f1f1f1;
+}
+
+/* Tooltip */
+.tab-graph-tooltip {
+  position: absolute;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  max-width: 300px;
+  z-index: 1000;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tab-graph-tooltip.visible {
+  opacity: 1;
+} 

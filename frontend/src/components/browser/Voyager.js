@@ -15,33 +15,24 @@ import DOMPurify from 'dompurify';
 // Import researcher component and research panel styles
 import Researcher from './researcher/Researcher';
 
+// Import tab management system
+import VoyagerTabManager from './tabs/VoyagerTabManager';
+import TabManagerButton from './tabs/TabManagerButton';
+import TabBar from './tabs/TabBar';
+
 // Import browser component utilities
 import { 
-  detectEnvironment, 
-  applySandboxSettings, 
-  formatUrl, 
+  detectEnvironment,
+  formatUrl,
   applySiteSpecificSettings
 } from './utils/BrowserEnv';
 
 import {
-  cleanupHtmlForMemory,
-  sanitizeUrlForAnalysis
-} from './utils/ContentUtils';
-
-import {
-  handleTraverseHistory,
   handleBackAction,
   handleForwardAction,
   updateVisitedUrls,
   createHistoryRecord
 } from './utils/HistoryManager';
-
-import {
-  extractPageContent,
-  extractMainContent,
-  extractHeadingStructure,
-  extractFullPageContent
-} from './handlers/ContentExtractor';
 
 import {
   handleBookmarkCreation,
@@ -107,6 +98,9 @@ class Voyager extends Component {
     this.iframe = null;
     this.addressInput = null;
     this.researcher = null;
+    
+    // Initialize tab manager
+    this.tabManager = null;
     
     // Create research panel reference if it doesn't exist
     this.researchPanel = document.createElement('div');
@@ -1111,6 +1105,44 @@ class Voyager extends Component {
     // Set up webview container
     setupWebViewContainer(this);
     
+    // Initialize tab manager if needed
+    if (!this.tabManager) {
+      this.tabManager = new VoyagerTabManager(this);
+    }
+    
+    // Add tab manager button to browser action buttons container
+    const header = this.containerRef.current?.querySelector('.browser-header');
+    if (header) {
+      // Find the action buttons container instead of creating a new container
+      const actionButtonsContainer = header.querySelector('.browser-action-buttons');
+      
+      if (actionButtonsContainer) {
+        // Create a new container for the tab manager button within action buttons
+        const tabManagerContainer = document.createElement('div');
+        tabManagerContainer.className = 'tab-manager-container';
+        actionButtonsContainer.appendChild(tabManagerContainer);
+        
+        // Render tab manager button into the new container
+        try {
+          const ReactDOM = require('react-dom');
+          ReactDOM.render(
+            <TabManagerButton 
+              voyager={this} 
+              tabManager={this.tabManager.getTabManager()} 
+            />,
+            tabManagerContainer
+          );
+          console.log('Tab manager button rendered successfully in action buttons container');
+        } catch (err) {
+          console.error('Failed to render tab manager button:', err);
+        }
+      } else {
+        console.warn('Could not find action buttons container to add tab manager button');
+      }
+    } else {
+      console.warn('Could not find browser header to add tab manager button');
+    }
+    
     // Properly bind event handlers to the browser instance
     this.handleBackAction = (e) => {
       if (this.webview && typeof this.webview.goBack === 'function') {
@@ -1172,11 +1204,11 @@ class Voyager extends Component {
     }
     
     // Bind button event handlers in the header with additional checks
-    const header = this.containerRef.current?.querySelector('.browser-header');
-    const backButton = header?.querySelector('.browser-back-btn');
-    const forwardButton = header?.querySelector('.browser-forward-btn');
-    const refreshButton = header?.querySelector('.browser-refresh-btn');
-    const stopButton = header?.querySelector('.browser-stop-btn');
+    const headerElement = this.containerRef.current?.querySelector('.browser-header');
+    const backButton = headerElement?.querySelector('.browser-back-btn');
+    const forwardButton = headerElement?.querySelector('.browser-forward-btn');
+    const refreshButton = headerElement?.querySelector('.browser-refresh-btn');
+    const stopButton = headerElement?.querySelector('.browser-stop-btn');
     
     if (backButton) backButton.addEventListener('click', this.handleBackAction);
     if (forwardButton) forwardButton.addEventListener('click', this.handleForwardAction);
@@ -1234,6 +1266,22 @@ class Voyager extends Component {
     if (this._sidebarStateHandler) {
       document.removeEventListener('click', this._sidebarStateHandler);
       this._sidebarStateHandler = null;
+    }
+    
+    // Clean up tab manager button if it exists
+    const actionButtonsContainer = document.querySelector('.browser-action-buttons');
+    if (actionButtonsContainer) {
+      try {
+        const ReactDOM = require('react-dom');
+        // Find the tab-manager-container inside the action buttons container
+        const tabManagerContainer = actionButtonsContainer.querySelector('.tab-manager-container');
+        if (tabManagerContainer) {
+          ReactDOM.unmountComponentAtNode(tabManagerContainer);
+          console.log('Tab manager button unmounted successfully');
+        }
+      } catch (err) {
+        console.warn('Error cleaning up tab manager button:', err);
+      }
     }
     
     // Clear any active timers and intervals

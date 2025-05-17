@@ -1,0 +1,127 @@
+/**
+ * TabManagerButton.css
+ * Styling for the tab manager button component
+ */
+
+.tab-manager-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px; /* Reduced from 6px */
+  padding: 0;  /* Reduced from 2px to 0 */
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  position: relative;
+}
+
+.tab-manager-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.tab-manager-button.active {
+  background-color: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.tab-manager-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-manager-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: #e2e8f0;
+  transition: fill 0.2s ease;
+}
+
+.tab-manager-button:hover .tab-manager-icon svg {
+  fill: #fff;
+}
+
+.tab-manager-button.active .tab-manager-icon svg {
+  fill: #3b82f6;
+}
+
+.tab-manager-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(59, 130, 246, 0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  border-radius: 50%;
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.tab-manager-button:active::after {
+  transform: translate(-50%, -50%) scale(1.5);
+  opacity: 1;
+  transition: 0s;
+}
+
+/* Adjust main content when tab manager panel is active */
+body.tab-manager-active .browser-webview-container,
+body.tab-manager-active .voyager-content,
+body.tab-manager-active .browser-webview {
+  width: calc(100vw - 340px) !important;
+  max-width: calc(100vw - 340px) !important;
+  right: 340px !important;
+  position: fixed !important;
+  left: 0 !important;
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+              right 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+              max-width 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Notification badge for new tabs */
+.tab-manager-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background-color: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.95);
+  transform: scale(0);
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.tab-manager-badge.visible {
+  transform: scale(1);
+}
+
+/* Adjust for Responsive Design */
+@media (max-width: 768px) {
+  body.tab-manager-active .browser-webview-container,
+  body.tab-manager-active .voyager-content,
+  body.tab-manager-active .browser-webview {
+    width: calc(100vw - 300px) !important;
+    max-width: calc(100vw - 300px) !important;
+    right: 300px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  body.tab-manager-active .browser-webview-container,
+  body.tab-manager-active .voyager-content,
+  body.tab-manager-active .browser-webview {
+    width: calc(100vw - 280px) !important;
+    max-width: calc(100vw - 280px) !important;
+    right: 280px !important;
+  }
+} 

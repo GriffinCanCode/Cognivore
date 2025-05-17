@@ -1,0 +1,486 @@
+/* 
+ * TabManagerPanel.css
+ * Styling for the tab manager panel component used in the Voyager browser
+ * Matching the research panel design pattern
+ */
+
+:root {
+  --tab-manager-width: 340px;
+  --tab-manager-bg: rgba(15, 23, 42, 0.95);
+  --tab-manager-border: rgba(255, 255, 255, 0.1);
+  --tab-manager-accent-color: #3b82f6;
+  --tab-manager-text-color: #e2e8f0;
+  --tab-manager-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --tab-manager-transition-duration: 0.4s;
+  --tab-manager-transition-timing: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tab-manager-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 0 0 var(--tab-manager-width) !important;
+  flex-grow: 0 !important;
+  flex-shrink: 0 !important;
+  flex-basis: var(--tab-manager-width) !important;
+  z-index: 100 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  width: var(--tab-manager-width) !important;
+  max-width: 50% !important;
+  min-width: 280px !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  left: auto !important;
+  transform: translateX(0) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: var(--tab-manager-bg) !important;
+  backdrop-filter: blur(12px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+  box-shadow: -4px 0 32px rgba(0, 0, 0, 0.4) !important;
+  border-radius: 0 !important;
+  border-left: 1px solid var(--tab-manager-border) !important;
+  transition: transform var(--tab-manager-transition-duration) var(--tab-manager-transition-timing),
+              opacity var(--tab-manager-transition-duration) var(--tab-manager-transition-timing),
+              visibility var(--tab-manager-transition-duration) !important;
+  contain: layout style paint !important;
+  isolation: isolate !important;
+  will-change: transform, opacity !important;
+  animation: panelSlideIn var(--tab-manager-transition-duration) var(--tab-manager-transition-timing) forwards;
+}
+
+@keyframes panelSlideIn {
+  from {
+    transform: translateX(100%) !important;
+    opacity: 0 !important;
+  }
+  to {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+  }
+}
+
+.tab-manager-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 16px !important;
+  border-bottom: 1px solid var(--tab-manager-border) !important;
+  flex-shrink: 0 !important;
+  height: 56px !important;
+  min-height: 56px !important;
+  box-sizing: border-box !important;
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  animation: headerSlideDown 0.4s ease-out forwards;
+  position: relative;
+  z-index: 5;
+}
+
+@keyframes headerSlideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.tab-manager-header h2 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--tab-manager-text-color) !important;
+  margin: 0 !important;
+  opacity: 0;
+  animation: fadeIn 0.5s ease-out 0.2s forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+.tab-manager-controls {
+  display: flex !important;
+  gap: 8px !important;
+  opacity: 0;
+  animation: fadeIn 0.5s ease-out 0.3s forwards;
+}
+
+.tab-manager-content {
+  flex: 1 1 auto !important; 
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: calc(100% - 56px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 16px !important;
+  color: var(--tab-manager-text-color) !important;
+  box-sizing: border-box !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
+  position: relative !important;
+  width: 100% !important;
+  animation: contentFadeIn 0.5s ease-out 0.2s both;
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Customize scrollbar for webkit browsers */
+.tab-manager-content::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.tab-manager-content::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.tab-manager-content::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 3px !important;
+}
+
+.tab-group {
+  margin-bottom: 16px !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15) !important;
+  transition: transform 0.15s, box-shadow 0.15s !important;
+  animation: groupFadeIn 0.5s ease-out both;
+}
+
+@keyframes groupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-group:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+.tab-group-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 12px 16px !important;
+  background-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+.tab-group-header h3 {
+  margin: 0 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--tab-manager-text-color) !important;
+}
+
+.tab-group-actions {
+  display: flex !important;
+  gap: 8px !important;
+}
+
+.tab-group-actions button {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  border: none !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  color: var(--tab-manager-text-color) !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+  transition: background-color 0.2s !important;
+}
+
+.tab-group-actions button:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.tab-list {
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-height: none !important;
+}
+
+.tab-item {
+  display: flex !important;
+  align-items: center !important;
+  padding: 10px 16px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s !important;
+  position: relative !important;
+}
+
+.tab-item:last-child {
+  border-bottom: none !important;
+}
+
+.tab-item:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.tab-item.active {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  border-left: 3px solid var(--tab-manager-accent-color) !important;
+}
+
+.tab-favicon {
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 12px !important;
+  flex-shrink: 0 !important;
+  border-radius: 3px !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.tab-title {
+  flex: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 13px !important;
+  color: var(--tab-manager-text-color) !important;
+}
+
+.tab-actions {
+  margin-left: 8px !important;
+  display: flex !important;
+  gap: 8px !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s !important;
+}
+
+.tab-item:hover .tab-actions {
+  opacity: 1 !important;
+}
+
+.tab-actions select {
+  padding: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 4px !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  color: var(--tab-manager-text-color) !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+}
+
+.tab-actions select:focus {
+  outline: none !important;
+  border-color: var(--tab-manager-accent-color) !important;
+}
+
+.tab-close-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: none !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  cursor: pointer !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  transition: all 0.2s !important;
+}
+
+.tab-close-btn:hover {
+  background-color: rgba(239, 68, 68, 0.8) !important;
+  color: white !important;
+}
+
+.view-mode-toggle {
+  display: flex !important;
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 6px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.view-mode-toggle button {
+  background: none !important;
+  border: none !important;
+  padding: 8px 12px !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+
+.view-mode-toggle button.active {
+  background-color: rgba(59, 130, 246, 0.3) !important;
+  color: white !important;
+}
+
+.clustering-controls {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-top: 16px !important;
+}
+
+.clustering-controls select {
+  padding: 8px !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 6px !important;
+  color: var(--tab-manager-text-color) !important;
+  font-size: 13px !important;
+  flex: 1 !important;
+}
+
+.clustering-controls button,
+.tab-manager-controls button {
+  padding: 8px 12px !important;
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  color: var(--tab-manager-text-color) !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+
+.clustering-controls button:hover,
+.tab-manager-controls button:hover {
+  background-color: rgba(59, 130, 246, 0.3) !important;
+  transform: translateY(-1px) !important;
+}
+
+.tab-manager-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  z-index: 99 !important;
+  backdrop-filter: blur(2px) !important;
+  animation: overlayFadeIn 0.3s ease-out forwards;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tab-manager-close-btn {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: none !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  cursor: pointer !important;
+  padding: 6px !important;
+  border-radius: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  height: 28px !important;
+  width: 28px !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-manager-close-btn:hover {
+  background-color: rgba(239, 68, 68, 0.3) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  :root {
+    --tab-manager-width: 300px;
+  }
+  
+  .tab-manager-panel {
+    max-width: 90% !important;
+  }
+  
+  .tab-group-header h3 {
+    font-size: 14px !important;
+  }
+  
+  .tab-title {
+    font-size: 12px !important;
+  }
+  
+  .tab-manager-header h2 {
+    font-size: 15px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --tab-manager-width: 280px;
+  }
+  
+  .tab-manager-panel {
+    max-width: 90% !important;
+  }
+}
+
+/* Tab Graph View */
+.tab-graph-container {
+  width: 100% !important;
+  height: 400px !important;
+  background-color: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  margin-top: 16px !important;
+  position: relative !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Override to ensure the panel is positioned correctly */
+html body .tab-manager-panel {
+  position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: auto !important;
+  width: var(--tab-manager-width) !important;
+  max-width: var(--tab-manager-width) !important;
+  min-width: 280px !important;
+  height: 100vh !important;
+  z-index: 9998 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+} 

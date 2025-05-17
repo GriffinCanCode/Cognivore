@@ -13,11 +13,30 @@
   background-color: var(--bg-primary, #0c1122) !important;
   z-index: 9999 !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding: 0 !important; /* Ensure no padding to allow tabs to align with edge */
   overflow: hidden !important;
   box-sizing: border-box !important;
   transition: left 0.3s var(--animation-timing, cubic-bezier(0.215, 0.61, 0.355, 1)), 
               width 0.3s var(--animation-timing, cubic-bezier(0.215, 0.61, 0.355, 1)) !important;
+}
+
+/* Enhanced tab bar integration */
+.voyager-tab-bar-wrapper {
+  width: 100% !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  background-color: var(--glass-bg, rgba(15, 23, 42, 0.85)) !important;
+  backdrop-filter: blur(12px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
+  border-bottom: none !important;
+  z-index: 101 !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  overflow: visible !important; /* Changed from hidden to allow tab shadow effects */
+  margin-bottom: 0 !important;
+  padding: 0 !important; /* Remove padding to ensure tabs align with edge */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
 }
 
 /* Header container for all header elements */
@@ -33,31 +52,38 @@
   -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
   border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12)) !important;
   box-shadow: 0 4px 20px var(--shadow-color, rgba(0, 0, 0, 0.3)) !important;
+  padding: 0 !important; /* Ensure no padding disrupts layout */
+  margin: 0 !important; /* Ensure no margin disrupts layout */
+  overflow: visible !important; /* Allow tab shadows to be visible */
 }
 
-/* Address bar container styling at the top with glass effect */
+/* Address bar container styling with improved glass effect */
 .voyager-address-container {
   display: flex !important;
   align-items: center !important;
-  padding: 12px 16px !important;
-  background-color: transparent !important;
+  padding: 6px 6px !important;
+  background-color: var(--glass-bg, rgba(15, 23, 42, 0.85)) !important;
+  backdrop-filter: blur(12px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
   border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12)) !important;
-  height: 52px !important;
-  min-height: 52px !important;
-  max-height: 52px !important;
-  z-index: 101 !important;
+  border-top: none !important; /* Removed border to connect with tab bar */
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  z-index: 99 !important; /* Lower z-index than tab bar */
   box-sizing: border-box !important;
   width: 100% !important;
   transition: width 0.3s var(--animation-timing, cubic-bezier(0.215, 0.61, 0.355, 1)) !important;
   position: relative !important;
+  margin-top: -2px !important; /* Create better overlap with tab bar */
 }
 
 /* Address bar input styling with modern appearance */
 .voyager-address-bar {
   flex: 1 !important;
-  height: 38px !important;
-  padding: 0 12px !important;
-  border-radius: 20px !important;
+  height: 34px !important; /* Reduced from 38px */
+  padding: 0 8px !important; /* Reduced from 0 12px */
+  border-radius: 16px !important; /* Reduced from 20px */
   border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12)) !important;
   background-color: rgba(15, 23, 42, 0.5) !important;
   color: var(--text-light, #f8fafc) !important;
@@ -79,7 +105,7 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 6px 16px !important;
+  padding: 4px 6px !important; /* Reduced horizontal padding from 12px to 6px */
   background-color: transparent !important;
   height: 40px !important;
   min-height: 40px !important;
@@ -93,8 +119,8 @@
 /* Fix overlapping icons in navigation controls by increasing spacing */
 .browser-nav-controls {
   display: flex;
-  gap: 12px; /* Increased from 8px to prevent overlap */
-  margin-right: 12px; /* Increased from 8px */
+  gap: 0; /* Reduced from 2px to 0 */
+  margin-right: 0; /* Reduced from 2px to 0 */
   align-items: center;
 }
 
@@ -103,9 +129,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px; /* Increased from 32px for more touch area */
-  height: 34px; /* Increased from 32px for more touch area */
-  border-radius: 8px;
+  width: 26px; /* Reduced from 30px */
+  height: 26px; /* Reduced from 30px */
+  border-radius: 4px; /* Reduced from 6px */
   background-color: transparent;
   color: var(--text-light, #f8fafc);
   border: none;
@@ -159,7 +185,7 @@
 /* Fix action buttons spacing and sizing */
 .browser-action-buttons {
   display: flex;
-  gap: 12px; /* Increased from 10px to prevent overlap */
+  gap: 0; /* Reduced from 2px to 0 */
   align-items: center;
 }
 
@@ -167,9 +193,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px; /* Increased from 34px for more touch area */
-  height: 36px; /* Increased from 34px for more touch area */
-  border-radius: 8px;
+  width: 26px; /* Reduced from 30px */
+  height: 26px; /* Reduced from 30px */
+  border-radius: 4px; /* Reduced from 6px */
   background-color: transparent;
   color: var(--text-light, #f8fafc);
   border: none;
@@ -290,11 +316,11 @@
 .browser-search-form::before {
   content: "";
   position: absolute;
-  left: 12px;
+  left: 8px; /* Reduced from 12px */
   top: 50%;
   transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
+  width: 14px; /* Reduced from 16px */
+  height: 14px; /* Reduced from 16px */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
@@ -304,7 +330,7 @@
 
 /* Adjust input padding when icon is present */
 .browser-search-form .voyager-address-bar {
-  padding-left: 36px !important;
+  padding-left: 2px !important; /* Reduced from 36px */
 }
 
 /* Progress bar with enhanced appearance and animation */
