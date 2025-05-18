@@ -34,13 +34,26 @@
     "all": "^0.0.0",
     "cross-env": "^7.0.3",
     "express": "^5.1.0",
-    "google-auth-library": "^9.15.1"
+    "google-auth-library": "^9.15.1",
+    "metascraper-author": "^5.46.15",
+    "metascraper-date": "^5.46.15",
+    "metascraper-description": "^5.46.15",
+    "metascraper-image": "^5.46.15",
+    "metascraper-logo": "^5.46.15",
+    "metascraper-publisher": "^5.46.15",
+    "metascraper-title": "^5.46.15",
+    "metascraper-url": "^5.46.15"
   },
   "devDependencies": {
     "@babel/core": "^7.27.1",
     "@babel/preset-env": "^7.27.2",
     "babel-jest": "^29.7.0",
+    "buffer": "^6.0.3",
     "concurrently": "^8.2.2",
-    "electron": "^27.0.0"
+    "electron": "^27.0.0",
+    "process": "^0.11.10",
+    "querystring": "^0.2.1",
+    "querystring-es3": "^0.2.1",
+    "url": "^0.11.4"
   }
 }

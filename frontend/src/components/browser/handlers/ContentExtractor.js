@@ -1,12 +1,183 @@
 /**
  * ContentExtractor - Functions for extracting and processing web page content
+ * 
+ * NOTE: This file is maintained for backward compatibility.
+ * New code should use the components in ../extraction/ directly.
  */
 
 import logger from '../../../utils/logger';
-import extractionSystem from './ContentExtractionSystem';
+import ExtractorManager from '../extraction/ExtractorManager';
 
 // Create a logger instance for this module
 const extractorLogger = logger.scope('ContentExtractor');
+
+/**
+ * Capture and process page content for the Voyager browser
+ * @param {Object} browser - Browser instance
+ * @returns {Promise<Object>} Promise resolving to the captured content
+ */
+export const capturePageContent = async (browser) => {
+  if (!browser || !browser.webview) {
+    extractorLogger.error('No webview available for content extraction');
+    return Promise.reject(new Error('Webview not available'));
+  }
+
+  // Create a controller to abort the operation if it takes too long
+  const controller = new AbortController();
+  const signal = controller.signal;
+  
+  // Set a short timeout to ensure we don't hang forever
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+    extractorLogger.warn('Content extraction aborted due to timeout');
+  }, 3000); // 3 second timeout
+
+  try {
+    // Extract page title from browser state
+    const title = browser.state?.title || 'Untitled Page';
+    const url = browser.webview.src || '';
+    
+    // Create the extraction promise with abort signal awareness
+    const extractionPromise = new Promise(async (resolve, reject) => {
+      try {
+        // Check if the operation was aborted
+        if (signal.aborted) {
+          return reject(new Error('Content extraction was aborted'));
+        }
+        
+        const result = await browser.webview.executeJavaScript(`
+          (function() {
+            try {
+              // Function to clean text
+              const cleanText = function(text) {
+                if (!text) return '';
+                return text.replace(/\\s+/g, ' ').trim();
+              };
+              
+              // Get main content from the page
+              const mainContent = document.querySelector('main') || 
+                                document.querySelector('article') || 
+                                document.querySelector('#content') || 
+                                document.querySelector('.content');
+              
+              let content = '';
+              let processedContent = '';
+              
+              if (mainContent) {
+                // Get all paragraphs from main content
+                const paragraphs = mainContent.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
+                content = Array.from(paragraphs)
+                  .map(p => p.textContent.trim())
+                  .filter(text => text.length > 0)
+                  .join('\\n\\n');
+                  
+                // Process content into HTML
+                processedContent = Array.from(paragraphs)
+                  .map(p => {
+                    // Skip empty paragraphs
+                    if (!p.textContent.trim()) return '';
+                    
+                    // Process headings
+                    if (p.tagName.match(/^H[1-6]$/)) {
+                      return '<' + p.tagName.toLowerCase() + '>' + 
+                        cleanText(p.textContent) + 
+                        '</' + p.tagName.toLowerCase() + '>';
+                    }
+                    
+                    // Process paragraphs
+                    return '<p>' + cleanText(p.textContent) + '</p>';
+                  })
+                  .filter(html => html.length > 0)
+                  .join('\\n');
+              } else {
+                // Fallback to all paragraphs if no main content found
+                const allParagraphs = document.querySelectorAll('p');
+                content = Array.from(allParagraphs)
+                  .map(p => p.textContent.trim())
+                  .filter(text => text.length > 0)
+                  .join('\\n\\n');
+                  
+                // Process content into HTML
+                processedContent = Array.from(allParagraphs)
+                  .map(p => {
+                    // Skip empty paragraphs
+                    if (!p.textContent.trim()) return '';
+                    return '<p>' + cleanText(p.textContent) + '</p>';
+                  })
+                  .filter(html => html.length > 0)
+                  .join('\\n');
+              }
+              
+              // If still no content, try to get text from body
+              if (!content) {
+                content = document.body.textContent.trim();
+                processedContent = '<p>' + content + '</p>';
+              }
+              
+              return {
+                title: document.title,
+                url: window.location.href,
+                text: content,
+                processedContent: processedContent
+              };
+            } catch (error) {
+              return {
+                error: true,
+                message: error.message || 'Error extracting content',
+                stack: error.stack
+              };
+            }
+          })();
+        `);
+        
+        if (result && result.error) {
+          return reject(new Error(result.message || 'Error in content extraction script'));
+        }
+        
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    });
+    
+    // Race between the extraction and the abort signal
+    const result = await Promise.race([
+      extractionPromise,
+      new Promise((_, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('Content extraction timed out')));
+      })
+    ]);
+    
+    // Clear the timeout as we've completed
+    clearTimeout(timeoutId);
+    
+    // If no text was extracted, add some basic info
+    if (!result.text || result.text.length < 10) {
+      extractorLogger.warn('Extracted content is empty or too short');
+      result.text = `The page "${title}" doesn't contain much readable content.`;
+      result.processedContent = `<p>The page "${title}" doesn't contain much readable content.</p>`;
+    }
+    
+    // Ensure title is set
+    result.title = result.title || title;
+    result.url = result.url || url;
+    
+    return result;
+  } catch (error) {
+    // Clear the timeout if we hit an error
+    clearTimeout(timeoutId);
+    
+    extractorLogger.error('Error during content extraction:', error);
+    
+    // Return minimal content instead of failing completely
+    return {
+      title: browser.state?.title || 'Untitled Page',
+      url: browser.webview.src || '',
+      text: 'Content extraction failed. The page might be too complex or require authentication.',
+      processedContent: '<p>Content extraction failed. The page might be too complex or require authentication.</p><p>You can try viewing the original page instead.</p>'
+    };
+  }
+};
 
 /**
  * Extract and save page content to vector database
@@ -21,7 +192,7 @@ export function extractPageContent(browser) {
     extractorLogger.info('Attempting to extract content from:', browser.currentUrl);
     
     // Use the new extraction system
-    extractionSystem.extractContent(browser, browser.currentUrl)
+    ExtractorManager.extract(browser, browser.currentUrl)
       .then(contentResult => {
         if (contentResult && contentResult.extractionSuccess !== false) {
           savePageToVectorDB(browser, contentResult);
@@ -504,7 +675,7 @@ export function extractFullPageContent(doc, url) {
     }
     
     // Use the new extraction system for browser objects
-    return extractionSystem.extractContent(doc, url)
+    return ExtractorManager.extract(doc, url)
       .then(result => {
         // Map the results to match the expected format
         return {
@@ -696,6 +867,7 @@ export function extractHeadingStructure(doc) {
 }
 
 export default {
+  capturePageContent,
   extractPageContent,
   savePageToVectorDB,
   updateResearchPanel,

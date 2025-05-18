@@ -287,6 +287,61 @@ export function createBrowserHeader(browser) {
   
   actionButtons.appendChild(saveButton);
   
+  // Create reader mode button with improved appearance
+  const readerModeButton = document.createElement('button');
+  readerModeButton.className = 'browser-action-btn browser-reader-btn';
+  readerModeButton.title = 'Toggle reader mode';
+  readerModeButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1"></path>
+      <path d="M12 17v-6"></path>
+      <path d="M8 13h8"></path>
+    </svg>
+  `;
+  
+  // Add enhanced reader mode toggle functionality
+  readerModeButton.addEventListener('click', (event) => {
+    // Prevent default to avoid any unexpected behaviors
+    event.preventDefault();
+    event.stopPropagation();
+    
+    try {
+      // Call the toggleReaderMode handler with debounce
+      if (typeof browser.toggleReaderMode === 'function') {
+        // Disable button temporarily to prevent multiple clicks
+        readerModeButton.disabled = true;
+        setTimeout(() => {
+          readerModeButton.disabled = false;
+        }, 500);
+        
+        const newMode = browser.toggleReaderMode();
+        
+        // Show appropriate toast notification
+        if (newMode === 'reader') {
+          showToastNotification('Reader mode enabled');
+        } else if (newMode === 'split') {
+          showToastNotification('Split view enabled');
+        } else {
+          showToastNotification('Normal view restored');
+        }
+      } else {
+        console.error('toggleReaderMode method not available on browser instance');
+        throw new Error('Reader mode toggle not available');
+      }
+    } catch (err) {
+      console.error('Error toggling reader mode:', err);
+      
+      // Show error notification
+      try {
+        showToastNotification('Failed to toggle reader mode: ' + (err.message || 'Unknown error'), 'error');
+      } catch (notifyErr) {
+        console.warn('Could not show error notification:', notifyErr);
+      }
+    }
+  });
+  
+  actionButtons.appendChild(readerModeButton);
+  
   const researchButton = document.createElement('button');
   researchButton.className = 'browser-research-btn';
   researchButton.title = 'Toggle research mode';

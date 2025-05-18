@@ -52,6 +52,37 @@ export function goForward(browser) {
 }
 
 /**
+ * Create a history record object
+ * @param {string} url - The URL
+ * @param {string} title - The page title
+ * @param {string} timestamp - ISO timestamp
+ * @returns {Object} History record object
+ */
+export function createHistoryRecord(url, title, timestamp) {
+  return HistoryManager.createHistoryRecord(url, title, timestamp);
+}
+
+/**
+ * Check if can go back in history
+ * @param {Object} browser - Browser instance
+ * @returns {boolean} True if can go back
+ */
+export function canGoBack(browser) {
+  if (!browser || !browser.webview) return false;
+  return browser.webview.canGoBack();
+}
+
+/**
+ * Check if can go forward in history
+ * @param {Object} browser - Browser instance
+ * @returns {boolean} True if can go forward
+ */
+export function canGoForward(browser) {
+  if (!browser || !browser.webview) return false;
+  return browser.webview.canGoForward();
+}
+
+/**
  * Record a page visit in history
  * 
  * @param {Object} browser - Browser instance
@@ -170,15 +201,15 @@ export function clearHistory(browser, options = {}) {
 export function updateNavigationButtons(browser) {
   if (!browser || !browser.webview) return;
   
-  const canGoBack = browser.webview.canGoBack();
-  const canGoForward = browser.webview.canGoForward();
+  const canGoBackState = canGoBack(browser);
+  const canGoForwardState = canGoForward(browser);
   
   if (browser.backButton) {
-    browser.backButton.disabled = !canGoBack;
+    browser.backButton.disabled = !canGoBackState;
   }
   
   if (browser.forwardButton) {
-    browser.forwardButton.disabled = !canGoForward;
+    browser.forwardButton.disabled = !canGoForwardState;
   }
 }
 
@@ -295,15 +326,14 @@ export default {
   navigateAndUpdateHistory,
   getHistoryEntryForUrl,
   initializeBrowserHistory,
+  createHistoryRecord,
+  canGoBack,
+  canGoForward,
   
   // Expose underlying HistoryManager functions for direct access if needed
   addToHistory: HistoryManager.addToHistory,
-  canGoBack: HistoryManager.canGoBack,
-  canGoForward: HistoryManager.canGoForward,
-  getCurrentUrl: HistoryManager.getCurrentUrl,
   loadHistory: HistoryManager.loadHistory,
   saveHistory: HistoryManager.saveHistory,
   handleBackAction: HistoryManager.handleBackAction,
-  handleForwardAction: HistoryManager.handleForwardAction,
-  createHistoryRecord: HistoryManager.createHistoryRecord
+  handleForwardAction: HistoryManager.handleForwardAction
 }; 

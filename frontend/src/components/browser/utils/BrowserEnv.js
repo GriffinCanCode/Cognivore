@@ -2,6 +2,13 @@
  * BrowserEnv - Utilities for browser environment detection and configuration
  */
 
+// Import formatUrl and other utilities from BrowserUtilities
+import { 
+  formatUrl, 
+  applySiteSpecificSettings, 
+  applySandboxSettings 
+} from './BrowserUtilities';
+
 /**
  * Detect environment and determine best rendering options
  * @returns {Object} Environment configuration object
@@ -129,217 +136,10 @@ export function forceElectronMode() {
 })();
 
 /**
- * Apply sandbox settings based on security level
- * @param {HTMLElement} element - The webview or iframe element
- * @param {string} sandboxLevel - Security level ('none', 'standard', 'strict')
+ * Setup webview environment with necessary configurations
+ * @param {HTMLElement} webview - The webview element to set up
+ * @returns {Promise<boolean>} Promise resolving to setup success status
  */
-export function applySandboxSettings(element, sandboxLevel) {
-  if (!element) return;
-  
-  // Don't apply to Electron webview which has its own security model
-  if (element.tagName.toLowerCase() === 'webview') {
-    // Configure Electron webview security with better defaults for navigation
-    element.setAttribute('allowpopups', 'true'); // Allow popups for better site compatibility
-    element.setAttribute('disablewebsecurity', 'true'); // Disable web security for easier cross-origin content
-    element.setAttribute('partition', 'persist:browserview'); // Use persistent session
-    
-    // IMPORTANT: Add more permissive properties to ensure content loads
-    element.setAttribute('nodeintegration', 'false'); // Keeps renderer process secure
-    element.setAttribute('webpreferences', 'allowRunningInsecureContent=true, javascript=true, webSecurity=false, images=true, textAreasAreResizable=true, webgl=true');
-    element.setAttribute('plugins', 'true');
-    element.setAttribute('allowtransparency', 'true');
-    
-    // Set a standard user agent for better compatibility
-    element.setAttribute('useragent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
-    
-    // Set critical CSS properties directly for visibility
-    setTimeout(() => {
-      if (element.style) {
-        element.style.width = '100%';
-        element.style.height = '100%';
-        element.style.display = 'block';
-        element.style.visibility = 'visible';
-        element.style.opacity = '1';
-        
-        // Force layout recalculation
-        element.getBoundingClientRect();
-      }
-    }, 100);
-    
-    return;
-  }
-  
-  // For iframes, apply sandbox attribute based on security level
-  switch (sandboxLevel) {
-    case 'none':
-      // Very permissive - not recommended
-      element.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation allow-modals');
-      break;
-    
-    case 'strict':
-      // Very restrictive - most secure but might break functionality
-      element.setAttribute('sandbox', 'allow-same-origin allow-scripts');
-      break;
-    
-    case 'standard':
-    default:
-      // Balanced approach - secure but functional
-      // Check if we're in Electron to allow more permissive settings
-      const isElectron = window.isElectron || (window.process && window.process.type === 'renderer');
-      if (isElectron) {
-        element.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation allow-modals');
-        // Remove any CSP meta tags that might be added in the iframe
-        setTimeout(() => {
-          try {
-            const frameDocument = element.contentDocument;
-            if (frameDocument) {
-              const metaTags = frameDocument.querySelectorAll('meta[http-equiv="Content-Security-Policy"]');
-              metaTags.forEach(tag => tag.remove());
-            }
-          } catch (e) {
-            console.log('Could not modify iframe CSP:', e);
-          }
-        }, 1000);
-      } else {
-        element.setAttribute('sandbox', 'allow-same-origin allow-scripts');
-      }
-      break;
-  }
-}
-
-/**
- * Format a URL for navigation
- * @param {string} url - Raw URL input
- * @returns {string} Formatted URL with correct protocol
- */
-export function formatUrl(url) {
-  if (!url) return '';
-  
-  // Trim whitespace
-  url = url.trim();
-  
-  // If URL already has a protocol, leave it as is
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
-  
-  // Check for common TLDs or localhost to determine if it's a URL
-  const commonTLDs = ['.com', '.org', '.net', '.edu', '.gov', '.io', '.co', '.us', '.uk', '.ca', '.de', '.jp', '.fr', '.au', '.ru'];
-  const isLikelyURL = commonTLDs.some(tld => url.includes(tld)) || 
-                     url.includes('localhost') || 
-                     url.includes('127.0.0.1') || 
-                     (url.includes('.') && !url.includes(' '));
-  
-  // If it looks like a URL, add https:// prefix
-  if (isLikelyURL) {
-    return `https://${url}`;
-  } 
-  
-  // Otherwise, treat as a search query
-  return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-}
-
-/**
- * Apply site-specific settings based on URL
- * @param {string} url - The URL being navigated to
- */
-export function applySiteSpecificSettings(url) {
-  if (!url) return;
-  
-  // Default settings
-  let settings = {
-    sandbox: 'standard',
-    headers: {},
-    userAgent: null,
-    bypassCSP: true
-  };
-  
-  // Google-specific settings
-  if (url.includes('google.com')) {
-    settings = {
-      sandbox: 'standard',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-      },
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      bypassCSP: true
-    };
-  }
-  
-  // YouTube-specific settings
-  else if (url.includes('youtube.com')) {
-    settings = {
-      sandbox: 'standard',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-      },
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      bypassCSP: true
-    };
-  }
-  
-  // Apply settings to webview
-  if (this.webview && this.webview.tagName && 
-      this.webview.tagName.toLowerCase() === 'webview' && 
-      this.webview.isConnected) {
-    try {
-      // Apply sandbox settings
-      if (settings.sandbox && typeof applySandboxSettings === 'function') {
-        applySandboxSettings(this.webview, settings.sandbox);
-      }
-      
-      // Apply user agent - but only if the webview is ready
-      // First check if method exists and is callable
-      if (settings.userAgent && typeof this.webview.setUserAgent === 'function') {
-        // Try-catch for safety in case DOM isn't ready
-        try {
-          // Check if webview has initialized its WebContents
-          if (typeof this.webview.getWebContentsId === 'function') {
-            try {
-              const hasWebContents = this.webview.getWebContentsId() !== -1;
-              if (hasWebContents) {
-                this.webview.setUserAgent(settings.userAgent);
-              } else {
-                console.log('Webview not ready for setUserAgent, WebContents not initialized');
-              }
-            } catch (webContentsError) {
-              // WebContents not ready yet, log and continue
-              console.log('WebContents not ready:', webContentsError.message);
-            }
-          } else {
-            console.log('getWebContentsId method not available, skipping user agent setting');
-          }
-        } catch (userAgentError) {
-          console.warn('Error setting user agent:', userAgentError);
-        }
-      }
-      
-      // Handle CSP bypass through session if available
-      if (settings.bypassCSP && typeof this.webview.getWebContents === 'function') {
-        try {
-          // First check if webview has WebContents
-          const webContents = this.webview.getWebContents();
-          if (webContents && webContents.session && webContents.session.webRequest) {
-            webContents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
-              if (details.responseHeaders && details.responseHeaders['content-security-policy']) {
-                delete details.responseHeaders['content-security-policy'];
-              }
-              callback({ responseHeaders: details.responseHeaders });
-            });
-          }
-        } catch (err) {
-          // WebContents might not be ready yet
-          console.warn('WebContents not ready for CSP bypass, will try later:', err.message);
-        }
-      }
-      
-      console.log(`Applied site-specific settings for: ${url}`);
-    } catch (err) {
-      console.warn('Error applying site-specific settings:', err);
-    }
-  }
-}
-
 export function setupWebviewEnvironment(webview) {
   if (!webview || !webview.isConnected) {
     console.warn('Cannot setup webview environment - webview not connected');
@@ -513,9 +313,9 @@ export function setupWebviewEnvironment(webview) {
 
 export default {
   detectEnvironment,
-  applySandboxSettings,
   formatUrl,
   forceElectronMode,
   applySiteSpecificSettings,
+  applySandboxSettings,
   setupWebviewEnvironment
 }; 

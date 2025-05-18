@@ -5,7 +5,7 @@
  * for the Voyager browser component.
  */
 
-import { formatUrl, applySiteSpecificSettings } from '../utils/BrowserEnv';
+import { formatUrl, applySiteSpecificSettings } from '../utils/BrowserUtilities';
 import { updateAddressBar, updateLoadingIndicator } from '../renderers/BrowserRenderer';
 import { renderErrorPage } from './ErrorHandler';
 

@@ -1,19 +1,45 @@
 /**
- * Handlers index file - centralizes all browser handlers for easy importing
+ * Browser Handler Index
+ * Exports all browser handlers for easier importing
  */
 
-// Import all handler files
-import AddressBarManager from './AddressBarManager.js';
-import NavigationService from './NavigationService.js';
-import EventHandlers from './EventHandlers.js';
-import ContentExtractor from './ContentExtractor.js';
+import AddressBarManager from './AddressBarManager';
+import ContentExtractor from './ContentExtractor';
+import ErrorHandler, { ErrorCategories, recordError, getErrorStats, getErrorHistory, exportErrorHistory, clearErrorHistory } from './ErrorHandler';
+import EventHandlers from './EventHandlers';
+import HistoryService from './HistoryService';
+import NavigationService from './NavigationService';
+import ReaderModeManager from './ReaderModeManager';
+import ResearchManager from './ResearchManager';
+import ResearcherEventHandlers from './ResearcherEventHandlers';
+import StyleManager from './StyleManager';
+import VoyagerLifecycle from './VoyagerLifecycle';
+import WebviewInitializer from './WebviewInitializer';
+import ContentExtractionSystem from './ContentExtractionSystem';
 
-// Re-export for easy import in other files
+// Export all handlers
 export {
   AddressBarManager,
-  NavigationService,
+  ContentExtractor,
+  ErrorHandler,
   EventHandlers,
-  ContentExtractor
+  HistoryService,
+  NavigationService,
+  ReaderModeManager,
+  ResearchManager,
+  ResearcherEventHandlers,
+  StyleManager,
+  VoyagerLifecycle,
+  WebviewInitializer,
+  ContentExtractionSystem,
+  
+  // Export specific utilities from ErrorHandler
+  ErrorCategories,
+  recordError,
+  getErrorStats,
+  getErrorHistory,
+  exportErrorHistory,
+  clearErrorHistory
 };
 
 /**
@@ -60,10 +86,19 @@ export function initBrowserHandlers(browser) {
   console.log('Browser handlers initialized successfully');
 }
 
+// Default export for easier importing
 export default {
-  initBrowserHandlers,
   AddressBarManager,
-  NavigationService,
+  ContentExtractor,
+  ErrorHandler,
   EventHandlers,
-  ContentExtractor
+  HistoryService,
+  NavigationService,
+  ReaderModeManager,
+  ResearchManager,
+  ResearcherEventHandlers,
+  StyleManager,
+  VoyagerLifecycle,
+  WebviewInitializer,
+  ContentExtractionSystem
 }; 

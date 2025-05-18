@@ -13,8 +13,7 @@ import DOMPurify from 'dompurify';
 import { nanoid } from 'nanoid';
 import LlmService from '../../../services/LlmService';
 import logger from '../../../utils/logger';
-import { extractFullPageContent } from '../handlers/ContentExtractor';
-import extractionSystem from '../handlers/ContentExtractionSystem';
+import ExtractorManager from '../extraction/ExtractorManager';
 
 /**
  * Debounce function to limit how often a function can be called
@@ -900,24 +899,26 @@ class Researcher {
         
         this.logger.info(`Processing current page: ${currentUrl} (${currentTitle})`);
         
-        // Wrap extractFullPageContent in a Promise to handle both synchronous and asynchronous results
-        return Promise.resolve().then(async () => {
-          try {
-            const result = extractFullPageContent(browser, currentUrl);
-            
-            // Check if result is already a Promise
-            if (result instanceof Promise) {
-              return await result; // Await the Promise
-            }
-            
-            // If not a Promise, return the result directly
-            return result;
-          } catch (error) {
-            // Log the error and reject the Promise
-            console.error('Error in extractFullPageContent:', error);
+        // Use ExtractorManager directly for content extraction
+        return ExtractorManager.extract(browser, currentUrl)
+          .then(result => {
+            // Format the result to match the expected structure
+            return {
+              title: result.title || currentTitle,
+              url: result.url || currentUrl,
+              text: result.text || '',
+              html: result.html || '',
+              mainContent: result.text || '',
+              headings: result.headings || [],
+              links: result.links || [],
+              metadata: result.metadata || {},
+              extractionMethod: result.extractionMethod || 'extractor-manager'
+            };
+          })
+          .catch(error => {
+            console.error('Error using ExtractorManager:', error);
             return Promise.reject(error);
-          }
-        });
+          });
       })
       .then(content => {
         if (!content) {
@@ -2748,11 +2749,22 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
           
           this.logger.info(`Processing current page: ${currentUrl} (${currentTitle})`);
           
-          // Use our new robust extraction system with multiple fallback methods
-          return extractionSystem.extractContent(browser, currentUrl, {
-            // Set extraction options if needed
-            preferredMethod: 'auto'
-          });
+          // Use ExtractorManager directly for content extraction
+          return ExtractorManager.extract(browser, currentUrl)
+            .then(result => {
+              // Format the result to match the expected structure
+              return {
+                title: result.title || currentTitle,
+                url: result.url || currentUrl,
+                text: result.text || '',
+                html: result.html || '',
+                mainContent: result.text || '',
+                headings: result.headings || [],
+                links: result.links || [],
+                metadata: result.metadata || {},
+                extractionMethod: result.extractionMethod || 'extractor-manager'
+              };
+            });
         });
     }
     

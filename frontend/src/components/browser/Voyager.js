@@ -18,32 +18,28 @@ import Researcher from './researcher/Researcher';
 // Import tab management system
 import VoyagerTabManager from './tabs/VoyagerTabManager';
 import TabManagerButton from './tabs/TabManagerButton';
-import TabBar from './tabs/TabBar';
 
 // Import browser component utilities
 import { 
   detectEnvironment,
-  getIconForUrl,
-  formatBytes,
-  showToastNotification,
-  updatePageTitle
+  formatUrl,
+  applySiteSpecificSettings
 } from './utils/BrowserUtilities';
 
-// Use centralized history service instead of directly using HistoryManager
-import * as HistoryService from './handlers/HistoryService';
-
-// Import centralized handlers 
-import { initBrowserHandlers, AddressBarManager } from './handlers/index.js';
+// Use centralized handlers from the index file
+import { 
+  ErrorHandler, 
+  EventHandlers, 
+  HistoryService,
+  initBrowserHandlers 
+} from './handlers/index.js';
 
 import {
   handleBookmarkCreation,
-  updateBookmarksPanel
 } from './utils/BookmarkManager';
 
 import {
   renderHtml,
-  createSafeIframe,
-  renderContentView
 } from './renderers/ContentRenderer';
 
 import {
@@ -52,22 +48,21 @@ import {
   setupWebViewContainer,
   updateAddressBar,
   updateLoadingIndicator,
-  updatePageTitle
+  updatePageTitle as updatePageTitleRenderer
 } from './renderers/BrowserRenderer';
 
-import {
-  renderErrorPage,
-  handlePageLoadError
-} from './handlers/ErrorHandler';
+import { toggleReaderMode, setReaderMode, getReaderMode, isReaderModeActive as checkReaderModeActive } from './handlers/ReaderModeManager';
+import ExtractorManager from './extraction/ExtractorManager';
 
-import {
-  handleLoadStart,
-  handleLoadStop,
-  handlePageNavigation,
-  handleWebviewLoad,
+// Import specific event handlers
+const { 
+  handleLoadStart, 
+  handleLoadStop, 
+  handlePageNavigation, 
+  handleWebviewLoad, 
   handleWebviewError,
   updateNavigationButtons
-} from './handlers/EventHandlers';
+} = EventHandlers;
 
 class Voyager extends Component {
   constructor(props) {
@@ -79,7 +74,7 @@ class Voyager extends Component {
       isLoading: false,
       history: [],
       historyPosition: -1,
-      errorState: null,
+      errorState: null, // Tracks error state for rendering error pages via ErrorHandler
       viewMode: 'browser', // 'browser', 'reader', 'split'
       readerContent: null,
       bookmarks: [],
@@ -146,6 +141,11 @@ class Voyager extends Component {
       // Initialize the browser once state is updated
       this.initialize();
     });
+    
+    // Ensure we have the correct initial view mode
+    if (!this.state.viewMode) {
+      this.setState({ viewMode: 'browser' });
+    }
   }
   
   componentWillUnmount() {
@@ -183,9 +183,8 @@ class Voyager extends Component {
     
     // Call BrowserRenderer version if available
     try {
-      const { updatePageTitle } = require('./renderers/BrowserRenderer');
-      if (typeof updatePageTitle === 'function') {
-        updatePageTitle(this, title);
+      if (typeof updatePageTitleRenderer === 'function') {
+        updatePageTitleRenderer(this, title);
       }
     } catch (err) {
       // Silently handle import errors
@@ -214,7 +213,7 @@ class Voyager extends Component {
     console.log(`Navigating from "${originalUrl}" to formatted URL: "${formattedUrl}"`);
     
     // Apply site-specific settings
-    applySiteSpecificSettings.call(this, formattedUrl);
+    applySiteSpecificSettings(formattedUrl, this.webview);
     
     // Update state
     this.setState({ 
@@ -489,6 +488,14 @@ class Voyager extends Component {
   }
   
   /**
+   * Handle refresh action (alias for refreshPage)
+   * Used by BrowserRenderer.js
+   */
+  handleRefresh = () => {
+    this.refreshPage();
+  }
+  
+  /**
    * Stop loading the current page
    */
   stopLoading() {
@@ -600,23 +607,10 @@ class Voyager extends Component {
    * Toggle reader mode
    */
   toggleReaderMode() {
-    const currentMode = this.state.viewMode;
-    let newMode;
-    
-    if (currentMode === 'browser') {
-      newMode = 'reader';
-    } else if (currentMode === 'reader') {
-      newMode = 'split';
-    } else {
-      newMode = 'browser';
-    }
-    
-    this.setState({ viewMode: newMode });
-    
-    // If entering reader mode and we don't have content yet, try to fetch it
-    if ((newMode === 'reader' || newMode === 'split') && !this.state.readerContent) {
-      this.capturePageContent();
-    }
+    // Use the centralized ReaderModeManager
+    const newMode = toggleReaderMode(this);
+    console.log(`Reader mode toggled to: ${newMode}`);
+    return newMode;
   }
   
   /**
@@ -926,85 +920,28 @@ class Voyager extends Component {
    * @returns {Promise<Object>} Promise resolving to the captured content
    */
   capturePageContent() {
-    return new Promise((resolve, reject) => {
-      if (!this.webview) {
-        reject(new Error('Webview not available'));
-        return;
-      }
-      
-      // Extract content using the webview's executeJavaScript method
-      this.webview.executeJavaScript(`
-        {
-          const title = document.title;
-          const html = document.documentElement.outerHTML;
-          const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'))
-            .map(h => ({ level: h.tagName.toLowerCase(), text: h.textContent.trim() }));
-          
-          { title, html, headings }
-        }
-      `).then(result => {
-        if (!result) {
-          reject(new Error('No content retrieved'));
-          return;
-        }
-        
-        // Update page title using our safe method
-        const pageTitle = result.title || 'Untitled Page';
-        this.setState({ title: pageTitle });
-        
-        // Call updatePageTitle with proper context
-        if (typeof this.updatePageTitle === 'function') {
-          this.updatePageTitle(pageTitle);
-        } else {
-          // Fallback to imported function if method not available
-          const { updatePageTitle } = require('./renderers/BrowserRenderer');
-          if (typeof updatePageTitle === 'function') {
-            updatePageTitle(this, pageTitle);
-          }
-        }
-        
-        // Clean up HTML for memory storage
-        const { cleanupHtmlForMemory, extractMainContent } = require('./handlers/ContentExtractor');
-        const cleanHtml = cleanupHtmlForMemory ? cleanupHtmlForMemory(result.html) : result.html;
-        
-        // Extract main content
-        const mainContent = extractMainContent ? extractMainContent(cleanHtml) : cleanHtml;
-        
-        // Update state with reader content
-        this.setState({ readerContent: mainContent });
-        
-        const content = {
-          url: this.state.url,
-          title: pageTitle,
-          html: cleanHtml,
-          mainContent: mainContent,
-          headings: result.headings || [],
-          capturedAt: new Date().toISOString(),
-          text: mainContent.replace(/<[^>]*>/g, ' ').trim() // Extract plain text from HTML
+    // Use ExtractorManager directly to extract content
+    return ExtractorManager.extract(this, this.state?.url || '')
+      .then(result => {
+        // Format the result to match the expected API
+        return {
+          title: result.title || this.state?.title || 'Untitled Page',
+          url: result.url || this.state?.url || '',
+          text: result.text || '',
+          processedContent: result.html || result.text || '',
+          timestamp: result.timestamp || new Date().toISOString()
         };
-        
-        // Update research panel if in research mode
-        if (this.state.researchMode && this.researcher) {
-          // Use processPage instead of addResearchItem (which doesn't exist)
-          if (typeof this.researcher.processPage === 'function') {
-            this.researcher.processPage(this.state.url, this.state.title, content);
-          } else if (typeof this.researcher.addResearchItem === 'function') {
-            // Legacy fallback
-            this.researcher.addResearchItem(content);
-          }
-        }
-        
-        // Capture page metadata for memory
-        if (this.props && this.props.onContentCapture) {
-          this.props.onContentCapture(content);
-        }
-        
-        resolve(content);
-      }).catch(err => {
-        console.error('Error capturing page content:', err);
-        reject(err);
+      })
+      .catch(error => {
+        console.error('Content extraction error:', error);
+        // Return minimal content in case of error
+        return {
+          title: this.state?.title || 'Untitled Page',
+          url: this.state?.url || '',
+          text: 'Content extraction failed. The page might be too complex or require authentication.',
+          processedContent: '<p>Content extraction failed. The page might be too complex or require authentication.</p>'
+        };
       });
-    });
   }
   
   /**
@@ -1203,6 +1140,8 @@ class Voyager extends Component {
         this.webview.addEventListener('did-stop-loading', this.handleLoadStop);
         this.webview.addEventListener('did-navigate', this.handlePageNavigation);
         this.webview.addEventListener('did-finish-load', event => handleWebviewLoad(this, event));
+        this.webview.addEventListener('did-fail-load', this.handleDidFailLoad);
+        this.webview.addEventListener('certificate-error', this.handleCertificateError);
         
         console.log('Event handlers properly bound to webview');
       }
@@ -1259,6 +1198,8 @@ class Voyager extends Component {
       this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
       this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
       this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
+      this.webview.removeEventListener('did-fail-load', this.handleDidFailLoad);
+      this.webview.removeEventListener('certificate-error', this.handleCertificateError);
     }
     
     // Clean up sidebar observer if it exists
@@ -1356,7 +1297,7 @@ class Voyager extends Component {
       });
       
       // Use the centralized error handler
-      handlePageLoadError(this, e, this.state.currentUrl || 'Unknown URL');
+      ErrorHandler.handlePageLoadError(this, e, this.state.currentUrl || 'Unknown URL');
       
       // If error handler exists, call it
       if (typeof this.props.onError === 'function') {
@@ -1380,6 +1321,43 @@ class Voyager extends Component {
     }
   }
   
+  /**
+   * Handle certificate errors
+   * @param {Event} e - Certificate error event
+   */
+  handleCertificateError = (e) => {
+    console.warn('Certificate error:', e);
+    
+    // Use the centralized error handler
+    ErrorHandler.handleCertificateError(this, e);
+    
+    // If error handler exists, call it
+    if (typeof this.props.onError === 'function') {
+      this.props.onError({
+        type: 'certificate',
+        details: e
+      });
+    }
+  }
+  
+  /**
+   * Go back in navigation history
+   */
+  goBack = () => {
+    if (this.webview && typeof this.webview.goBack === 'function' && this.webview.canGoBack()) {
+      this.webview.goBack();
+    }
+  }
+  
+  /**
+   * Go forward in navigation history
+   */
+  goForward = () => {
+    if (this.webview && typeof this.webview.goForward === 'function' && this.webview.canGoForward()) {
+      this.webview.goForward();
+    }
+  }
+  
   render() {
     // Destructure props for easier access and defaults
     const { 
@@ -1392,6 +1370,10 @@ class Voyager extends Component {
       enableResearch = true,
       autoAnalyzeContent = false
     } = this.props || {};
+    
+    // Use ReaderModeManager to check if reader mode is active
+    const isReaderModeActive = checkReaderModeActive(this);
+    const readerMode = getReaderMode(this);
     
     // Compute container styles
     const containerStyle = {
@@ -1430,7 +1412,9 @@ class Voyager extends Component {
             
             {/* Reader mode toggle */}
             <button onClick={this.toggleReaderMode} style={{ marginLeft: '8px' }}>
-              📖
+              <span className="material-icons" title="Toggle reader mode">
+                {isReaderModeActive ? 'chrome_reader_mode' : 'view_headline'}
+              </span>
             </button>
             
             {/* Bookmark button */}
@@ -1450,8 +1434,8 @@ class Voyager extends Component {
           <div 
             className="voyager-browser-container"
             style={{
-              flex: this.state.viewMode === 'reader' ? 0 : (this.state.viewMode === 'split' ? 1 : 1),
-              display: this.state.viewMode === 'reader' ? 'none' : 'block',
+              flex: readerMode === 'reader' ? 0 : (readerMode === 'split' ? 1 : 1),
+              display: readerMode === 'reader' ? 'none' : 'block',
               height: '100%',
               position: 'relative'
             }}
@@ -1460,12 +1444,12 @@ class Voyager extends Component {
           </div>
           
           {/* Reader view */}
-          {(this.state.viewMode === 'reader' || this.state.viewMode === 'split') && (
+          {isReaderModeActive && (
             <div 
               className="voyager-reader-view"
               style={{
-                flex: this.state.viewMode === 'browser' ? 0 : (this.state.viewMode === 'split' ? 1 : 1),
-                display: this.state.viewMode === 'browser' ? 'none' : 'block',
+                flex: readerMode === 'browser' ? 0 : (readerMode === 'split' ? 1 : 1),
+                display: readerMode === 'browser' ? 'none' : 'block',
                 padding: '20px',
                 height: '100%',
                 overflow: 'auto',
@@ -1498,7 +1482,7 @@ class Voyager extends Component {
             </div>
           )}
           
-          {/* Error state */}
+          {/* Error state - Using centralized ErrorHandler for error display */}
           {this.state.errorState && (
             <div className="voyager-error-container" style={{
               position: 'absolute',
@@ -1510,12 +1494,21 @@ class Voyager extends Component {
               padding: '20px',
               overflow: 'auto'
             }}>
-              <h2>Browser Error</h2>
-              <p>Error Code: {this.state.errorState.code}</p>
-              <p>URL: {this.state.errorState.url}</p>
-              <p>{this.state.errorState.message}</p>
-              <button onClick={() => this.navigate(this.state.url)}>Try Again</button>
-              <button onClick={() => this.setState({ errorState: null })}>Dismiss</button>
+              {/* Render error page using the centralized ErrorHandler */}
+              {(() => {
+                ErrorHandler.renderErrorPage(this, {
+                  code: this.state.errorState.code,
+                  description: this.state.errorState.message || this.state.errorState.description,
+                  url: this.state.errorState.url,
+                  type: ErrorHandler.getErrorType(this.state.errorState.code),
+                  onRetry: () => this.navigate(this.state.url),
+                  onBack: () => {
+                    ErrorHandler.clearError(this);
+                    this.goBack();
+                  }
+                });
+                return null; // Error page is rendered through the ErrorHandler
+              })()}
             </div>
           )}
         </div>

@@ -1,5 +1,209 @@
 # Changelog
 
+## Browser Compatibility Fixes for Buffer and Worker Threads
+- Fixed 'require is not defined' error with Buffer in renderer process:
+  - Updated webpack configuration to properly handle browser environment
+  - Added proper polyfills for Node.js Buffer and worker_threads modules
+  - Created mock implementation for worker_threads used by metascraper
+  - Added proper ESM-compatible imports for Buffer to work in browser context
+  - Fixed webpack target to 'web' instead of 'electron-renderer' for better compatibility
+  - Added fallback implementations for Node.js core modules
+  - Enhanced global-polyfill.js to better handle Node.js compatibility
+
+## Renderer Process Buffer Fix
+- Fixed "Uncaught ReferenceError: require is not defined" error in renderer process:
+  - Added proper Buffer polyfill in global-polyfill.js to ensure browser compatibility
+  - Updated webpack.config.js with absolute paths for buffer and process polyfills
+  - Added missing dependencies (buffer and process) to frontend package.json
+  - Enhanced Node.js module fallbacks in webpack configuration
+  - Added additional webpack plugins to properly handle Node.js globals in browser context
+
+## Browser URL Module Fix
+- Fixed 'require is not defined' error in the Settings component:
+  - Replaced Node.js 'url' module usage with browser-compatible URL API
+  - Created browser-friendly UrlUtils.js implementation with equivalent functionality
+  - Removed direct Node.js module references in renderer process code
+  - Ensured compatibility in both Electron and browser environments
+
+## Webpack Polyfill Fix
+- Fixed 'require is not defined' error in renderer process:
+  - Added proper polyfills for Node.js modules (url, buffer, querystring)
+  - Updated webpack.config.js with correct fallback configurations
+  - Added webpack.ProvidePlugin to ensure Buffer and process globals are available
+  - Fixed HeadingProcessor.js and other components to work correctly in the browser context
+
+## Legacy Adapter Implementation for Build Fix
+- Fixed build errors related to missing adapter files:
+  - Implemented proper LegacyContentExtractor adapter that wraps ExtractorManager
+  - Created LegacyExtractionSystem adapter for backward compatibility
+  - Updated ContentExtractor.js to use ExtractorManager directly
+  - Updated ReaderModeManager.js to remove references to legacy adapters
+  - Fixed franc import in MetadataProcessor.js to use named import
+  - Ensured all components use modern extraction system directly where possible
+
+## Asynchronous Metadata Processing
+- Updated MetadataProcessor.js to properly implement async/await functionality:
+  - Replaced synchronous implementation with proper asynchronous model
+  - Utilized the metascraper library's async capabilities correctly
+  - Updated ContentProcessor.js to handle async metadata processing
+  - Modified ContentEnhancer.js to work with async processing chain
+  - Updated ExtractorManager.js to properly await async operations
+  - Enhanced error handling throughout the async processing chain
+  - Improved metadata extraction quality with proper async library usage
+
+## Build System Dependency Fix
+- Fixed build errors related to missing npm packages:
+  - Replaced non-existent `metaparse` package with `metascraper` (v5.46.15)
+  - Updated MetadataProcessor.js to use metascraper instead of metaparse
+  - Removed problematic `language-detect` dependency
+  - Fixed package installation for `@mozilla/readability` and `franc`
+  - Enhanced MetadataProcessor.js with simplified metadata extraction approach
+
+## Legacy Content Extractor Removal
+- Removed legacy extraction system in favor of using ExtractorManager directly:
+  - Removed dependencies on LegacyContentExtractor.js and LegacyExtractionSystem.js
+  - Updated Voyager.js to use ExtractorManager directly for content extraction
+  - Updated Researcher.js to use ExtractorManager for page processing
+  - Enhanced result format standardization between components
+  - Simplified code paths by removing unnecessary adapter layers
+  - Improved extraction reliability with direct use of modern extraction system
+  - Reduced code complexity and potential for inconsistencies
+
+## Extraction System Refactoring
+- Added intelligent strategy selector to `ExtractorManager` to replace cascading fallback logic
+- Created missing extractor files: `DomProxyExtractor.js`, `IpcExtractor.js`, `FetchExtractor.js`
+- Added new utility files: `ContentEnhancer.js`, `UrlUtils.js` for extraction optimization
+- Improved extraction metrics tracking for better strategy selection
+- Added URL-based heuristics to select optimal extraction strategy
+
+## Enhanced Metadata Processing with Metaparse Integration
+- Added robust metadata extraction capabilities:
+  - Integrated metaparse library for advanced metadata parsing and normalization
+  - Enhanced language detection with franc library support
+  - Improved OpenGraph and Twitter card extraction with fallback mechanisms
+  - Added intelligent content-type classification
+  - Created comprehensive metadata processing hierarchy with multi-tiered fallbacks
+  - Enhanced date processing with better extraction and normalization
+  - Added support for HTML-based metadata extraction
+  - Implemented metadata enrichment capabilities
+
+## Enhanced Web Content Extraction System
+- Upgraded content extraction to use modern libraries and approaches:
+  - Integrated Mozilla's Readability.js for improved article content extraction
+  - Added DOM-to-JSON conversion utilities for better content processing
+  - Created intelligent extractor selection system with priority-based fallbacks
+  - Enhanced content validation with quality scoring and metadata extraction
+  - Added specialized content processors for different extraction methods
+  - Improved error recovery with multiple extraction fallback mechanisms
+  - Enhanced text formatting with better paragraph detection and structure
+  - Added specialized ReadabilityAdapter for Mozilla readability implementation
+  - Created comprehensive JSON DOM utilities for structured content extraction
+  - Maintained backward compatibility with legacy extraction systems
+
+## Content Processor Implementation
+- Implemented specialized content processors for browser extraction:
+  - Created HeadingProcessor.js with hierarchy detection and outline generation
+  - Added LinksProcessor.js with URL normalization and categorization features
+  - Implemented MetadataProcessor.js with OpenGraph and social metadata support
+  - Enhanced ReadabilityAdapter.js to use Mozilla's Readability library
+  - Added language detection capabilities to MetadataProcessor
+  - Integrated URL parsing and normalization for link processing
+  - Added content type classification based on metadata analysis
+  - Enhanced heading hierarchy processing with parent-child relationships
+  - Added duplicate link filtering and internal/external link classification
+  - Updated package.json with necessary dependencies (@mozilla/readability, franc, language-detect)
+
+## Centralized ErrorHandler Implementation
+- Integrated centralized ErrorHandler.js into Voyager browser while maintaining Separation of Concerns:
+  - Updated imports to use ErrorHandler from handlers/index.js for better modularity
+  - Added certificate error handling with proper event listeners
+  - Improved error state management with centralized rendering
+  - Enhanced error page generation with consistent styling and behavior
+  - Added clean error recovery paths for navigation errors
+  - Improved code maintainability with centralized error tracking
+
+## Reader Mode Timeout Fix (2023-10-10)
+- Fixed navigation timeout issues in Reader Mode when loading complex sites:
+  - Increased extraction timeout from 5 seconds to 10 seconds for better handling of complex sites
+  - Added improved cleanup for loading indicators to prevent UI from getting stuck
+  - Fixed potential memory leaks by clearing all timeouts properly
+  - Added special handling for Britannica.com to the list of complex sites
+  - Enhanced error recovery with a new cleanupLoadingIndicators utility
+  - Fixed z-index issue in reader-loading styling to prevent elements from being hidden
+  - Added specialized timeout for complex site extraction to better handle Wikipedia and Britannica
+  - Improved error handling with better failure recovery
+
+## [0.3.9] - Enhanced Reader Mode for Complex Websites
+
+## Enhanced Reader Mode for Complex Websites (2023-07-25)
+- Improved content extraction for Reddit and other complex sites
+- Added specialized extraction logic for social media sites (Reddit, Twitter, Facebook)
+- Fixed "freezing" issues with reader mode on complex websites
+- Enhanced error handling and recovery with user-friendly error messages
+- Added better loading indicators and transitions
+- Implemented content caching to prevent duplicate extractions
+- Improved split view rendering for better side-by-side comparison
+- Updated reader mode CSS with improved typography and responsive design
+
+## Reader Mode Improvements and Fixes (2023-09-18)
+
+- Fixed freezing issues in the Reader Mode implementation by completely rewriting the DOM manipulation logic
+- Enhanced reader mode styling with better positioning, animations, and visual feedback
+- Added loading indicator for reader mode to improve user experience
+- Fixed split view mode to properly display original content alongside reader view
+- Improved button interactions to prevent rapid clicking issues
+- Enhanced responsiveness and mobile compatibility
+
+## Enhanced Reader Mode Implementation (2023-06-29)
+
+- Added complete reader mode functionality to Voyager browser
+- Created dedicated reader-mode.css with comprehensive styling for reader view
+- Added reader mode button to browser UI for easy access
+- Implemented three view modes: normal browsing, reader mode, and split view
+- Added typography controls for font size and font family customization
+- Created persistent user preferences for font settings using localStorage
+- Implemented content formatting with proper handling of headings, lists, and code blocks
+- Added responsive design support for all screen sizes
+- Created modern UI with clean typography and proper spacing
+- Enhanced dark mode support with dedicated color variables
+- Added smooth transitions between reader and normal browsing modes
+- Implemented toolbar with intuitive reader controls
+- Created split view for side-by-side comparison of original and reader views
+
+## Browser Reader Mode Integration (2023-06-28)
+
+- Centralized reader mode functionality in ReaderModeManager.js
+- Fixed import issues between Voyager.js and ReaderModeManager.js
+- Updated ContentExtractor.js to properly export capturePageContent function for ReaderModeManager
+- Fixed function name collision with isReaderModeActive
+- Improved code organization by delegating reader mode functionality to dedicated handler
+- Enhanced maintainability by centralizing overlapping functionality
+
+## Voyager Browser Refresh Button Fix (2023-06-26)
+
+- Fixed "Uncaught TypeError: e.handleRefresh is not a function" error in Voyager browser component
+- Added handleRefresh method as an alias for refreshPage to maintain compatibility with BrowserRenderer.js
+- Improved method compatibility between Voyager and BrowserRenderer components
+- Enhanced browser refresh functionality with better error handling
+
+## Browser URL Formatting Fix (2023-06-23)
+
+- Fixed "formatUrl is not defined" error in Voyager.js by adding proper import from BrowserUtilities.js
+- Added missing applySiteSpecificSettings import to ensure proper URL handling
+- Enhanced module imports to maintain consistent function usage across browser components
+- Synchronized browser utility functions between Voyager and BrowserEnv modules
+- Fixed URL navigation and site-specific configuration handling in Voyager browser
+
+## Voyager Browser URL Handling Fix (2023-06-22)
+
+- Added missing `formatUrl` function to BrowserUtilities.js to fix browser navigation
+- Implemented intelligent URL formatting with proper protocol detection
+- Added search query handling for non-URL text
+- Fixed "formatUrl is not defined" errors in address bar navigation
+- Resolved tab creation issues that were breaking browser functionality
+- Enhanced URL formatting with domain validation and search fallback
+- Improved URL parsing for better user experience with incomplete URLs
+
 ## Browser History Management Integration (2023-06-21)
 
 - Centralized browser history management through integrated HistoryService.js
@@ -562,43 +766,16 @@
 
 ## 2023-08-08
 
-### [0.5.38] - Fixed Research Component Issues
-- Fixed `Cannot read properties of null` errors in browser event handlers
-- Improved error handling for toggleResearchMode, savePage, and addBookmark
-- Added proper null checks for all method calls to prevent undefined references
-- Enhanced visual feedback for research mode toggle and other actions 
-- Added comprehensive error handling to all browser action methods
-- Improved robustness when dependencies fail to load
-- Added graceful fallbacks for component initialization failures
-
-## 2023-08-07
-
-### [0.5.37] - Added Research Component to Browser
-- Added a comprehensive research component to the Voyager browser
-- Implemented research mode toggle functionality with visual feedback
-- Created a research panel UI for tracking and analyzing visited pages
-- Integrated with LLM service for automated content analysis
-- Added ability to save researched content to knowledge base
-- Implemented content extraction and analysis with LLM integration
-- Added missing browser functionality: addBookmark, savePage, toggleResearchMode
-- Fixed "Cannot read properties of null" errors in browser event handlers
-- Enhanced ContentExtractor to support research panel updates
-- Added IPC handler for saving page content to knowledge base
-- Implemented document saving with embedding generation
-- Added ability to analyze and summarize research content with LLM
-
-## 2023-08-06
-
-### [0.5.36] - Fixed Electron Build Permission Issues
+### [0.5.38] - Fixed Electron Build Permission Issues
 - Fixed EACCES permission errors when running build scripts
 - Added comprehensive build directory cleanup functionality to prevent permission conflicts
 - Enhanced build process with better error handling for file access issues  
 - Implemented multiple directory removal fallbacks for stubborn permission errors
 - Improved cleanup process with targeted removal of problematic directories
 
-## 2023-08-05
+## 2023-08-07
 
-### [0.5.35] - Fixed Browser Webview Content Display
+### [0.5.37] - Fixed Browser Webview Content Display
 - Fixed issue where website content (including signin buttons) was being covered by the navigation bar
 - Ensured consistent height/positioning values (92px = 52px address bar + 40px toolbar) across all styling
 - Added specific fixes for Google UI elements to prevent them being hidden
@@ -613,7 +790,7 @@
 - Added missing position:relative properties to ensure proper stacking context creation
 - Ensured pointer events work correctly with the proper z-index hierarchy
 
-## [0.5.34] - Working Browser Component
+## [0.5.36] - Working Browser Component
 ### Fixed
 - Implemented comprehensive webview readiness checks to improve Voyager browser component stability:
   - Added proper DOM attachment detection before executing JavaScript in webview
@@ -631,7 +808,7 @@
   - Updated event handling to properly wrap JS code for event listeners
   - Fixed execution issues in browser utils and handlers
 
-## [0.5.33] - Fixed Voyager JavaScript Execution Errors
+## [0.5.35] - Fixed Voyager JavaScript Execution Errors
 
 ### Fixed
 - Fixed critical JavaScript syntax and execution errors in browser webview:
@@ -643,7 +820,7 @@
   - Renamed functions to prevent naming conflicts
   - Applied comprehensive fixes to all webview JavaScript execution
 
-## [0.5.32] - Fixed Voyager Missing Handler Functions
+## [0.5.34] - Fixed Voyager Missing Handler Functions
 
 ### Fixed
 - Fixed critical errors in Voyager browser event handling:
@@ -655,7 +832,7 @@
   - Fixed navigation errors with better error handling for uninitialized history objects
   - Improved fault tolerance in browser progress bar and content handling functions
 
-## [0.5.31] - Voyager Browser Initialization and Rendering Fix
+## [0.5.33] - Voyager Browser Initialization and Rendering Fix
 
 ### Fixed
 - Fixed critical error with Voyager browser component not properly initializing:
@@ -671,7 +848,7 @@
   - Fixed "Cannot update loading indicator - elements missing" error with improved reference handling
   - Fixed double initialization issue with proper state tracking
 
-## [0.5.30] - Fixed Voyager/Browser React Rendering Error
+## [0.5.32] - Fixed Voyager/Browser React Rendering Error
 
 ### Fixed
 - Fixed critical error when rendering Voyager/Browser component:
@@ -683,7 +860,7 @@
   - Added optional chaining for isLoading state check to prevent null reference errors
   - Improved browser container management with more robust cleanup
 
-## [0.5.29] - Enhanced Voyager Component Null Handling
+## [0.5.31] - Enhanced Voyager Component Null Handling
 
 ### Fixed
 - Fixed critical null reference errors in Voyager browser component:
@@ -695,7 +872,7 @@
   - Improved component resilience during initialization and navigation
   - Enhanced error handling in webview container setup
 
-## [0.5.28] - Voyager Navigation Methods Implementation
+## [0.5.30] - Voyager Navigation Methods Implementation
 
 ### Fixed
 - Added critical navigation lifecycle methods to Voyager browser component:
@@ -715,7 +892,7 @@
   - Added internal state tracking for component lifecycle management
   - Fixed "Cannot read properties of null (reading 'initialUrl')" error
 
-## [0.5.27] - Voyager Webview Flicker Reduction
+## [0.5.29] - Voyager Webview Flicker Reduction
 
 ### Fixed
 - Fixed Voyager webview flickering during loading with more stable rendering:
@@ -731,7 +908,7 @@
   - Added dimension verification with 3px tolerance for pixel-perfect sizing
   - Fixed Google content rendering with enhanced selectors for search results pages
 
-## [0.5.26] - Voyager Instant Webview Rendering Fix
+## [0.5.28] - Voyager Instant Webview Rendering Fix
 
 ### Fixed
 - Fixed webview showing incorrect styling for 10 seconds before rendering correctly:
@@ -747,7 +924,7 @@
   - Enhanced preloading of styles with critical positioning and visibility properties
   - Fixed race conditions in style application and loading screen handling
 
-## [0.5.25] - Voyager Webview Loading Enhancement
+## [0.5.27] - Voyager Webview Loading Enhancement
 
 ### Fixed
 - Further optimized Voyager (formerly Browser) webview loading for immediate and consistent display:
@@ -5288,177 +5465,3 @@ These changes address the "webview not ready" errors and provide a more robust e
   - Implemented validation before processing
   - Added automatic type conversion where appropriate
   - Enhanced error handling with validation context
-
-## [0.3.17] - Modular Tools System
-
-### Added
-- Created extensible tools system for document processing
-  - Implemented `backend/src/services/tools.js`: Main service for managing and executing tools
-  - Created `frontend/src/services/tools/` directory structure for modular tools
-  - Added `frontend/src/services/tools/registry.js`: Tool registry for managing available tools
-  - Created `frontend/src/services/tools/summaryGenerator/`: Document summary generation tool
-  - Added `frontend/src/services/tools/toolRegistry.json`: JSON configuration for available tools
-  - Created `frontend/src/services/tools/GeminiFunctionCaller.js`: Utility for Gemini function calling
-- Implemented document summary generation tool
-  - Added backend summary generation with text analysis
-  - Created frontend fallback for summary generation
-  - Implemented key points extraction from document text
-  - Added client/server execution capabilities
-- Enhanced ApiService with tools functionality
-  - Added methods for tool discovery and execution
-  - Implemented tool-specific API methods
-  - Enhanced error handling for tools
-
-### Changed
-- Updated IPC handlers to support tools functionality
-  - Added get-available-tools, execute-tool and generate-summary handlers
-  - Improved error handling for tool execution
-  - Enhanced backend initialization to include tools service
-
-## [0.3.16] - Frontend Logger Fix
-
-### Fixed
-- Fixed critical "process is not defined" error in frontend logger
-  - Updated `frontend/src/utils/logger.js` to properly detect browser environment
-  - Completely rewrote logger implementation to use pure browser-compatible code
-  - Removed all Node.js dependencies (electron-log, require, process) from browser code
-  - Used CommonJS module exports pattern for compatibility with Electron
-  - Enhanced environment detection to avoid process reference in browser context
-  - Fixed error that was preventing ThinkingVisualization component from loading
-
-## [0.3.15] - Chat Input Fix
-
-### Fixed
-- Fixed critical issue with chat input not properly sending messages
-  - Added proper method binding in ChatInput.js to prevent context loss 
-  - Improved Enter key handling with better input validation
-  - Fixed binding issues between App.js and ChatUI.js components
-  - Enhanced error handling in message submission process
-  - Added direct button click handler for better mobile support
-  - Created separated submitMessage method for cleaner code structure
-  - Fixed input state management after message submission
-  - Added proper validation of message content before submission
-
-## [0.3.14] - Backend Communication Fix
-
-### Fixed
-- Fixed critical backend communication issues preventing chat from functioning
-  - Added proper IPC handlers in `backend/server.js` to handle direct communication with frontend
-  - Updated `frontend/src/preload.js` to prioritize IPC communication over HTTP fallback
-  - Enhanced error handling for backend connection issues with better user feedback
-  - Fixed "Electron net module is not available" error by implementing proper IPC channels
-  - Added direct IPC handlers for health check, config, chat, and tool execution
-  - Improved `frontend/src/main.js` to initialize backend server and set up IPC handlers
-  - Added basic IPC handlers directly in the main process as a fallback
-  - Created robust failover from IPC to HTTP when needed
-  - Enhanced error reporting with specific error messages for connection issues
-
-### Added
-- Added better backend server integration with Electron
-  - Implemented proper backend server initialization in the main process
-  - Added IPC bridge between frontend and backend services
-  - Created direct communication channel between renderer process and backend
-
-### Changed
-- Improved communication architecture between frontend and backend
-  - Changed from HTTP-only to IPC-first with HTTP fallback approach
-  - Enhanced error handling for backend connectivity issues
-  - Improved logging for backend connection status
-
-## [0.3.13] - Chat Implementation Optimization
-
-### Fixed
-- Fixed duplicate header creation in ChatUI component
-- Resolved conflict between App component and ChatUI for header and footer management
-- Fixed chat layout issues with proper container hierarchy
-- Eliminated input container duplication issues
-- Improved component cleanup to ensure proper removal of all elements
-- Fixed focus issues in chat input when rendering component
-
-### Added
-- Added chat-container-wrapper component for better structure
-- Created proper separation between shared app structure and chat-specific components
-- Improved header integration with consistent styling
-
-### Changed
-- Moved header creation responsibilities to App component
-- Updated ChatUI component to focus on chat functionality only
-- Improved component lifecycles to prevent memory leaks
-- Enhanced input field management with proper focus handling
-- Added better component cleanup when navigating between sections
-
-## [0.3.12] - Frontend CSS Optimization
-
-### Fixed
-- Resolved duplicate CSP (Content Security Policy) definitions in index.html
-- Removed duplicate bundle.js script tag from index.html
-- Fixed conflicting CSS animation definitions between main.css and component stylesheets
-- Eliminated multiple implementations of the same UI components (header/footer)
-
-### Added
-- Created shared animations.css file for consistent animations across all components
-- Improved CSS organization with proper import hierarchy
-- Enhanced style maintainability through better component isolation
-
-### Changed
-- Optimized CSS import structure for better performance
-- Consolidated animations into a shared file to reduce duplication
-- Improved component styling organization for better maintainability
-
-## [0.3.11] - Modern Dark Theme Redesign
-
-### Added
-- Implemented modern dark-themed UI throughout the application
-- Added responsive header with navigation menu
-- Enhanced footer with links and copyright information
-- Added new UI animations and transitions
-- Implemented improved loading states for search
-- Added content actions (copy, export) to ContentViewer
-- Improved error handling and empty state displays
-
-### Changed
-- Completely redesigned the color scheme with dark palette
-- Enhanced typography with better contrast and readability
-- Improved component layouts for better user experience
-- Updated UI components with modern styling
-- Enhanced button styles with hover and active states
-- Added custom scrollbar styling for better integration
-- Improved responsive design for mobile devices
-
-### New Components/Features
-- Added navigation system for app sections
-
-### Fixed
-- Fixed TypeError in getSourceColor methods by adding null checks for undefined sourceType values
-  - Updated Dashboard.js, SearchSection.js, ContentList.js, and renderer.js to handle undefined source types
-  - Prevented "Cannot read properties of undefined (reading 'toLowerCase')" error that was breaking dashboard initialization
-- Fixed Content Security Policy issues with webpack bundling
-  - Modified webpack.config.js to use 'inline-source-map' instead of eval-based sourcemaps
-  - Added Content-Security-Policy meta tag in HtmlWebpackPlugin configuration
-  - Disabled webSecurity in Electron for development environments
-
-## [0.3.10] - Memory Management and Database Fixes
-
-### Fixed
-- Fixed memory manager batch size calculation to properly adjust for item size
-  - Updated `backend/src/memory/memoryManager.js` to ensure smaller items get larger batch sizes and larger items get smaller batch sizes
-  - Added logic to prevent large items from using maximum batch size, ensuring proper differentiation in batch sizing
-- Fixed search service database initialization issues in tests
-  - Updated `backend/test/search.test.js` to properly mock database collection
-  - Enhanced `backend/src/services/database.js` vectorSearch function to handle test environments better
-  - Added global.testCollection support for improved test reliability
-  - Fixed error message expectations in tests to match actual error messages
-- Fixed test framework incompatibilities
-  - Updated `backend/test/search.test.js` to use Jest's `beforeAll`/`afterAll` instead of Mocha's `before`/`after`
-  - Fixed Electron IPC mocking in `backend/test/ipc.test.js` by using proper getter methods for ipcMain
-  - Enhanced test stability for cross-framework compatibility
-- Fixed IPC handler initialization in main process
-  - Updated `frontend/src/main.js` to correctly call `initializeIpcHandlers` instead of non-existent `setupIpcHandlers` function
-  - Added database initialization to the main Electron process to ensure database is ready before IPC handlers are initialized
-  - Modified `backend/src/services/database.js` to use raw database connection when memory-managed connection is missing methods
-  - Resolved "Error: Database not initialized" error in listItems handler
-  - Fixed "Error: No handler registered for 'list-items'" error that was preventing database items from being listed
-- Enhanced memory manager to preserve all database connection methods
-  - Updated `backend/src/memory/dbMemoryManager.js` to wrap all methods from original connection objects
-  - Added intelligent handling for both async and sync database methods
-  - Expanded monitoring to include database-specific operations like `createTable` and `openTable`
