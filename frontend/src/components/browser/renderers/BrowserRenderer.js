@@ -2572,7 +2572,8 @@ export function setupBrowserLayout(browser) {
       tabBarCssLink.href = './components/browser/tabs/TabBar.css';
       document.head.appendChild(tabBarCssLink);
       
-      ReactDOM = require('react-dom');
+      // Import from react-dom/client for React 18 compatibility
+      ReactDOM = require('react-dom/client');
       React = require('react');
       TabBar = require('../tabs/TabBar').default;
       console.log('TabBar component loaded successfully:', !!TabBar);
@@ -2650,7 +2651,9 @@ export function setupBrowserLayout(browser) {
     const renderTabBar = () => {
       console.log('Attempting to render TabBar component...');
       try {
-        ReactDOM.render(
+        // Use createRoot for React 18 compatibility
+        const root = ReactDOM.createRoot(tabBarContainer);
+        root.render(
           React.createElement(TabBar, {
             tabManager: tabManager,
             activeTabId: tabManager.getActiveTabId(),
@@ -2677,8 +2680,7 @@ export function setupBrowserLayout(browser) {
               // Navigate to the new tab's URL
               browser.navigate(newTab.url);
             }
-          }),
-          tabBarContainer
+          })
         );
         console.log('TabBar component rendered successfully');
       } catch (renderError) {

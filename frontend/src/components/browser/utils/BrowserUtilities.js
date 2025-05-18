@@ -111,7 +111,7 @@ export function applySiteSpecificSettings(url, webview) {
               }
             } catch (webContentsError) {
               // WebContents not ready yet, log and continue
-              console.log('WebContents not ready:', webContentsError.message);
+              console.log('WebContents not ready: The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called.');
             }
           }
         } catch (userAgentError) {
@@ -220,9 +220,16 @@ export function applySandboxSettings(element, sandboxLevel) {
 export function getIconForUrl(url) {
   try {
     const urlObj = new URL(url);
-    return `${urlObj.protocol}//${urlObj.hostname}/favicon.ico`;
+    
+    // Option 1: Return a data URL placeholder icon
+    return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktZ2xvYmUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+PHBhdGggZD0iTTAgOGE4IDggMCAxIDEgMTYgMEE4IDggMCAwIDEgMCA4em03LjUtNi45NWEuNS41IDAgMCAwLS41LjV2MS4yNWEuNS41IDAgMCAwIC41LjVoLjVhLjUuNSAwIDAgMSAuNS41djUuNWEuNS41IDAgMCAxLS41LjVoLS41YS41LjUgMCAwIDAgMCAxaDFhLjUuNSAwIDAgMCAuNS0uNXYtNS41YS41LjUgMCAwIDEgLjUtLjVoNWEuNS41IDAgMCAwIDAtMWgtNWEuNS41IDAgMCAxLS41LS41di0xLjI1YS41LjUgMCAwIDAtLjUtLjVoLTV6Ii8+PC9zdmc+';
+    
+    // Option 2: If backend proxy is available, use it instead
+    // Uncomment this and comment out Option 1 if backend proxy is implemented
+    // return `/api/favicon?url=${encodeURIComponent(urlObj.origin)}`;
   } catch (e) {
-    return '';
+    // Return default icon on error
+    return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktZmlsZS1lYXJtYXJrIiB2aWV3Qm94PSIwIDAgMTYgMTYiPjxwYXRoIGQ9Ik03IDEwLjVhLjUuNSAwIDAgMSAuNS0uNWgxYS41LjUgMCAwIDEgLjUuNXYxYS41LjUgMCAwIDEtLjUuNWgtMWEuNS41IDAgMCAxLS41LS41di0xeiIvPjxwYXRoIGQ9Ik0yIDJhMiAyIDAgMCAxIDItMmg4YTIgMiAwIDAgMSAyIDJ2MTJhMiAyIDAgMCAxLTIgMkgyYTIgMiAwIDAgMS0yLTJWMnptMi0xYTEgMSAwIDAgMC0xIDF2MTJhMSAxIDAgMCAwIDEgMWg4YTEgMSAwIDAgMCAxLTFWMmExIDEgMCAwIDAtMS0xSDR6Ii8+PC9zdmc+';
   }
 }
 

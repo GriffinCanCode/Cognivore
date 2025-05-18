@@ -1,5 +1,27 @@
 # Changelog
 
+### [0.5.84] - Content Extraction System Refactor
+
+## Content Extraction System Consolidation
+- Deleted redundant extraction files in favor of centralized ExtractorManager:
+  - Removed ContentExtractionSystem.js and ContentExtractor.js
+  - Updated all references to use ExtractorManager.js exclusively
+  - Simplified browser access to extraction system via browser.extractorManager
+  - Updated VoyagerLifecycle.js to properly initialize ExtractorManager
+  - Updated ResearchManager.js to use ExtractorManager directly
+  - Modified handlers/index.js to export ExtractorManager instead of ContentExtractor
+  - Simplified extraction API surface with consistent method signatures
+  - Improved code maintainability by removing duplicate extraction logic
+
+### [0.5.83] - Browser Extraction Refactor
+
+## Browser React 18 Compatibility Fix
+- Fixed ReactDOM.render warning by upgrading to React 18 createRoot API:
+  - Updated BrowserRenderer.js to use ReactDOM.createRoot instead of ReactDOM.render for TabBar component
+  - Fixed import to use 'react-dom/client' instead of 'react-dom'
+  - Added proper WebContents readiness error message 
+  - Resolved React 18 deprecation warnings in browser component
+
 ## Browser Compatibility Fixes for Buffer and Worker Threads
 - Fixed 'require is not defined' error with Buffer in renderer process:
   - Updated webpack configuration to properly handle browser environment

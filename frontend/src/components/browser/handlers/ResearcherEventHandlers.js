@@ -6,7 +6,7 @@
  */
 
 import logger from '../../../utils/logger';
-import extractionSystem from './ContentExtractionSystem';
+import ExtractorManager from '../extraction/ExtractorManager';
 
 // Create a dedicated logger for research event handlers
 const researchLogger = logger.scope('ResearchEvents');
@@ -84,14 +84,22 @@ export function extractContentForResearch(browser, researcher) {
   researchLogger.info(`Extracting content from ${browser.currentUrl}`);
   
   // Check if webview is ready for extraction
-  if (!extractionSystem.isWebviewReady(browser.webview)) {
+  const isWebviewReady = browser.webview.isConnected && 
+                        typeof browser.webview.executeJavaScript === 'function' && 
+                        browser.webview.getAttribute('data-ready') === 'true';
+                        
+  if (!isWebviewReady) {
     researchLogger.warn('Webview not ready for extraction, waiting...');
     
     // Wait and retry once
     return new Promise(resolve => {
       setTimeout(() => {
         // Check again if webview is ready
-        if (extractionSystem.isWebviewReady(browser.webview)) {
+        const isNowReady = browser.webview.isConnected && 
+                          typeof browser.webview.executeJavaScript === 'function' && 
+                          browser.webview.getAttribute('data-ready') === 'true';
+                          
+        if (isNowReady) {
           researchLogger.info('Webview now ready, proceeding with extraction');
           resolve(performExtraction(browser, researcher));
         } else {
@@ -117,7 +125,7 @@ export function extractContentForResearch(browser, researcher) {
 function performExtraction(browser, researcher, options = {}) {
   const url = browser.currentUrl;
   
-  return extractionSystem.extractContent(browser, url, options)
+  return ExtractorManager.extract(browser, url, options)
     .then(content => {
       researchLogger.info(`Content extracted successfully: ${content.title}`);
       

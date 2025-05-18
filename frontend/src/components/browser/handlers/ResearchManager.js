@@ -5,7 +5,7 @@
  * in the Voyager browser component.
  */
 
-import { capturePageContent } from './ContentExtractor';
+import ExtractorManager from '../extraction/ExtractorManager';
 
 // Import path for Researcher corrected to use absolute import
 import Researcher from '../researcher/Researcher';
@@ -38,14 +38,15 @@ export function toggleResearchMode(browser) {
     if (newResearchMode && browser.webview) {
       try {
         // Capture the current page content for research context
-        capturePageContent(browser).then(content => {
-          if (browser.researcher && typeof browser.researcher.processPage === 'function') {
-            // Process the current page in the research panel
-            browser.researcher.processPage(browser.state.url, browser.state.title, content);
-          }
-        }).catch(err => {
-          console.warn('Error capturing page content for research:', err);
-        });
+        ExtractorManager.extract(browser, browser.currentUrl)
+          .then(content => {
+            if (browser.researcher && typeof browser.researcher.processPage === 'function') {
+              // Process the current page in the research panel
+              browser.researcher.processPage(browser.state.url, browser.state.title, content);
+            }
+          }).catch(err => {
+            console.warn('Error capturing page content for research:', err);
+          });
       } catch (err) {
         console.warn('Error preparing research content:', err);
       }
@@ -158,7 +159,7 @@ export function processPageInResearch(browser) {
     return Promise.reject(new Error('Research mode not active'));
   }
   
-  return capturePageContent(browser)
+  return ExtractorManager.extract(browser, browser.currentUrl)
     .then(content => {
       if (browser.researcher && typeof browser.researcher.processPage === 'function') {
         return browser.researcher.processPage(

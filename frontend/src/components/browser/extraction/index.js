@@ -28,10 +28,7 @@ import ContentEnhancer from './utils/ContentEnhancer';
 import DomUtils from './utils/DomUtils';
 import ReadabilityAdapter from './utils/ReadabilityAdapter';
 import UrlUtils from './utils/UrlUtils';
-
-// Legacy adapters
-import * as LegacyContentExtractor from './adapters/LegacyContentExtractor';
-import * as LegacyExtractionSystem from './adapters/LegacyExtractionSystem';
+import IconUtils from './utils/IconUtils';
 
 // Main extraction function for backward compatibility
 export const extractContent = ExtractorManager.extract;
@@ -62,6 +59,7 @@ export {
   DomUtils,
   ReadabilityAdapter,
   UrlUtils,
+  IconUtils,
   
   // Legacy adapters
   LegacyContentExtractor,

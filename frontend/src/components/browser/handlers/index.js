@@ -4,7 +4,7 @@
  */
 
 import AddressBarManager from './AddressBarManager';
-import ContentExtractor from './ContentExtractor';
+import ExtractorManager from '../extraction/ExtractorManager';
 import ErrorHandler, { ErrorCategories, recordError, getErrorStats, getErrorHistory, exportErrorHistory, clearErrorHistory } from './ErrorHandler';
 import EventHandlers from './EventHandlers';
 import HistoryService from './HistoryService';
@@ -15,12 +15,11 @@ import ResearcherEventHandlers from './ResearcherEventHandlers';
 import StyleManager from './StyleManager';
 import VoyagerLifecycle from './VoyagerLifecycle';
 import WebviewInitializer from './WebviewInitializer';
-import ContentExtractionSystem from './ContentExtractionSystem';
 
 // Export all handlers
 export {
   AddressBarManager,
-  ContentExtractor,
+  ExtractorManager,
   ErrorHandler,
   EventHandlers,
   HistoryService,
@@ -31,7 +30,6 @@ export {
   StyleManager,
   VoyagerLifecycle,
   WebviewInitializer,
-  ContentExtractionSystem,
   
   // Export specific utilities from ErrorHandler
   ErrorCategories,
@@ -89,7 +87,7 @@ export function initBrowserHandlers(browser) {
 // Default export for easier importing
 export default {
   AddressBarManager,
-  ContentExtractor,
+  ExtractorManager,
   ErrorHandler,
   EventHandlers,
   HistoryService,
@@ -99,6 +97,5 @@ export default {
   ResearcherEventHandlers,
   StyleManager,
   VoyagerLifecycle,
-  WebviewInitializer,
-  ContentExtractionSystem
+  WebviewInitializer
 }; 

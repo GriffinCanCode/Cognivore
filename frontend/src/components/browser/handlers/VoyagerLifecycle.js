@@ -6,6 +6,7 @@
  */
 
 import logger from '../../../utils/logger';
+import ExtractorManager from '../extraction/ExtractorManager';
 
 // Create a dedicated logger for this module
 const lifecycleLogger = logger.scope('VoyagerLifecycle');
@@ -67,16 +68,10 @@ export function initialize(browser, options = {}) {
   lifecycleLogger.debug('Setting up event handlers');
   setupEventHandlers(browser);
   
-  // Initialize content extraction if needed
-  if (browser.contentExtractionSystem && 
-      typeof browser.contentExtractionSystem.initialize === 'function') {
-    console.log('🔍 VOYAGER LIFECYCLE: Initializing content extraction system');
-    lifecycleLogger.debug('Initializing content extraction system');
-    browser.contentExtractionSystem.initialize();
-  } else {
-    console.log('🔍 VOYAGER LIFECYCLE: Content extraction system not available or cannot be initialized');
-    lifecycleLogger.debug('Content extraction system not available or cannot be initialized');
-  }
+  // Add ExtractorManager to browser instance for direct access
+  browser.extractorManager = ExtractorManager;
+  console.log('🔍 VOYAGER LIFECYCLE: Added ExtractorManager to browser instance');
+  lifecycleLogger.debug('Added ExtractorManager to browser instance');
   
   // Set up interval timers for periodic tasks
   console.log('🔍 VOYAGER LIFECYCLE: Setting up periodic tasks');
@@ -465,11 +460,10 @@ export function cleanup(browser) {
   lifecycleLogger.debug('Cleaning up webview');
   cleanupWebview(browser);
   
-  // Clean up content extraction system
-  if (browser.contentExtractionSystem && 
-      typeof browser.contentExtractionSystem.cleanup === 'function') {
-    lifecycleLogger.debug('Cleaning up content extraction system');
-    browser.contentExtractionSystem.cleanup();
+  // Remove ExtractorManager reference
+  if (browser.extractorManager) {
+    lifecycleLogger.debug('Removing ExtractorManager reference');
+    browser.extractorManager = null;
   }
   
   // Clean up researcher mode if active
