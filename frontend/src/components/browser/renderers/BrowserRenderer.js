@@ -2979,139 +2979,19 @@ export function setupWebViewContainer(browser) {
   browser.webviewContainer.innerHTML = '';
   browser.webviewContainer.appendChild(container);
   
-  // Find existing header container to add action toolbar properly
+  // Store references to existing components (action toolbar is already created in createBrowserHeader)
   const parentRef = browser.containerRef?.current;
   if (parentRef) {
-    const headerContainer = parentRef.querySelector('.browser-header-container');
+    // Find existing tab bar container that was created by setupBrowserLayout
+    const existingTabBar = parentRef.querySelector('.voyager-tab-bar-wrapper');
+    if (existingTabBar) {
+      browser.tabBarContainer = existingTabBar;
+    }
     
-    if (headerContainer) {
-      // Create action toolbar only (no duplicate tab bar)
-      const actionToolbar = document.createElement('div');
-      actionToolbar.className = 'browser-action-toolbar';
-      actionToolbar.style.cssText = `
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 6px 10px;
-        background-color: var(--glass-bg, rgba(15, 23, 42, 0.85));
-        backdrop-filter: blur(12px) saturate(180%);
-        -webkit-backdrop-filter: blur(12px) saturate(180%);
-        border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
-        height: 40px;
-        width: 100%;
-        box-sizing: border-box;
-        position: relative;
-        z-index: 8;
-      `;
-      
-      // Add toolbar buttons with improved styling
-      actionToolbar.innerHTML = `
-        <div class="toolbar-actions" style="display: flex; gap: 8px; align-items: center;">
-          <button class="toolbar-btn reader-mode-btn" title="Reader Mode" style="
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            color: #f8fafc;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            height: 32px;
-            min-width: 80px;
-          ">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 3H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1"></path>
-              <path d="M12 17v-6"></path>
-              <path d="M8 13h8"></path>
-            </svg>
-            <span>Reader</span>
-          </button>
-          <button class="toolbar-btn save-btn" title="Save to Knowledge Base" style="
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            color: #f8fafc;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            height: 32px;
-            min-width: 70px;
-          ">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-              <polyline points="17 21 17 13 7 13 7 21"></polyline>
-              <polyline points="7 3 7 8 15 8"></polyline>
-            </svg>
-            <span>Save</span>
-          </button>
-          <button class="toolbar-btn research-btn" title="Research Mode" style="
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            color: #f8fafc;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            height: 32px;
-            min-width: 90px;
-          ">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-            </svg>
-            <span>Research</span>
-          </button>
-        </div>
-        <div class="toolbar-actions-right" style="display: flex; align-items: center;">
-          <button class="toolbar-btn extract-btn" title="Extract Content" style="
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background-color: rgba(37, 99, 235, 0.3);
-            border: 1px solid rgba(37, 99, 235, 0.5);
-            border-radius: 6px;
-            color: #f8fafc;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            height: 32px;
-            min-width: 80px;
-          ">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="8 17 12 21 16 17"></polyline>
-              <line x1="12" y1="12" x2="12" y2="21"></line>
-              <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>
-            </svg>
-            <span>Extract</span>
-          </button>
-        </div>
-      `;
-
-      // Insert action toolbar after the navigation header (which is the last element in header container)
-      headerContainer.appendChild(actionToolbar);
-      
-      // Store reference
-      browser.actionToolbar = actionToolbar;
-      
-      // Find existing tab bar container that was created by setupBrowserLayout
-      const existingTabBar = parentRef.querySelector('.voyager-tab-bar-wrapper');
-      if (existingTabBar) {
-        browser.tabBarContainer = existingTabBar;
-      }
-    } else {
-      console.warn('Header container not found - cannot add action toolbar');
+    // Find existing action toolbar from createBrowserHeader
+    const existingActionToolbar = parentRef.querySelector('.browser-action-buttons');
+    if (existingActionToolbar) {
+      browser.actionToolbar = existingActionToolbar;
     }
   }
   
@@ -3245,25 +3125,20 @@ export function setupWebViewContainer(browser) {
       };
     }
     
-    // Set up event listeners for toolbar buttons
-    const readerModeBtn = parentRef?.querySelector('.reader-mode-btn');
+    // Set up event listeners for action buttons (from createBrowserHeader)
+    const readerModeBtn = parentRef?.querySelector('.browser-reader-btn');
     if (readerModeBtn && typeof browser.toggleReaderMode === 'function') {
       readerModeBtn.addEventListener('click', () => browser.toggleReaderMode());
     }
     
-    const saveBtn = parentRef?.querySelector('.save-btn');
+    const saveBtn = parentRef?.querySelector('.browser-save-btn');
     if (saveBtn && typeof browser.savePage === 'function') {
       saveBtn.addEventListener('click', () => browser.savePage());
     }
     
-    const researchBtn = parentRef?.querySelector('.research-btn');
+    const researchBtn = parentRef?.querySelector('.browser-research-btn');
     if (researchBtn && typeof browser.toggleResearchMode === 'function') {
       researchBtn.addEventListener('click', () => browser.toggleResearchMode());
-    }
-    
-    const extractBtn = parentRef?.querySelector('.extract-btn');
-    if (extractBtn && typeof browser.extractPageContent === 'function') {
-      extractBtn.addEventListener('click', () => browser.extractPageContent());
     }
     
     // Set up event listener for new tab button
