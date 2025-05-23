@@ -17,6 +17,84 @@ const log = {
   error: (message, error) => console.error(`[ERROR] ${message}`, error)
 };
 
+// Polyfill for webview styling
+function extendWebviewPrototype() {
+  try {
+    // Only run in an Electron environment
+    if (process.versions.electron) {
+      // Get webview prototype if possible
+      const webFrame = require('electron').webFrame;
+      
+      if (webFrame && typeof document !== 'undefined') {
+        // Wait for DOM to be available
+        document.addEventListener('DOMContentLoaded', () => {
+          // Find a webview element or create a temporary one to get the prototype
+          let webviewElement = document.querySelector('webview');
+          
+          if (!webviewElement) {
+            // Create a temporary webview to get the prototype
+            webviewElement = document.createElement('webview');
+            webviewElement.style.display = 'none';
+            document.body.appendChild(webviewElement);
+            
+            // Add the method to the prototype
+            if (webviewElement && !webviewElement.applyAllCriticalStyles) {
+              webviewElement.applyAllCriticalStyles = function(show = true) {
+                if (show) {
+                  this.style.visibility = 'visible';
+                  this.style.opacity = '1';
+                  this.style.display = 'flex';
+                  this.style.position = 'absolute';
+                  this.style.top = '0';
+                  this.style.left = '0';
+                  this.style.right = '0';
+                  this.style.bottom = '0';
+                  this.style.width = '100%';
+                  this.style.height = '100%';
+                } else {
+                  this.style.visibility = 'hidden';
+                  this.style.opacity = '0';
+                }
+                return show;
+              };
+            }
+            
+            // Clean up temporary element
+            document.body.removeChild(webviewElement);
+          } else if (!webviewElement.applyAllCriticalStyles) {
+            // Add the method directly if webview exists
+            webviewElement.applyAllCriticalStyles = function(show = true) {
+              if (show) {
+                this.style.visibility = 'visible';
+                this.style.opacity = '1';
+                this.style.display = 'flex';
+                this.style.position = 'absolute';
+                this.style.top = '0';
+                this.style.left = '0';
+                this.style.right = '0';
+                this.style.bottom = '0';
+                this.style.width = '100%';
+                this.style.height = '100%';
+              } else {
+                this.style.visibility = 'hidden';
+                this.style.opacity = '0';
+              }
+              return show;
+            };
+          }
+          
+          log.info('Webview prototype extended with applyAllCriticalStyles method');
+        });
+      }
+    }
+  } catch (err) {
+    log.error('Failed to extend webview prototype:', err);
+  }
+}
+
+// Initialize webview prototype extension
+extendWebviewPrototype();
+
 // Define API methods to expose to renderer process
 const api = {
   // File system utilities
@@ -642,7 +720,8 @@ contextBridge.exposeInMainWorld('electron', {
         'generate-embeddings', 'execute-tool-call', 'semantic-search',
         'get-story-chapters', 'get-story-chapter-content', 'setup-header-bypass',
         'settings:get', 'settings:save', 'settings:clear', 'settings:testApiKey',
-        'save-page-to-knowledge-base'
+        'save-page-to-knowledge-base', 'server-fetch', 'extract-content', 'register-extract-content',
+        'check-channel-availability'
       ];
       
       if (validChannels.includes(channel)) {

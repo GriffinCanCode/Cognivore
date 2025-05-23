@@ -1,1 +1,106 @@
- 
+/* Tool renderers styling */
+.tool-renderer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.tool-renderer-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: var(--tool-header-bg, #222);
+  border-radius: 6px 6px 0 0;
+  border: 1px solid var(--tool-border-color, #444);
+}
+
+.tool-renderer-title {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--tool-title-color, #ccc);
+  margin-right: auto;
+}
+
+.tool-renderer-content {
+  background-color: var(--tool-content-bg, #1a1a1a);
+  border-radius: 0 0 6px 6px;
+  border: 1px solid var(--tool-border-color, #444);
+  border-top: none;
+  padding: 12px;
+  font-size: 14px;
+  color: var(--tool-text-color, #ddd);
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.tool-renderer-controls {
+  display: flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.tool-renderer-control {
+  background: none;
+  border: none;
+  color: var(--tool-control-color, #aaa);
+  cursor: pointer;
+  padding: 0;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.tool-renderer-control:hover {
+  color: var(--tool-control-hover-color, #fff);
+}
+
+/* Tool-specific styles */
+.tool-renderer.code-renderer pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.tool-renderer.image-renderer img {
+  max-width: 100%;
+  height: auto;
+}
+
+.tool-renderer.table-renderer table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tool-renderer.table-renderer th,
+.tool-renderer.table-renderer td {
+  padding: 6px 8px;
+  border: 1px solid var(--tool-border-color, #444);
+  text-align: left;
+}
+
+.tool-renderer.table-renderer th {
+  background-color: var(--tool-th-bg, #2a2a2a);
+}
+
+.tool-renderer-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-style: italic;
+  color: var(--tool-loading-color, #999);
+}
+
+.tool-renderer-action {
+  margin-left: 8px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.tool-renderer-action:hover {
+  opacity: 1;
+} 

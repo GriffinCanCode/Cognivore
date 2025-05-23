@@ -17,9 +17,35 @@ import ContentEnhancer from './utils/ContentEnhancer';
 import ContentValidator from './utils/ContentValidator';
 import DomUtils from './utils/DomUtils';
 import UrlUtils from './utils/UrlUtils';
+import WorkerManager from '../utils/WorkerManager';
 
 // Create a logger instance for this module
 const extractionLogger = logger.scope('ExtractorManager');
+
+// Initialize the worker system
+let workerInitialized = false;
+const initializeWorker = async () => {
+  if (workerInitialized) return true;
+  
+  try {
+    const success = await WorkerManager.initialize();
+    workerInitialized = success;
+    if (success) {
+      extractionLogger.info('Worker system initialized for content extraction');
+    } else {
+      extractionLogger.warn('Worker system initialization failed, using fallback methods');
+    }
+    return success;
+  } catch (error) {
+    extractionLogger.error(`Worker system initialization error: ${error.message}`);
+    return false;
+  }
+};
+
+// Try to initialize the worker system immediately
+initializeWorker().catch(err => {
+  extractionLogger.error(`Worker initialization error: ${err.message}`);
+});
 
 /**
  * Extract content using the most appropriate method available
@@ -42,6 +68,62 @@ async function extract(browser, url, options = {}) {
   
   try {
     let result = null;
+    
+    // Try worker-based extraction if available and not explicitly disabled
+    if (workerInitialized && !options.skipWorker) {
+      try {
+        extractionLogger.info('Attempting worker-based extraction');
+        
+        // Get the HTML content first
+        let htmlContent = '';
+        if (browser && browser.webview) {
+          // Try to get HTML from webview
+          htmlContent = await browser.webview.executeJavaScript(
+            `document.documentElement.outerHTML`
+          );
+        } else if (browser && browser.contentFrame && browser.contentFrame.contentDocument) {
+          // Try to get HTML from content frame
+          htmlContent = browser.contentFrame.contentDocument.documentElement.outerHTML;
+        }
+        
+        if (htmlContent) {
+          // Use worker to process the HTML
+          const workerResult = await WorkerManager.executeTask('process-dom', {
+            html: htmlContent,
+            url: targetUrl,
+            options: {
+              clean: true,
+              extractMain: true,
+              extractHeadings: true,
+              extractLinks: true,
+              extractMetadata: true,
+              createJsonDom: true,
+              jsonDomOptions: {
+                maxDepth: 5,
+                includeContent: true,
+                includeAttributes: true
+              }
+            }
+          });
+          
+          if (ContentValidator.isValidExtractionResult(workerResult)) {
+            const extractionTime = Date.now() - startTime;
+            extractionLogger.info(`Worker-based extraction successful in ${extractionTime}ms`);
+            
+            // Add extraction time to result before enhancing
+            workerResult.extractionTime = extractionTime;
+            workerResult.extractionMethod = 'worker';
+            return await enhanceWithWorker(workerResult, targetUrl);
+          } else {
+            extractionLogger.warn('Worker-based extraction result failed validation, falling back to standard methods');
+          }
+        } else {
+          extractionLogger.warn('Could not get HTML content for worker-based extraction, falling back to standard methods');
+        }
+      } catch (error) {
+        extractionLogger.warn(`Worker-based extraction failed: ${error.message}, falling back to standard methods`);
+      }
+    }
     
     // If a preferred method is specified, try it first
     if (options.preferredMethod) {
@@ -114,6 +196,31 @@ async function extract(browser, url, options = {}) {
 }
 
 /**
+ * Enhance content using worker if available
+ * @param {Object} content - Content to enhance
+ * @param {string} url - URL of content
+ * @returns {Promise<Object>} Enhanced content
+ */
+async function enhanceWithWorker(content, url) {
+  try {
+    if (workerInitialized) {
+      // Use worker to enhance content
+      const enhanced = await WorkerManager.executeTask('enhance-content', {
+        content,
+        url
+      });
+      return enhanced;
+    } else {
+      // Fall back to regular enhancement
+      return await ContentEnhancer.enhance(content, url);
+    }
+  } catch (error) {
+    extractionLogger.warn(`Worker-based content enhancement failed: ${error.message}, falling back to standard enhancement`);
+    return await ContentEnhancer.enhance(content, url);
+  }
+}
+
+/**
  * Select the most appropriate extraction strategies based on context
  * @param {Object} browser - Browser instance
  * @param {string} url - Target URL
@@ -135,7 +242,7 @@ function selectExtractionStrategies(browser, url, options = {}) {
   // Check browser state to determine available strategies
   const hasWebview = browser && browser.webview && WebviewExtractor.isWebviewReady(browser.webview);
   const hasContentFrame = browser && browser.contentFrame;
-  const hasIpcRenderer = window.ipcRenderer && typeof window.ipcRenderer.invoke === 'function';
+  const hasIpcRenderer = window.electron && window.electron.ipcRenderer;
   
   // Unavailable strategies based on browser state
   if (!hasWebview) {
@@ -202,16 +309,71 @@ function selectExtractionStrategies(browser, url, options = {}) {
  */
 async function fetchWithReadability(url) {
   try {
-    // Fetch the page content
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+    // First use the IPC-based fetch to get the HTML (bypasses CSP)
+    if (window.electron && window.electron.ipcRenderer) {
+      try {
+        extractionLogger.info(`Attempting server-side fetch for readability from ${url}`);
+        
+        // Access through the properly exposed ipcRenderer API
+        const result = await window.electron.ipcRenderer.invoke('server-fetch', { 
+          url,
+          options: {
+            bypassCSP: true,
+            timeout: 30000,
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
+          }
+        });
+        
+        if (!result) {
+          throw new Error('Empty response from server-fetch');
+        }
+        
+        if (result.error) {
+          throw new Error(`Server fetch error: ${result.error}`);
+        }
+        
+        // If we got HTML content, process with Readability
+        if (result.contentType && result.contentType.includes('text/html')) {
+          extractionLogger.info(`Successfully fetched HTML content (${result.data.length} bytes) via IPC, processing with Readability`);
+          return await ReadabilityExtractor.extractFromHtml(result.data, url);
+        }
+        
+        // Fall through to other methods if not HTML
+        extractionLogger.warn(`Content type is not HTML: ${result.contentType}`);
+      } catch (ipcError) {
+        extractionLogger.warn(`Server-side fetch for readability failed: ${ipcError.message}, trying browser fetch`);
+      }
+    } else {
+      extractionLogger.warn('Server-side fetch not available (electron.ipcRenderer not found), trying browser fetch');
     }
     
-    const html = await response.text();
-    
-    // Process with Readability
-    return await ReadabilityExtractor.extractFromHtml(html, url);
+    // Try browser-side fetch as a fallback
+    try {
+      extractionLogger.info(`Attempting browser fetch for ${url}`);
+      // Fetch the page content with CORS enabled
+      const response = await fetch(url, {
+        method: 'GET', 
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Cognivore/1.0; +https://cognivore.app)'
+        },
+        mode: 'cors',
+        credentials: 'omit',
+        redirect: 'follow'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+      }
+      
+      const html = await response.text();
+      extractionLogger.info(`Successfully fetched HTML content (${html.length} bytes) via browser, processing with Readability`);
+      
+      // Process with Readability
+      return await ReadabilityExtractor.extractFromHtml(html, url);
+    } catch (fetchError) {
+      extractionLogger.warn(`Browser fetch for readability failed: ${fetchError.message}`);
+      throw fetchError;
+    }
   } catch (error) {
     extractionLogger.warn(`Fetch with Readability failed: ${error.message}`);
     throw error;

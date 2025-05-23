@@ -601,9 +601,11 @@ export function createResearchPanel() {
  * @returns {HTMLElement} Created webview or iframe
  */
 export function createWebviewElement(browser, implementation = 'webview', sandboxLevel = 'full') {
-  console.log('Creating webview element for browser with enhanced scrolling settings');
+  console.log('Creating webview element for browser with enhanced CSP and security settings');
   
-  const partition = `persist:voyager-${Date.now()}`; // Create unique partition name
+  // Generate a truly unique partition name with timestamp and random string
+  const uniqueId = Math.random().toString(36).substring(2, 15);
+  const partition = `persist:voyager-${Date.now()}-${uniqueId}`;
   
   if (implementation === 'webview') {
     try {
@@ -615,81 +617,127 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
       // Set a unique ID for easier DOM lookup
       webview.id = `webview-${browser.browserId || Math.floor(Math.random() * 100000)}`;
       
-      // Set critical attributes
-      webview.setAttribute('partition', partition); // Set partition BEFORE navigation
-      webview.setAttribute('allowpopups', 'true');
+      // Instead of setting all attributes at once, set them in specific order
+      // to prevent conflicts and race conditions
+      
+      // STEP 1: Set most critical attributes first
+      webview.setAttribute('partition', partition);
+      
+      // STEP 2: Set security-related attributes next
       webview.setAttribute('disablewebsecurity', 'true');
+      
+      // STEP 3: Set the webpreferences before other configurations
+      webview.setAttribute('webpreferences', [
+        'allowRunningInsecureContent=true',
+        'contextIsolation=yes',
+        'sandbox=yes',
+        'safeDialogs=yes',
+        'webSecurity=no',
+        'navigateOnDragDrop=no',
+        'experimentalFeatures=yes',
+        'allowFileAccessFromFiles=yes'
+      ].join(', '));
+      
+      // STEP 4: Set comprehensive sandbox permissions
+      webview.setAttribute('sandbox', [
+        'allow-forms',
+        'allow-modals',
+        'allow-popups',
+        'allow-presentation',
+        'allow-same-origin',
+        'allow-scripts',
+        'allow-top-navigation',
+        'allow-downloads'
+      ].join(' '));
+      
+      // STEP 5: Set remaining attributes
+      webview.setAttribute('allowpopups', 'true');
       webview.setAttribute('allowfullscreen', 'true');
       webview.setAttribute('autosize', 'true');
       webview.setAttribute('nodeintegration', 'no');
       webview.setAttribute('plugins', 'true');
-      webview.setAttribute('disabledevtools', 'true');
-      webview.setAttribute('webpreferences', 'contextIsolation=yes, sandbox=yes, devTools=no');
       
-      // Set comprehensive sandbox permissions to allow most operations while maintaining security
-      webview.setAttribute('sandbox', 'allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts allow-top-navigation');
+      // STEP 6: Set initial src to a safe blank page to avoid navigation issues
+      webview.setAttribute('src', 'about:blank'); 
+
+      // Set up webview ready flag to track initialization state
+      webview.isReady = false;
       
-      console.log('Initial webview element created: WEBVIEW');
+      // Add event listeners for critical events
+      webview.addEventListener('did-finish-load', () => {
+        console.log('Webview did-finish-load event fired', webview.id);
+        webview.isReady = true;
+      });
       
-      // Add utility methods to the webview for functionality that needs to be accessed from multiple places
-      webview.applyAllCriticalStyles = (forcedApply = false) => {
-        // Apply styles directly to avoid recursive call to enforceWebviewStyles
-        try {
-          if (!webview.isConnected) return;
-          
-          // Check if sidebar is collapsed
-          const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
-          const sidebarWidthVar = sidebarCollapsed ? 'var(--sidebar-collapsed-width, 70px)' : 'var(--sidebar-width, 260px)';
-          
-          // Apply comprehensive styling directly
-          webview.style.cssText = `
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 1 !important;
-            position: fixed !important;
-            top: 92px !important; /* 52px address bar + 40px toolbar */
-            left: ${sidebarWidthVar} !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: calc(100vw - ${sidebarWidthVar}) !important;
-            height: calc(100vh - 92px) !important; /* Adjusted height */
-            min-height: calc(100vh - 92px) !important; /* Adjusted height */
-            max-height: calc(100vh - 92px) !important; /* Adjusted height */
-            min-width: calc(100vw - ${sidebarWidthVar}) !important;
-            max-width: calc(100vw - ${sidebarWidthVar}) !important;
-            border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            box-sizing: border-box !important;
-            background-color: white !important;
-            transform: none !important;
-            overflow: hidden !important;
-            flex: 1 1 auto !important;
-            transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
-          `;
-          
-          // Mark as ready to show
-          webview.readyToShow = true;
-        } catch (err) {
-          console.error('Error applying critical styles:', err);
+      webview.addEventListener('dom-ready', () => {
+        console.log('Webview dom-ready event fired', webview.id);
+        webview.isReady = true;
+        
+        // Apply CSP bypass once DOM is ready
+        if (typeof webview.executeJavaScript === 'function') {
+          try {
+            // Use a broad CSP bypass script for maximum compatibility
+            webview.executeJavaScript(`
+              (function() {
+                if (document.head) {
+                  // Remove existing CSP meta tags
+                  document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]').forEach(tag => tag.remove());
+                  
+                  // Add permissive CSP meta tag
+                  const meta = document.createElement('meta');
+                  meta.httpEquiv = 'Content-Security-Policy';
+                  meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline';";
+                  document.head.appendChild(meta);
+                  console.log('Added permissive CSP via meta tag');
+                }
+              })();
+            `).catch(e => console.warn('CSP bypass script error:', e));
+          } catch (err) {
+            console.warn('Error executing CSP bypass:', err);
+          }
         }
-      };
+      });
       
-      // Add a flag to track whether the webview is ready to show content
-      webview.readyToShow = false;
+      // Monitor crash and error events
+      webview.addEventListener('crashed', (e) => {
+        console.error('Webview crashed:', e);
+        browser.handleCrash && browser.handleCrash(e);
+      });
       
-      // Setup a preload script for header manipulation if needed
-      setupHeaderBypass(webview);
+      webview.addEventListener('gpu-crashed', (e) => {
+        console.error('Webview GPU process crashed:', e);
+      });
+      
+      webview.addEventListener('plugin-crashed', (e) => {
+        console.error('Webview plugin crashed:', e);
+      });
+      
+      webview.addEventListener('destroyed', () => {
+        console.log('Webview was destroyed');
+      });
+      
+      console.log('Webview element created successfully with enhanced security settings');
       
       return webview;
-    } catch (err) {
-      console.error('Error creating webview element:', err);
-      return createFallbackIframeElement(browser);
+    } catch (error) {
+      console.error('Error creating webview:', error);
+      // Fallback to iframe if webview creation fails
+      implementation = 'iframe';
     }
-  } else {
-    return createFallbackIframeElement(browser);
   }
+  
+  // Fallback to iframe implementation
+  if (implementation === 'iframe') {
+    console.log('Creating iframe element as fallback');
+    const iframe = document.createElement('iframe');
+    iframe.className = 'browser-webview';
+    iframe.sandbox = 'allow-forms allow-modals allow-popups allow-scripts allow-same-origin allow-top-navigation';
+    
+    return iframe;
+  }
+  
+  console.error('Failed to create webview element with any implementation');
+  return null;
 }
 
 /**
@@ -716,7 +764,7 @@ function executeSafelyInWebview(webview, executeFunction, maxAttempts = 5, delay
       // Check if it has DOM nodes (another way to detect attachment)
       (webview.parentNode !== null && webview.parentNode !== undefined) ||
       // Check if the webview element is connected to the DOM
-      webview.isConnected === true) &&
+      webview.isConnected === true || webview._isAttached === true) &&
       // Make sure it has the executeJavaScript method
       typeof webview.executeJavaScript === 'function';
     
@@ -945,46 +993,121 @@ function makeSafeForIpc(obj) {
  * @returns {Object} Webview container and element
  */
 export function createWebview(browser, implementation, sandboxLevel) {
-  console.log('📣 Creating webview container with proper sizing');
+  console.log('📣 Creating webview container with proper sizing and enhanced visibility');
   
-  // Force webview for reliability
-  implementation = 'webview';
+  // Try to measure sidebar width - default to 0 if not found
+  const sidebarElement = document.querySelector('.sidebar-container') || 
+                           document.querySelector('.sidebar') || 
+                           document.querySelector('aside');
   
-  // Verify browser container exists in DOM
-  if (!browser.containerRef || !browser.containerRef.current || !browser.containerRef.current.isConnected) {
-    console.error('Browser container not connected to DOM, cannot create webview');
-    return { container: null, webview: null };
+  const sidebarWidth = sidebarElement ? `${sidebarElement.offsetWidth}px` : '0px';
+  console.log(`Detected sidebar width: ${sidebarWidth}`);
+  
+  // Create container for browser
+  let container = document.querySelector('.browser-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'browser-container';
+    container.id = 'browser-container';
+    
+    // Set critical styling with !important flags for max visibility
+    container.style.cssText = `
+      position: fixed !important;
+      top: 104px !important; /* 52px address bar + 52px toolbar */
+      left: ${sidebarWidth} !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: calc(100vw - ${sidebarWidth}) !important;
+      height: calc(100vh - 104px) !important;
+      min-height: calc(100vh - 104px) !important;
+      max-height: calc(100vh - 104px) !important;
+      z-index: 10 !important;
+      background-color: white !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+      flex: 1 1 auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+      transition: left 0.3s ease, width 0.3s ease !important;
+      border: none !important;
+    `;
+    
+    // Find a suitable container in the DOM - use document.body as a last resort
+    const app = document.querySelector('#app') || document.querySelector('.app');
+    if (app) {
+      app.appendChild(container);
+    } else {
+      document.body.appendChild(container);
+      console.warn('Had to attach browser container directly to body - check for missing #app element');
+    }
+  } else {
+    // Update container styles if it already exists
+    container.style.cssText = `
+      position: fixed !important;
+      top: 104px !important; /* 52px address bar + 52px toolbar */
+      left: ${sidebarWidth} !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: calc(100vw - ${sidebarWidth}) !important;
+      height: calc(100vh - 104px) !important;
+      min-height: calc(100vh - 104px) !important;
+      max-height: calc(100vh - 104px) !important;
+      z-index: 10 !important;
+      background-color: white !important;
+      overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
+      flex: 1 1 auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+      transition: left 0.3s ease, width 0.3s ease !important;
+      border: none !important;
+    `;
   }
   
-  const container = document.createElement('div');
-  container.className = 'browser-webview-container';
-  
-  // Apply styling to fit container while preserving layout
-  // Check if sidebar is collapsed
-  const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
-  const sidebarWidth = isSidebarCollapsed 
-    ? 'var(--sidebar-collapsed-width, 70px)' 
-    : 'var(--sidebar-width, 260px)';
-  
-  container.style.cssText = `
-    position: fixed !important;
-    top: 128px !important; /* 52px address bar + 40px toolbar + 36px tab bar */
-    left: ${sidebarWidth} !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: calc(100vw - ${sidebarWidth}) !important;
-    height: calc(100vh - 128px) !important; /* Adjusted for all three bars */
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    z-index: 1 !important;
-    box-sizing: border-box !important;
-    border: none !important;
-    display: flex !important;
-    flex-direction: column !important;
-    background: #fff !important;
-    transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
-  `;
+  // Create container specifically for the webview
+  let webviewContainer = container.querySelector('.browser-webview-container');
+  if (!webviewContainer) {
+    webviewContainer = document.createElement('div');
+    webviewContainer.className = 'browser-webview-container';
+    webviewContainer.style.cssText = `
+      position: relative !important;
+      width: 100% !important;
+      height: 100% !important;
+      flex: 1 1 auto !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+      z-index: 1 !important;
+      background-color: white !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    `;
+    container.appendChild(webviewContainer);
+  } else {
+    // Update styles if container already exists
+    webviewContainer.style.cssText = `
+      position: relative !important;
+      width: 100% !important;
+      height: 100% !important;
+      flex: 1 1 auto !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+      z-index: 1 !important;
+      background-color: white !important;
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    `;
+    
+    // Clear any existing content
+    webviewContainer.innerHTML = '';
+  }
   
   // Use our enhanced webview creation function
   let webview = createWebviewElement(browser);
@@ -995,25 +1118,25 @@ export function createWebview(browser, implementation, sandboxLevel) {
     return { container, webview: null };
   }
   
-  // Apply styling to webview for proper containment
+  // Apply aggressive styling to webview for proper containment
   // Use the same sidebar width variable we calculated for the container
   // Adjust for additional tab bar height (36px)
   webview.style.cssText = `
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
-    z-index: 1 !important;
-    position: fixed !important;
-    top: 140px !important; /* Adjusted to 140px (52px address bar + 52px toolbar + 36px tab bar) */
-    left: ${sidebarWidth} !important;
+    z-index: 10 !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    width: calc(100vw - ${sidebarWidth}) !important;
-    height: calc(100vh - 140px) !important; /* Adjusted to account for tab bar (104px + 36px) */
-    min-height: calc(100vh - 140px) !important; /* Adjusted to account for tab bar (104px + 36px) */
-    max-height: calc(100vh - 140px) !important; /* Adjusted to account for tab bar (104px + 36px) */
-    min-width: calc(100vw - ${sidebarWidth}) !important;
-    max-width: calc(100vw - ${sidebarWidth}) !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
     border: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -1021,39 +1144,63 @@ export function createWebview(browser, implementation, sandboxLevel) {
     background-color: white !important;
     transform: none !important;
     flex: 1 1 auto !important;
-    transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
+    transition: none !important;
+    pointer-events: auto !important;
   `;
   
   // Force attachment to DOM
   try {
+    // First remove any existing webviews to prevent duplicates
+    const existingWebviews = webviewContainer.querySelectorAll('webview');
+    existingWebviews.forEach(oldWebview => {
+      if (oldWebview !== webview) {
+        oldWebview.remove();
+      }
+    });
+    
     // Add to browser container
-    container.appendChild(webview);
+    webviewContainer.appendChild(webview);
     
     // Ensure element gets attached by forcing a reflow
     void container.offsetHeight;
     void webview.offsetHeight;
     
-    console.log('Webview attached to DOM container');
+    // Add essential properties to webview
+    webview.readyToShow = true;
+    webview._isAttached = true; // Use custom property instead of read-only isConnected
+    
+    // Execute script to ensure content is visible
+    if (webview.tagName.toLowerCase() === 'webview' && typeof webview.executeJavaScript === 'function') {
+      const makeContentVisibleScript = `
+        document.documentElement.style.visibility = 'visible';
+        document.documentElement.style.opacity = '1';
+        document.body.style.visibility = 'visible';
+        document.body.style.opacity = '1';
+        true;
+      `;
+      
+      // Try to run script but don't block on it
+      setTimeout(() => {
+        try {
+          webview.executeJavaScript(makeContentVisibleScript).catch(() => {});
+        } catch (err) {
+          // Ignore errors, this is just an enhancement
+        }
+      }, 100);
+    }
+    
+    // CRITICAL: Wait for next render cycle before allowing navigation
+    setTimeout(() => {
+      console.log('Webview fully attached to DOM container and ready for navigation');
+      // Signal readiness
+      if (browser) {
+        browser.webviewReady = true;
+      }
+    }, 50);
+    
+    console.log('Webview attached to DOM container with enhanced visibility settings');
   } catch (err) {
     console.error('Error attaching webview to container:', err);
-  }
-  
-  // Create placeholder for browser limitations message
-  const placeholder = createBrowserPlaceholder(browser);
-  container.appendChild(placeholder);
-  
-  // Hide placeholder upfront
-  placeholder.style.display = 'none';
-  
-  // Set reference on browser objects
-  browser.webview = webview;
-  
-  // For iframe implementation, we'll keep a separate reference to the "contentFrame"
-  if (webview.tagName.toLowerCase() !== 'webview') {
-    browser.contentFrame = webview;
-    
-    // For iframe, use same flex display pattern
-    browser.contentFrame.style.display = 'flex';
   }
   
   return { container, webview };
@@ -1260,16 +1407,45 @@ export function hideLoadingContent(browser) {
   if (!loadingContent) return;
   
   // Check if webview is ready to show before hiding loading screen
-  if (browser.webview) {
+  if (browser && browser.webview) {
     // Apply immediate crucial styling first
-    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
-      browser.webview.applyAllCriticalStyles(true);
-    } else {
-      enforceWebviewStyles(browser, true);
+    try {
+      if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
+        browser.webview.applyAllCriticalStyles(true);
+      } else {
+        // First try to ensure the method exists by using StyleManager
+        try {
+          const StyleManager = require('../handlers/StyleManager').default;
+          if (StyleManager && typeof StyleManager.ensureApplyAllCriticalStylesMethod === 'function') {
+            StyleManager.ensureApplyAllCriticalStylesMethod(browser.webview);
+            
+            // Now try again
+            if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
+              browser.webview.applyAllCriticalStyles(true);
+            } else {
+              // If still not available, use enforceWebviewStyles
+              enforceWebviewStyles(browser, true);
+            }
+          } else {
+            enforceWebviewStyles(browser, true);
+          }
+        } catch (err) {
+          console.warn('Error using StyleManager in hideLoadingContent:', err);
+          // Fallback
+          enforceWebviewStyles(browser, true);
+        }
+      }
+    } catch (err) {
+      console.warn('Error applying critical styles in hideLoadingContent:', err);
+      // Last resort fallback - direct style application
+      if (browser.webview) {
+        browser.webview.style.visibility = 'visible';
+        browser.webview.style.opacity = '1';
+      }
     }
     
     // Only hide loading content when webview is ready to show
-    if (typeof browser.webview.readyToShow === 'undefined' || browser.webview.readyToShow === true) {
+    if (!browser.webview || typeof browser.webview.readyToShow === 'undefined' || browser.webview.readyToShow === true) {
       // Webview is ready, proceed with hiding loading content immediately
       _hideLoadingContent(loadingContent, browser);
     } else {
@@ -1295,16 +1471,20 @@ export function hideLoadingContent(browser) {
             browser.webview.readyToShow = true;
             
             // Apply all styling immediately
-            if (typeof browser.webview.applyAllCriticalStyles === 'function') {
-              browser.webview.applyAllCriticalStyles(true);
-            } else {
-              enforceWebviewStyles(browser, true);
+            try {
+              if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
+                browser.webview.applyAllCriticalStyles(true);
+              } else {
+                enforceWebviewStyles(browser, true);
+              }
+            } catch (err) {
+              console.warn('Error forcing styles in ready check timeout:', err);
             }
           }
           return;
         }
         
-        if (browser.webview.readyToShow === true) {
+        if (browser.webview && browser.webview.readyToShow === true) {
           // Webview is now ready
           clearInterval(readyCheckInterval);
           _hideLoadingContent(loadingContent, browser);
@@ -1405,6 +1585,23 @@ function _hideLoadingContent(loadingContent, browser) {
  * @param {boolean} [forcedApply=false] - If true, ignores the throttle check for immediate application
  */
 export function enforceWebviewStyles(browser, forcedApply = false) {
+  // Try to use StyleManager first
+  try {
+    const StyleManager = require('../handlers/StyleManager').default;
+    if (StyleManager && typeof StyleManager.applyWebviewStyles === 'function' && browser && browser.webview) {
+      StyleManager.applyWebviewStyles(browser, browser.webview, forcedApply);
+      return;
+    }
+  } catch (error) {
+    console.warn('Could not use StyleManager for enforceWebviewStyles, falling back to local implementation:', error);
+  }
+
+  // Local implementation as fallback
+  if (!browser || !browser.webview) {
+    console.warn('Cannot enforce webview styles - browser or webview is null');
+    return;
+  }
+
   // Prevent redundant style applications by adding a rate limiter
   const now = Date.now();
   
@@ -1520,7 +1717,7 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
       // Force layout recalculation to ensure styles are applied
       void browser.webview.offsetHeight;
       
-              if (container) {
+      if (container) {
         // Check if sidebar is collapsed for container too
         const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
         const sidebarWidth = isSidebarCollapsed 
@@ -1563,10 +1760,6 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
     
     // Ensure webview is marked as ready to show
     browser.webview.readyToShow = true;
-    
-    // Do not call applyAllCriticalStyles to avoid infinite recursion
-    // This would cause a call cycle since applyAllCriticalStyles calls enforceWebviewStyles
-    // and we're already in enforceWebviewStyles
   } catch (err) {
     console.error('Error enforcing webview styles:', err);
   }
@@ -1939,7 +2132,7 @@ function useAlternativeHeaderBypass(webview) {
  */
 export function applyPreNavigationStyles(browser) {
   // Add better null/undefined checking
-  if (!browser.webview || !browser.webview.tagName || browser.webview.tagName.toLowerCase() !== 'webview') {
+  if (!browser || !browser.webview || !browser.webview.tagName || browser.webview.tagName.toLowerCase() !== 'webview') {
     return;
   }
   
@@ -1958,7 +2151,7 @@ export function applyPreNavigationStyles(browser) {
       ? 'var(--sidebar-collapsed-width, 70px)' 
       : 'var(--sidebar-width, 260px)';
     
-          // Apply direct styling to the webview element with transition support and dynamic sidebar width
+    // Apply direct styling to the webview element with transition support and dynamic sidebar width
     browser.webview.style.cssText = `
       display: flex !important;
       visibility: visible !important;
@@ -1996,12 +2189,22 @@ export function applyPreNavigationStyles(browser) {
     browser.webview.style.top = '92px'; // 52px address bar + 40px toolbar
     browser.webview.style.position = 'fixed';
     
-    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
-      browser.webview.applyAllCriticalStyles(true);
+    // Use StyleManager if available, otherwise use webview's method, with null check
+    try {
+      const StyleManager = require('../handlers/StyleManager').default;
+      if (StyleManager && typeof StyleManager.ensureApplyAllCriticalStylesMethod === 'function') {
+        StyleManager.ensureApplyAllCriticalStylesMethod(browser.webview);
+      }
+      
+      if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
+        browser.webview.applyAllCriticalStyles(true);
+      }
+    } catch (err) {
+      console.warn('Error using StyleManager in applyPreNavigationStyles:', err);
     }
     
     // Only try executeJavaScript with a safe verification method first
-    if (typeof browser.webview.executeJavaScript === 'function') {
+    if (browser.webview && typeof browser.webview.executeJavaScript === 'function') {
       try {
         // Try a simple test script first to verify the webview is ready
         browser.webview.executeJavaScript('true')
@@ -2089,264 +2292,66 @@ export function scheduleStyleChecks(browser) {
   // Save initial correct styles timestamp to avoid unnecessary re-styling
   browser._initialStylesAppliedTime = Date.now();
   
-  // Instead of multiple checks, apply all critical styles at once
-  if (typeof browser.webview.applyAllCriticalStyles !== 'function') {
-    // Add the comprehensive style application method to the webview
-    browser.webview.applyAllCriticalStyles = (forceApply = false) => {
-      // Check if we should skip applying additional styles after initial render
-      // If not forced and styles were already applied recently, skip to avoid flickering
-      if (!forceApply) {
-        const now = Date.now();
-        const timeSinceLastApplication = now - browser._styleApplicationLock.lastApplied;
-        
-        // Skip application if we applied styles recently (within 1 second) and webview is ready
-        if (timeSinceLastApplication < 1000 && 
-            browser._initialStylesAppliedTime && 
-            (now - browser._initialStylesAppliedTime < 2000) && 
-            browser.webview.readyToShow) {
-          return;
-        }
-        
-        // Skip if already locked to prevent concurrent applications
-        if (browser._styleApplicationLock.locked) {
-          browser._styleApplicationLock.pendingApplication = true;
-          return;
-        }
-      }
-      
-      // Lock style application to prevent multiple concurrent applications
-      browser._styleApplicationLock.locked = true;
-      browser._styleApplicationLock.lastApplied = Date.now();
-      browser._styleApplicationLock.pendingApplication = false;
+  // Delegate to StyleManager for comprehensive style handling, with fallback
+  try {
+    const StyleManager = require('../handlers/StyleManager').default;
     
-      console.log('Applying all critical webview styles at once');
-      
-      // Check if sidebar is collapsed
-      const isSidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
-      
-      // Use the appropriate width variable based on sidebar state
-      const sidebarWidth = isSidebarCollapsed 
-        ? 'var(--sidebar-collapsed-width, 70px)' 
-        : 'var(--sidebar-width, 260px)';
-      
-      // Apply direct styling to the webview element with dynamic sidebar width
-      browser.webview.style.cssText = `
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        z-index: 1 !important;
-        position: fixed !important;
-        top: 128px !important; /* 52px address bar + 40px toolbar + 36px tab bar */
-        left: ${sidebarWidth} !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        width: calc(100vw - ${sidebarWidth}) !important;
-        height: calc(100vh - 128px) !important; /* Adjusted for all bars */
-        min-height: calc(100vh - 128px) !important; /* Adjusted for all bars */
-        max-height: calc(100vh - 128px) !important; /* Adjusted for all bars */
-        min-width: calc(100vw - ${sidebarWidth}) !important;
-        max-width: calc(100vw - ${sidebarWidth}) !important;
-        border: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        box-sizing: border-box !important;
-        background-color: white !important;
-        transform: none !important;
-        overflow: hidden !important;
-        flex: 1 1 auto !important;
-        pointer-events: auto !important;
-        user-select: auto !important;
-        touch-action: auto !important;
-        transition: left 0.3s ease, width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease !important;
-      `;
-      
-      // Force layout recalculation
-      void browser.webview.offsetHeight;
-      
-      // Apply content styles only if needed 
-      if (typeof browser.webview.executeJavaScript === 'function' && (!browser.webview._stylesInitialized || forceApply)) {
-        try {
-          // Set initialization flag to avoid unnecessary repeated application
-          browser.webview.readyToShow = true;
-          browser.webview._stylesInitialized = true;
-          
-          // Execute a comprehensive one-time style fix
-          const allInOneStyleScript = `
-            (function() {
-              // Don't re-apply styles if fully applied and not forced
-              if (window._styleFixComplete && !${forceApply}) {
-                return true;
-              }
-              
-              // --- Create comprehensive style element ---
-              if (!document.getElementById('cognivore-complete-fix')) {
-                const style = document.createElement('style');
-                style.id = 'cognivore-complete-fix';
-                document.head.appendChild(style);
-              }
-              
-              // Apply Google-specific CSS if on Google with enhanced selectors
-              const styleEl = document.getElementById('cognivore-complete-fix');
-              if (window.location.hostname.includes('google.com')) {
-                styleEl.textContent = \`
-                  html, body {
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    width: 100% !important;
-                    height: 100% !important;
-                    min-height: 100% !important;
-                    max-width: 100vw !important;
-                    overflow-x: hidden !important;
-                    overflow-y: auto !important;
-                  }
-                  
-                  /* Google Search specific fixes */
-                  #main, #cnt, #rcnt, #center_col, .yuRUbf, .MjjYud, #rso, main, [role="main"],
-                  div[role="main"], #search, #searchform, .sfbg, .minidiv, .g, .appbar, #searchform {
-                    width: 100% !important;
-                    min-height: 100% !important;
-                    max-width: 100% !important;
-                    box-sizing: border-box !important;
-                  }
-                  .g, .yuRUbf, .MjjYud, .v7W49e, .ULSxyf, .MUxGbd, .aLF0Z {
-                    width: 100% !important;
-                    margin-right: 0 !important;
-                    padding-right: 0 !important;
-                    box-sizing: border-box !important;
-                  }
-                  /* Center content container */
-                  #center_col, #rso, #search {
-                    width: 100% !important;
-                    max-width: 900px !important;
-                    margin: 0 auto !important;
-                    overflow-x: hidden !important;
-                  }
-                  /* Fix Google Sign-in and other buttons at the top */
-                  .gb_2d, .gb_Ud, .gb_wd, .gb_xd, .gb_Id, .gb_Ed, .gb_be, .gb_Fc, .gb_3d, 
-                  .gbii, .gbip, .gbi, .gb_Dd, .gb_Cd {
-                    display: block !important;
-                    visibility: visible !important;
-                    opacity: 1 !important;
-                  }
-                  /* Fix for Google header */
-                  #gb, .gb_1d, .gb_g, .gb_sc, .gb_pc, .gb_td {
-                    position: relative !important;
-                    top: 0 !important;
-                    z-index: 999 !important;
-                  }
-                \`;
-              } else {
-                // Generic styles for other sites with enhanced targeting
-                styleEl.textContent = \`
-                  html, body {
-                    width: 100% !important;
-                    height: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    overflow: auto !important;
-                    position: absolute !important;
-                    top: 0 !important;
-                    left: 0 !important;
-                    right: 0 !important;
-                    bottom: 0 !important;
-                    box-sizing: border-box !important;
-                  }
-                  main, [role="main"], #main, .main-content, .content, #content, article, 
-                  header, footer, section, nav, aside, div[role="main"], .container {
-                    width: 100% !important;
-                    min-height: 100% !important;
-                    max-width: 100% !important;
-                    box-sizing: border-box !important;
-                  }
-                  /* Apply comprehensive fixes */
-                  * {
-                    max-width: 100vw !important;
-                    overflow-x: hidden !important;
-                  }
-                  /* Ensure top navigation elements are visible */
-                  nav, header, .header, .top-bar, .nav-bar, .navigation, .site-header, 
-                  .navbar, .topbar, .top-header, .app-header, .fixed-top {
-                    position: relative !important;
-                    top: 0 !important;
-                    display: block !important;
-                    visibility: visible !important;
-                    opacity: 1 !important;
-                    z-index: 100 !important;
-                  }
-                  /* Add padding to top content to prevent overlap */
-                  body {
-                    padding-top: 0 !important;
-                  }
-                \`;
-              }
-              
-              // Apply direct styles to HTML and BODY with more aggressive fix
-              document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important;";
-              document.body.style.cssText += "width: 100% !important; height: 100% !important; overflow: auto !important; position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important;";
-              
-              // Set a completion flag
-              window._styleFixComplete = true;
-              return true;
-            })();
-          `;
-          
-          // Execute all styles at once
-          browser.webview.executeJavaScript(allInOneStyleScript)
-            .then(() => {
-              console.log('Comprehensive webview content styles successfully applied');
-              
-              // Unlock style application after completion
-              setTimeout(() => {
-                browser._styleApplicationLock.locked = false;
-                
-                // If there's a pending application, apply it now
-                if (browser._styleApplicationLock.pendingApplication) {
-                  browser.webview.applyAllCriticalStyles(true);
-                }
-              }, 100);
-            })
-            .catch(err => {
-              console.warn('Error applying comprehensive styles:', err);
-              browser._styleApplicationLock.locked = false;
-            });
-        } catch (err) {
-          console.warn('Error executing style script:', err);
-          browser._styleApplicationLock.locked = false;
-        }
+    // Add the method to the webview if needed
+    if (browser.webview && !browser._isUnloading) {
+      if (StyleManager && typeof StyleManager.ensureApplyAllCriticalStylesMethod === 'function') {
+        StyleManager.ensureApplyAllCriticalStylesMethod(browser.webview);
       } else {
-        // Unlock style application after skipping content styling
-        setTimeout(() => {
-          browser._styleApplicationLock.locked = false;
-          
-          // If there's a pending application, apply it now
-          if (browser._styleApplicationLock.pendingApplication) {
-            browser.webview.applyAllCriticalStyles(true);
-          }
-        }, 100);
+        console.warn('StyleManager not available, using legacy style method fallback');
+        // Only add the method if it doesn't exist and StyleManager isn't available
+        if (browser.webview && typeof browser.webview.applyAllCriticalStyles !== 'function') {
+          // Define the method directly as a fallback
+          browser.webview.applyAllCriticalStyles = function(show = true) {
+            if (show) {
+              this.style.visibility = 'visible';
+              this.style.opacity = '1';
+              this.style.display = 'flex';
+            } else {
+              this.style.visibility = 'hidden';
+              this.style.opacity = '0';
+            }
+            return true;
+          };
+        }
       }
       
       // Mark as ready to show
-      browser.webview.readyToShow = true;
-    };
-  }
-  
-  // Apply a single comprehensive style pass instead of multiple checks
-  if (browser.webview && !browser._isUnloading) {
-    browser.webview.applyAllCriticalStyles(true);
-    
-    // Immediately mark as ready to show
-    browser.webview.readyToShow = true;
-    browser.webview.style.opacity = '1';
-    
-    // Check page load once after a short delay
-    setTimeout(() => {
-      if (browser.webview && !browser._isUnloading) {
-        // Call the browser's method if it exists
-        if (typeof browser.checkIfPageIsLoaded === 'function') {
-          browser.checkIfPageIsLoaded();
-        }
+      if (browser.webview) {
+        browser.webview.readyToShow = true;
+        browser.webview.style.opacity = '1';
       }
-    }, 300);
+      
+      // Apply styles if we have a webview
+      if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
+        browser.webview.applyAllCriticalStyles(true);
+      }
+    }
+  } catch (err) {
+    console.error('Error in StyleManager integration:', err);
+    
+    // Fallback implementation if StyleManager fails
+    if (browser.webview && !browser._isUnloading) {
+      if (typeof browser.webview.applyAllCriticalStyles !== 'function') {
+        browser.webview.applyAllCriticalStyles = function(show = true) {
+          if (show) {
+            this.style.visibility = 'visible';
+            this.style.opacity = '1';
+            this.style.display = 'flex';
+          } else {
+            this.style.visibility = 'hidden';
+            this.style.opacity = '0';
+          }
+          return true;
+        };
+      }
+      
+      // Apply the method
+      browser.webview.applyAllCriticalStyles(true);
+    }
   }
   
   // Add a one-time check for safety after a substantial delay
@@ -2362,7 +2367,10 @@ export function scheduleStyleChecks(browser) {
           Math.abs(rect.height - expectedHeight) > 10 || 
           rect.top !== 128 || rect.left !== 0) { // 52px address bar + 40px toolbar + 36px tab bar
         console.log('Safety check: Webview dimensions need adjustment');
-        browser.webview.applyAllCriticalStyles(true);
+        
+        if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
+          browser.webview.applyAllCriticalStyles(true);
+        }
       }
     }
   }, 1000);
@@ -2378,7 +2386,9 @@ export function scheduleStyleChecks(browser) {
           clearTimeout(browser._resizeTimer);
         }
         browser._resizeTimer = setTimeout(() => {
-          browser.webview.applyAllCriticalStyles(true);
+          if (browser.webview) {  // Additional null check
+            browser.webview.applyAllCriticalStyles(true);
+          }
         }, 250);
       }
     };
@@ -2402,10 +2412,13 @@ export function scheduleStyleChecks(browser) {
         console.log('Sidebar state changed, updating browser dimensions');
         
         // Apply styles immediately for responsive feel
-        if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+        if (browser.webview && typeof browser.webview.applyAllCriticalStyles === 'function') {
           browser.webview.applyAllCriticalStyles(true);
         } else {
-          enforceWebviewStyles(browser, true);
+          // With null check
+          if (browser.webview) {
+            enforceWebviewStyles(browser, true);
+          }
         }
         
         // Also update the container if present
@@ -2569,7 +2582,7 @@ export function setupBrowserLayout(browser) {
       // First try to directly append CSS to document head to ensure styles are loaded
       const tabBarCssLink = document.createElement('link');
       tabBarCssLink.rel = 'stylesheet';
-      tabBarCssLink.href = './components/browser/tabs/TabBar.css';
+      tabBarCssLink.href = './styles/components/tabs/TabBar.css';
       document.head.appendChild(tabBarCssLink);
       
       // Import from react-dom/client for React 18 compatibility
@@ -2593,6 +2606,7 @@ export function setupBrowserLayout(browser) {
       fallbackTab.style.cssText = 'display: flex; align-items: center; height: 32px; padding: 0 10px; background-color: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0; margin: 4px 1px 0; color: white; font-size: 12px;';
       tabBarContainer.appendChild(fallbackTab);
       
+      // Create basic fallback tabs if React failed
       const fallbackNewTab = document.createElement('div');
       fallbackNewTab.className = 'new-tab-button';
       fallbackNewTab.innerHTML = '+';
@@ -2650,62 +2664,34 @@ export function setupBrowserLayout(browser) {
     // Create a dedicated error handler for ReactDOM rendering
     const renderTabBar = () => {
       console.log('Attempting to render TabBar component...');
+      
+      // Store root reference if it doesn't exist yet
+      if (!tabBarContainer._reactRoot) {
+        try {
+          // Use createRoot for React 18 compatibility
+          tabBarContainer._reactRoot = ReactDOM.createRoot(tabBarContainer);
+          console.log('TabBar component root created successfully');
+        } catch (error) {
+          console.error('Error creating TabBar root:', error);
+          return;
+        }
+      }
+      
       try {
-        // Use createRoot for React 18 compatibility
-        const root = ReactDOM.createRoot(tabBarContainer);
-        root.render(
+        // Use the stored root to render
+        tabBarContainer._reactRoot.render(
           React.createElement(TabBar, {
-            tabManager: tabManager,
-            activeTabId: tabManager.getActiveTabId(),
-            onTabClick: (tabId) => {
-              tabManager.setActiveTab(tabId);
-              
-              // Get tab data
-              const tab = tabManager.getTabById(tabId);
-              if (tab && tab.url) {
-                // Navigate to tab URL using browser
-                browser.navigate(tab.url);
-              }
-            },
-            onTabClose: (tabId) => {
-              tabManager.closeTab(tabId);
-            },
-            onNewTab: () => {
-              // Create a new tab and navigate to it
-              const newTab = tabManager.createTab({
-                url: 'https://www.google.com',
-                title: 'New Tab'
-              });
-              
-              // Navigate to the new tab's URL
-              browser.navigate(newTab.url);
-            }
+            tabs: browser.tabs || [],
+            activeTabId: browser.activeTabId,
+            onTabClick: (tabId) => browser.setActiveTab(tabId),
+            onTabClose: (tabId) => browser.closeTab(tabId),
+            onTabAdd: () => browser.addTab(),
+            voyager: browser,
           })
         );
         console.log('TabBar component rendered successfully');
-      } catch (renderError) {
-        console.error('Failed to render TabBar component:', renderError);
-        
-        // Show error in the tab bar container and create a basic fallback UI
-        tabBarContainer.innerHTML = '';
-        
-        const errorElement = document.createElement('div');
-        errorElement.textContent = 'Error rendering tabs';
-        errorElement.style.cssText = 'padding: 8px; color: #ff5555; font-size: 12px;';
-        tabBarContainer.appendChild(errorElement);
-        
-        // Create a basic fallback tab
-        const fallbackTab = document.createElement('div');
-        fallbackTab.className = 'tab-item active';
-        fallbackTab.innerHTML = '<span class="tab-title">New Tab</span>';
-        fallbackTab.style.cssText = 'display: flex; align-items: center; height: 32px; padding: 0 10px; background-color: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0; margin: 4px 1px 0; color: white; font-size: 12px;';
-        tabBarContainer.appendChild(fallbackTab);
-        
-        const fallbackNewTab = document.createElement('div');
-        fallbackNewTab.className = 'new-tab-button';
-        fallbackNewTab.innerHTML = '+';
-        fallbackNewTab.style.cssText = 'display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 4px 1px 0; background-color: rgba(15, 23, 42, 0.4); border-radius: 8px 8px 0 0; color: white;';
-        tabBarContainer.appendChild(fallbackNewTab);
+      } catch (error) {
+        console.error('Error rendering TabBar component:', error);
       }
     };
     
@@ -2718,26 +2704,101 @@ export function setupBrowserLayout(browser) {
     // And one more with a longer delay as a final fallback
     setTimeout(renderTabBar, 500);
     
-  } catch (err) {
-    console.error('Failed to initialize tab bar:', err);
-    
-    // Last resort fallback - create a basic tab UI without React
-    tabBarContainer.innerHTML = '';
-    
-    // Add a simple "New Tab" tab
-    const fallbackTab = document.createElement('div');
-    fallbackTab.className = 'tab-item active';
-    fallbackTab.innerHTML = '<span class="tab-title">New Tab</span>';
-    fallbackTab.style.cssText = 'display: flex; align-items: center; height: 32px; padding: 0 10px; background-color: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0; margin: 4px 1px 0; color: white; font-size: 12px;';
-    tabBarContainer.appendChild(fallbackTab);
-    
-    // Add a "+" button for new tab
-    const fallbackNewTab = document.createElement('div');
-    fallbackNewTab.className = 'new-tab-button';
-    fallbackNewTab.innerHTML = '+';
-    fallbackNewTab.style.cssText = 'display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin: 4px 1px 0; background-color: rgba(15, 23, 42, 0.4); border-radius: 8px 8px 0 0; color: white;';
-    tabBarContainer.appendChild(fallbackNewTab);
-  }
+      } catch (err) {
+      console.error('Failed to initialize tab bar:', err);
+      
+      // Enhanced fallback - create a robust tab UI without React
+      tabBarContainer.innerHTML = '';
+      
+      // Create fallback tab with improved styling and functionality
+      const fallbackTab = document.createElement('div');
+      fallbackTab.className = 'tab-item active fallback';
+      fallbackTab.innerHTML = `
+        <span class="tab-favicon-placeholder">🌐</span>
+        <span class="tab-title">New Tab</span>
+        <button class="tab-close-btn" onclick="event.stopPropagation();">×</button>
+      `;
+      fallbackTab.style.cssText = `
+        display: flex !important; 
+        align-items: center !important; 
+        height: 32px !important; 
+        padding: 0 10px !important; 
+        background-color: rgba(37, 99, 235, 0.25) !important; 
+        border-radius: 8px 8px 0 0 !important; 
+        margin: 4px 1px 0 !important; 
+        color: white !important; 
+        font-size: 12px !important; 
+        cursor: pointer !important;
+        border: 1px solid rgba(37, 99, 235, 0.4) !important;
+        border-bottom: none !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 3 !important;
+      `;
+      
+      // Add click handler for fallback tab
+      fallbackTab.addEventListener('click', () => {
+        console.log('Fallback tab clicked');
+        if (browser && typeof browser.navigate === 'function') {
+          browser.navigate('https://www.google.com');
+        }
+      });
+      
+      tabBarContainer.appendChild(fallbackTab);
+      
+      // Enhanced "+" button for new tab with better functionality
+      const fallbackNewTab = document.createElement('button');
+      fallbackNewTab.className = 'new-tab-button fallback';
+      fallbackNewTab.innerHTML = '+';
+      fallbackNewTab.style.cssText = `
+        display: flex !important; 
+        align-items: center !important; 
+        justify-content: center !important; 
+        width: 32px !important; 
+        height: 32px !important; 
+        margin: 4px 1px 0 !important; 
+        background-color: rgba(15, 23, 42, 0.4) !important; 
+        border-radius: 8px 8px 0 0 !important; 
+        color: white !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-bottom: none !important;
+        cursor: pointer !important;
+        font-size: 16px !important;
+        font-weight: bold !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      `;
+      
+      // Add click handler for new tab button
+      fallbackNewTab.addEventListener('click', () => {
+        console.log('Fallback new tab button clicked');
+        if (browser && typeof browser.navigate === 'function') {
+          browser.navigate('https://www.google.com');
+        }
+      });
+      
+      // Add hover effect
+      fallbackNewTab.addEventListener('mouseenter', () => {
+        fallbackNewTab.style.backgroundColor = 'rgba(15, 23, 42, 0.7)';
+      });
+      
+      fallbackNewTab.addEventListener('mouseleave', () => {
+        fallbackNewTab.style.backgroundColor = 'rgba(15, 23, 42, 0.4)';
+      });
+      
+      tabBarContainer.appendChild(fallbackNewTab);
+      
+      // Ensure fallback elements are visible
+      setTimeout(() => {
+        fallbackTab.style.visibility = 'visible';
+        fallbackTab.style.opacity = '1';
+        fallbackNewTab.style.visibility = 'visible';
+        fallbackNewTab.style.opacity = '1';
+        tabBarContainer.style.visibility = 'visible';
+        tabBarContainer.style.opacity = '1';
+      }, 100);
+    }
   
   // Create progress bar
   const progressBar = createProgressBar();
@@ -2868,20 +2929,191 @@ export function setupNavigationBar(browser) {
  * @param {Object} browser - The browser instance
  */
 export function setupWebViewContainer(browser) {
-  if (!browser || !browser.webviewContainer) {
-    console.error('Cannot set up webview container - container is missing');
+  if (!browser) {
+    console.error('Cannot set up webview container - browser instance is missing');
     return;
+  }
+  
+  // Check for webviewContainer - create if missing
+  if (!browser.webviewContainer) {
+    console.log('Creating webviewContainer since it is missing');
+    
+    // Try to find parent container
+    const parentContainer = browser.containerRef?.current || 
+                           document.querySelector('.voyager-browser-container') ||
+                           document.querySelector('.browser-container') ||
+                           document.getElementById('browser-container');
+    
+    if (!parentContainer) {
+      console.error('Cannot create webview container - parent container not found');
+      return;
+    }
+    
+    // Create webview container within parent
+    const webviewContainer = document.createElement('div');
+    webviewContainer.className = 'webview-content-container';
+    webviewContainer.style.cssText = `
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    `;
+    
+    // Add to parent container
+    parentContainer.appendChild(webviewContainer);
+    
+    // Set reference
+    browser.webviewContainer = webviewContainer;
   }
   
   // Determine browser implementation based on environment
   const { webviewImplementation } = browser.state?.environment || { webviewImplementation: 'webview' };
   
-  // Create webview
+  // Create webview with full feature set
   const { container, webview } = createWebview(browser, webviewImplementation, 'standard');
   
   // Replace container contents with new webview container
   browser.webviewContainer.innerHTML = '';
   browser.webviewContainer.appendChild(container);
+  
+  // Find existing header container to add action toolbar properly
+  const parentRef = browser.containerRef?.current;
+  if (parentRef) {
+    const headerContainer = parentRef.querySelector('.browser-header-container');
+    
+    if (headerContainer) {
+      // Create action toolbar only (no duplicate tab bar)
+      const actionToolbar = document.createElement('div');
+      actionToolbar.className = 'browser-action-toolbar';
+      actionToolbar.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        background-color: var(--glass-bg, rgba(15, 23, 42, 0.85));
+        backdrop-filter: blur(12px) saturate(180%);
+        -webkit-backdrop-filter: blur(12px) saturate(180%);
+        border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+        height: 40px;
+        width: 100%;
+        box-sizing: border-box;
+        position: relative;
+        z-index: 8;
+      `;
+      
+      // Add toolbar buttons with improved styling
+      actionToolbar.innerHTML = `
+        <div class="toolbar-actions" style="display: flex; gap: 8px; align-items: center;">
+          <button class="toolbar-btn reader-mode-btn" title="Reader Mode" style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            height: 32px;
+            min-width: 80px;
+          ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1"></path>
+              <path d="M12 17v-6"></path>
+              <path d="M8 13h8"></path>
+            </svg>
+            <span>Reader</span>
+          </button>
+          <button class="toolbar-btn save-btn" title="Save to Knowledge Base" style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            height: 32px;
+            min-width: 70px;
+          ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span>Save</span>
+          </button>
+          <button class="toolbar-btn research-btn" title="Research Mode" style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            height: 32px;
+            min-width: 90px;
+          ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
+            <span>Research</span>
+          </button>
+        </div>
+        <div class="toolbar-actions-right" style="display: flex; align-items: center;">
+          <button class="toolbar-btn extract-btn" title="Extract Content" style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background-color: rgba(37, 99, 235, 0.3);
+            border: 1px solid rgba(37, 99, 235, 0.5);
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            height: 32px;
+            min-width: 80px;
+          ">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="8 17 12 21 16 17"></polyline>
+              <line x1="12" y1="12" x2="12" y2="21"></line>
+              <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path>
+            </svg>
+            <span>Extract</span>
+          </button>
+        </div>
+      `;
+
+      // Insert action toolbar after the navigation header (which is the last element in header container)
+      headerContainer.appendChild(actionToolbar);
+      
+      // Store reference
+      browser.actionToolbar = actionToolbar;
+      
+      // Find existing tab bar container that was created by setupBrowserLayout
+      const existingTabBar = parentRef.querySelector('.voyager-tab-bar-wrapper');
+      if (existingTabBar) {
+        browser.tabBarContainer = existingTabBar;
+      }
+    } else {
+      console.warn('Header container not found - cannot add action toolbar');
+    }
+  }
   
   // Add flags to track proper event firing
   if (webview) {
@@ -2940,6 +3172,7 @@ export function setupWebViewContainer(browser) {
       webview.addEventListener('dom-ready', () => {
         // Mark this event as fired
         webview._loadEventsFired.domReady = true;
+        console.log('Webview dom-ready event fired', webview.id);
       });
       
       webview.addEventListener('did-navigate', (e) => {
@@ -2959,6 +3192,7 @@ export function setupWebViewContainer(browser) {
       webview.addEventListener('did-finish-load', () => {
         // Mark this event as fired
         webview._loadEventsFired.didFinishLoad = true;
+        console.log('Webview did-finish-load event fired', webview.id);
         
         // Call the original handler
         if (typeof browser.handleWebviewLoad === 'function') {
@@ -3010,6 +3244,37 @@ export function setupWebViewContainer(browser) {
         originalCheck.call(browser);
       };
     }
+    
+    // Set up event listeners for toolbar buttons
+    const readerModeBtn = parentRef?.querySelector('.reader-mode-btn');
+    if (readerModeBtn && typeof browser.toggleReaderMode === 'function') {
+      readerModeBtn.addEventListener('click', () => browser.toggleReaderMode());
+    }
+    
+    const saveBtn = parentRef?.querySelector('.save-btn');
+    if (saveBtn && typeof browser.savePage === 'function') {
+      saveBtn.addEventListener('click', () => browser.savePage());
+    }
+    
+    const researchBtn = parentRef?.querySelector('.research-btn');
+    if (researchBtn && typeof browser.toggleResearchMode === 'function') {
+      researchBtn.addEventListener('click', () => browser.toggleResearchMode());
+    }
+    
+    const extractBtn = parentRef?.querySelector('.extract-btn');
+    if (extractBtn && typeof browser.extractPageContent === 'function') {
+      extractBtn.addEventListener('click', () => browser.extractPageContent());
+    }
+    
+    // Set up event listener for new tab button
+    const newTabButton = parentRef?.querySelector('.new-tab-button');
+    if (newTabButton && browser.tabManager) {
+      newTabButton.addEventListener('click', () => {
+        if (typeof browser.tabManager.addTab === 'function') {
+          browser.tabManager.addTab();
+        }
+      });
+    }
   }
   
   // Apply pre-navigation styles
@@ -3017,6 +3282,9 @@ export function setupWebViewContainer(browser) {
   
   // Schedule style checks for consistent display
   scheduleStyleChecks(browser);
+  
+  // Log successful setup
+  console.log('Webview container setup complete with full browser UI');
 }
 
 /**

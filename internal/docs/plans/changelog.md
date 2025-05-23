@@ -1,5 +1,449 @@
 # Changelog
 
+## [2024-05-23] Browser Action Toolbar Fix
+
+### Fixed
+- **Browser Action Toolbar Positioning**: Resolved duplicate toolbar creation in `BrowserRenderer.js` that was causing action buttons (Reader, Save, Research, Extract) to appear between tab bar and address bar instead of under the address bar
+- **Action Toolbar Styling**: Created dedicated `action-toolbar.css` with cohesive modern styling including hover effects, active states, and responsive design
+- **Layout Integration**: Properly positioned action toolbar within existing header container structure to maintain correct visual hierarchy: Tab Bar → Address Bar → Navigation Controls → Action Toolbar
+
+### Added
+- **New CSS File**: `frontend/public/styles/components/action-toolbar.css` with comprehensive button styling, hover effects, and responsive breakpoints
+- **Enhanced Button Styling**: Modern glass morphism design with consistent visual language matching the browser theme
+- **Tooltip Enhancement**: Improved tooltips for better accessibility
+- **Loading States**: Added loading animations for action buttons
+
+### Technical Details
+- Removed duplicate toolbar container creation in `setupWebViewContainer` function
+- Integrated action toolbar into existing header container instead of creating separate positioned container
+- Added CSS loading priority in `cssLoader.js` to ensure proper styling order
+- Maintained existing functionality while fixing positioning conflicts
+
+## 2024-01-XX - Fixed Browser Rendering and Styling Issues
+- Created comprehensive browser styling fixes to resolve rendering problems
+  - Created browser-fix.css with simplified and consolidated styling to resolve complex CSS conflicts
+  - Fixed browser container positioning from fixed to relative to prevent layout issues
+  - Resolved z-index conflicts by simplifying layering hierarchy throughout browser components
+  - Fixed tab bar visibility issues with proper fallback styling and enhanced React rendering
+  - Improved webview positioning and sizing with simplified absolute positioning
+  - Enhanced fallback tab rendering with improved functionality and hover effects
+  - Fixed address bar and navigation header positioning conflicts
+  - Created CSS loader utility (cssLoader.js) to ensure proper CSS loading order and fallbacks
+  - Implemented emergency styling system for graceful degradation when CSS files fail to load
+  - Updated Voyager initialization to be async and ensure CSS is loaded before layout setup
+  - Enhanced BrowserRenderer fallback system with improved tab functionality and click handlers
+  - Fixed research panel positioning and interaction issues
+  - Improved responsive design handling for mobile and tablet viewports
+  - Added visibility and opacity enforcement for all browser UI elements
+- Enhanced browser initialization and reliability
+  - Made Voyager.initialize() async to properly wait for CSS loading before layout creation
+  - Added comprehensive CSS loading validation and emergency fallback systems
+  - Improved error handling during browser component initialization
+  - Enhanced tab bar rendering with React 18 compatibility and proper error boundaries
+  - Added priority-based CSS loading system to ensure fix styles load before conflicting styles
+
+## 2024-01-XX - Fixed Voyager Browser Double Initialization Issue
+- Fixed critical double initialization problem causing webview recreation cycles and emergency webview fallback
+  - Prevented duplicate initialization by adding `_isInitializing` flag to avoid concurrent initialization attempts
+  - Removed duplicate `initialize()` call from App.js that was conflicting with componentDidMount initialization
+  - Enhanced navigation scheduling to prevent unnecessary webview recreation when browser is already working
+  - Fixed webview connection detection to properly identify working webviews vs those needing recreation
+  - Added checks for `hasNavigatedInitially` flag to prevent repeated navigation scheduling attempts
+  - Improved webview functional detection by checking src attribute and content loading status
+  - Enhanced cleanup to properly reset all initialization and navigation flags
+  - Fixed race condition between React rendering and browser component initialization timing
+  - Reduced emergency webview creation threshold and improved fallback logic
+- Enhanced browser component reliability and performance
+  - Eliminated excessive webview recreation cycles that were causing poor user experience
+  - Improved webview connection validation with comprehensive status checking
+  - Added proper cleanup of initial navigation timeouts and attempt counters
+  - Enhanced initialization flow to be more robust against timing issues
+  - Fixed browser rendering flash issue where correct render briefly appeared then switched to emergency fallback
+
+## 2024-01-XX - Fixed Voyager Browser Container Mounting Issue
+- Fixed critical "Cannot initialize Voyager - container not mounted" error preventing browser from loading
+  - Fixed containerRef setup in App.js to properly connect React-rendered Voyager component to its DOM container
+  - Added proper container reference setup after React render with appropriate timing
+  - Improved container mounting detection with multiple fallback checks (isConnected, document.contains, parentNode)
+  - Reduced excessive retry attempts from 30 to 10 to prevent browser initialization loops
+  - Added 50ms delay in componentDidMount to ensure DOM is fully ready before initialization
+  - Enhanced container validation logging for better debugging of mount issues
+  - Fixed race condition between React rendering and container reference assignment
+- Enhanced browser component initialization reliability
+  - Improved timing of browser initialization after React render completion
+  - Added fallback initialization paths for both direct browser instance and browserRef scenarios
+  - Reduced retry delays to prevent long initialization times (200ms intervals, 2s cap)
+
+## 2024-01-XX - Fixed Browser Tool Rendering Issues
+- Fixed critical "Cannot add property onPageLoad, object is not extensible" error in VoyagerTabManager
+  - Added Object.isExtensible check before attempting to modify React props
+  - Implemented alternative event handling system when props cannot be modified
+  - Created callbacks object to store event handlers instead of modifying immutable props
+  - Added setupAlternativeEventHandling method to wrap Voyager component methods directly
+  - Fixed TabManager creation failure that was preventing browser component from rendering
+- Fixed missing TabBar.css file reference in BrowserRenderer.js
+  - Corrected path from './components/browser/tabs/TabBar.css' to './styles/components/tabs/TabBar.css'
+  - Fixed "net::ERR_FILE_NOT_FOUND" error for TabBar.css file
+  - Ensured proper CSS loading for tab bar styling
+
+## 2024-01-XX - Created Comprehensive Test Suites for Voyager and Researcher
+- Created test suite for Voyager component (frontend/test/components/browser/Voyager.test.js)
+  - Tests for component initialization, researcher integration, navigation methods
+  - Tests for bookmark functionality, URL navigation, lifecycle methods
+  - Tests for error handling and webview styles
+- Created test suite for Researcher component (frontend/test/components/browser/researcher/Researcher.test.js)
+  - Tests for initialization with various prop combinations
+  - Tests for component methods (initialize, updateUrl, updateTitle, etc.)
+  - Tests for DOM manipulation and event handling
+  - Tests for auto-analyze feature
+- Set up Jest configuration for frontend testing (frontend/jest.config.js)
+  - Configured Babel transformation for React components
+  - Added support for ES modules from dependencies (nanoid, d3, etc.)
+  - Created mock files for CSS, images, nanoid, and d3
+- Added test scripts to frontend package.json (test, test:watch, test:coverage)
+- Created test setup file with global mocks for Electron APIs
+- Installed testing dependencies: jest, @testing-library/react, @testing-library/jest-dom, babel-jest
+
+## 2024-01-XX - Fixed React Component Errors in Voyager
+- Fixed Researcher component being incorrectly used as React component instead of plain JS class
+- Removed JSX rendering of Researcher in Voyager.render() method  
+- Updated initializeResearcher() to properly pass containerRef and autoAnalyze props
+- Fixed handleBackAction/handleForwardAction references in render method to use instance methods
+- Fixed handleBookmarkCreation call to use addBookmark instance method
+- Researcher now initializes programmatically and manages its own DOM
+- Note: muse-loader.js missing file error is gracefully handled with CSS fallback
+
+## 2024-01-08 - Enhanced Voyager Browser Component
+
+## [Unreleased]
+
+### Fixed
+- Dramatically improved webview creation performance by reducing initialization cycle from 6 attempts to 3
+- Fast-tracked emergency webview creation to happen immediately on 3rd navigation attempt (rather than 6th)
+- Reduced initial retry delay to 50ms (from 300ms) for faster error recovery
+- Added direct creation of fixed position emergency webview with enhanced styling and improved DOM calculation
+- Added minimal fallback webview creation as ultimate fallback using absolute positioning
+- Optimized DOM reflow calculations with forced layout recalculation via offsetHeight
+- Prevented execution of JavaScript before DOM readiness to avoid illegal return statements
+- Fixed webview DOM readiness errors with improved event handling
+- Enhanced JavaScript execution in webviews by properly detecting dom-ready state
+- Implemented safer style application with proper DOM readiness checks
+- Reduced emergency webview creation threshold from 8 to 6 attempts for faster recovery
+- Fixed "The WebView must be attached to the DOM" errors with improved initialization sequence
+- Enhanced webview lifecycle management to prevent destruction and recreation cycles
+- Improved webview destruction detection with specialized event listener
+- Optimized navigation initialization with faster early attempts and more thorough DOM connection checking
+- Modified emergency webview creation to happen sooner (attempt #6) for quicker recovery
+- Added comprehensive webview cleanup process to prevent memory leaks
+- Added persistent styling through the complete webview lifecycle for better stability
+- Enhanced webview attachment verification with multiple connection checks
+- Improved diagnostics with detailed connection failure logging
+- Relocated webview styling logic from main.js to Voyager component for better encapsulation
+- Added dedicated applyWebviewStyles method in Voyager.js to handle safe style application
+- Implemented IIFE pattern in executeJavaScript calls to avoid illegal return statements
+- Simplified main.js webview handling to only apply basic styles
+- Fixed webview serialization errors by splitting executeJavaScript calls into smaller chunks
+- Enhanced webview dimension setting to avoid "An object could not be cloned" errors
+- Improved webview style application with a two-phase approach for better reliability
+- Added explicit return values to avoid complex object serialization in IPC calls
+- Enhanced webview dimension setting in main.js to improve stability and prevent repeated initialization cycles
+- Added more comprehensive styling and DOM readiness checks for webviews
+- Implemented safety timeout to recalculate layout after initial rendering
+
+### [0.6.11] - Fixed Electron webContents.setAutoSize Error
+- Fixed "webContents.setAutoSize is not a function" error in main.js:
+  - Replaced deprecated setAutoSize method with executeJavaScript approach
+  - Implemented direct webview element manipulation via DOM for proper sizing
+  - Added error handling for webview dimensions configuration
+  - Ensures consistent webview rendering without relying on deprecated APIs
+
+### [0.6.10] - Fixed SettingsService Read-Only Property Assignment Error
+- Fixed "Cannot assign to read only property 'backend' of object '#<Window>'" error in SettingsService.js:
+  - Removed attempt to replace window.backend with a new object
+  - Implemented alternative registration approach using window.settingsService when window.backend is read-only
+  - Added nested try/catch blocks for more robust error handling in property assignments
+  - Improved logging to indicate when fallback registration methods are used
+  - Ensures full functionality even when window.backend cannot be modified
+
+### [0.6.9] - Fixed SettingsService Non-Extensible Object Error
+- Fixed "Cannot define property settingsService, object is not extensible" error in SettingsService.js:
+  - Added Object.isExtensible check before attempting to define properties on window.backend
+  - Implemented fallback approach to create a new object with all existing properties when window.backend is non-extensible
+  - Improved error handling for both Electron and browser environments
+  - Maintains all existing backend functionality while adding settingsService safely
+
+### [0.6.8] - Removed Remaining Tool Renderer CSS Reference and Fixed TypeError
+- Removed reference to tool-renderers.css from ToolRenderer.js:
+  - Removed loadToolStyles method that was attempting to load the non-existent CSS file
+  - Fixed error "Failed to load resource: net::ERR_FILE_NOT_FOUND" for tool-renderers.css
+- Fixed TypeError in ToolRenderer.js:
+  - Removed call to non-existent registerToolRenderers method
+  - Fixed "Uncaught TypeError: this.registerToolRenderers is not a function" error
+
+### [0.6.7] - Removed Memory CSS References
+- Removed references to memory.css:
+  - Removed link tag from index.html
+  - Removed reference from App.js loadStylesheets method
+
+### [0.6.6] - Removed Tool Renderers CSS References
+- Removed references to non-existent tool-renderers.css:
+  - Removed link tag from index.html
+  - Removed reference from App.js loadStylesheets method
+
+### [0.6.5] - Removed GLTFLoader References and Added Memory CSS
+- Removed GLTFLoader references:
+  - Removed GLTFLoader.js reference from App.js loadExternalScripts method
+  - Removed direct script tag for GLTFLoader.js from index.html
+- Removed Three.js references:
+  - Removed direct script tag for Three.js from index.html
+- Removed muse-loader references:
+  - Removed direct script tag for muse-loader.js from index.html
+- Added missing CSS files:
+  - Created memory.css with basic styling for memory components
+
+### [0.6.4] - Removed Muse Loader
+- Removed Muse loader references:
+  - Removed muse-loader.js reference from App.js loadExternalScripts method
+  - Deleted muse-loader.js files from frontend/public/scripts and frontend/public/assets/js
+
+### [0.6.3] - Improved Resource Loading and Error Handling
+- Enhanced resource loading reliability:
+  - Added robust error handling for CSS file loading
+  - Added optional loading of external scripts with proper error events
+  - Added detection and handling of missing resource files (memory.css, tool-renderers.css, GLTFLoader.js)
+  - Implemented fallback for script loading failures
+  - Improved SettingsService error handling with new service:registration:error event
+  - Enhanced App.js render method with better #app element creation and error recovery
+  - Fixed "Cannot define property settingsService, object is not extensible" error handling
+
+### [0.6.2] - Fixed DOM Null Reference Error
+- Fixed critical "Cannot read properties of null (reading 'appendChild')" error in App.js:
+  - Added robust error handling when the 'app' DOM element is missing
+  - Implemented automatic 'app' element creation if not found in DOM
+  - Added fallback logic to append to document.body when 'app' element cannot be accessed
+  - Enhanced error reporting with informative console messages
+  - Added comprehensive try/catch blocks to prevent fatal errors during rendering
+  - Improved null checking for chatUI.focusInput() call
+
+### [0.6.1] - Fixed React Mounting Issues and Resource Loading
+- Fixed remaining React mounting and resource loading issues:
+  - Resolved "Can't call setState on a component that is not yet mounted" warning in TabManagerButton by using refs to track component mounting state
+  - Created missing CSS files: tool-renderers.css and TabBar.css
+  - Fixed Three.js and GLTFLoader loading with proper script tags and MIME types
+  - Created consistent muse-loader.js implementation with proper Three.js compatibility
+  - Added safeguards against unmounted component state updates
+  - Improved webview mounting reliability with better DOM connection detection
+
+### [0.6.0] - Enhanced Browser DOM Connection and Worker System
+- Fixed critical webview DOM connection issues in Voyager:
+  - Enhanced webview DOM connection verification with multiple criteria including document.contains check
+  - Added comprehensive webview styling with !important flags for consistent display
+  - Improved style application with cssText for more reliable styling
+  - Added emergency webview creation as last resort when normal initialization fails
+  - Added proper readyToShow and _isAttached flags to improve state tracking
+  - Increased maximum initialization attempts from 10 to 15 for better reliability
+  - Enhanced forced DOM reflow to ensure styles are properly applied
+- Fixed worker system availability issues:
+  - Added thorough WorkerManager existence and method availability checks
+  - Enhanced initialization with comprehensive error handling and timeout protection
+  - Added global scope fallback to find WorkerManager when not available locally
+  - Implemented proper promise validation to prevent initialization errors
+  - Added extract-content handler registration when initialization succeeds
+  - Added detailed diagnostic logging for better troubleshooting
+  - Added initialization delay to ensure proper worker system setup sequence
+
+### [0.5.99] - Fixed Tab Manager Button Styling
+- Ensured TabManagerButton styling is properly applied:
+  - Verified proper inclusion of TabManagerButton.css in index.html
+  - Added inline fallback styles to TabManagerButton component to ensure visibility
+  - Improved button appearance with explicit dimensions and visual indicators
+  - Added high-contrast outline to make the button more visible
+  - Enhanced SVG icon with proper size and color transitions
+  - Retained original class names for CSS compatibility
+  - Verified CSS file is correctly included in webpack configuration
+
+### [0.5.98] - Fixed Resource Loading and React Rendering Issues
+- Implemented extremely aggressive IPC serialization fix:
+  - Completely rewrote all IPC responses to use only primitive string values
+  - Eliminated all complex objects and nested structures from responses
+  - Converted boolean values to strings to avoid any possible issues
+  - Drastically reduced content sizes (text limited to 5KB, data to 100KB)
+  - Removed all non-essential properties from response objects
+  - Created minimal responses that are guaranteed to serialize properly
+
+### [0.5.97] - Ultra-Minimal IPC Response Format
+- Implemented extremely aggressive IPC serialization fix:
+  - Completely rewrote all IPC responses to use only primitive string values
+  - Eliminated all complex objects and nested structures from responses
+  - Converted boolean values to strings to avoid any possible issues
+  - Drastically reduced content sizes (text limited to 5KB, data to 100KB)
+  - Removed all non-essential properties from response objects
+  - Created minimal responses that are guaranteed to serialize properly
+
+### [0.5.96] - Critical IPC Serialization Fix
+- Implemented radical fix for "An object could not be cloned" errors:
+  - Completely redesigned IPC response formats for minimal serialization risk
+  - Drastically reduced content size limits for better reliability (5MB → 2MB)
+  - Eliminated complex header structures in favor of essential primitive values
+  - Added multiple layers of safety for all string conversions
+  - Removed non-essential data from responses to guarantee serialization
+  - Improved error handling to provide more graceful degradation
+
+### [0.5.95] - Enhanced IPC Content Extraction Resilience
+- Further improved IPC serialization handling for content extraction:
+  - Reduced HTML and text size limits for safer IPC communication
+  - Added explicit try/catch for IPC serialization errors
+  - Added fallback response mechanism for unserializable content
+  - Improved error reporting for serialization failures
+  - Fixed "An object could not be cloned" errors in IPC communication
+  - Ensured content extraction works even with problematic responses
+
+### [0.5.94] - Enhanced IPC Content Extraction Serialization
+- Further improved IPC serialization handling for content extraction:
+  - Enhanced serverFetch responses to ensure headers are fully serializable
+  - Added type checking and conversion in extract-content handler
+  - Fixed potential unserializable response objects in IPC communication
+  - Added timestamps to extraction results for better tracking
+  - Improved serialization of complex objects like headers
+  - Strengthened error handling and data validation
+
+### [0.5.93] - Fixed BrowserWorker IPC Serialization Issues
+- Fixed "An object could not be cloned" errors in BrowserWorker.js:
+  - Enhanced `_querySelectorAll` method to ensure results are fully serializable
+  - Added proper error handling in querySelector and querySelectorAll methods
+  - Fixed document-level query methods for better error recovery
+  - Ensured all DOM-like elements are converted to serializable objects
+  - Added comprehensive null checks to prevent "Cannot read properties of null" errors
+  - Improved error logging for easier debugging of IPC communication issues
+
+### [0.5.92] - Electron Security Improvements
+- Fixed critical security warnings in Electron configuration:
+  - Enabled webSecurity to properly enforce same-origin policy
+  - Disabled allowRunningInsecureContent to prevent loading insecure content
+  - Disabled experimentalFeatures when not specifically needed
+  - Implemented more secure Content Security Policy with restrictive directives
+  - Added controlled certificate verification with trusted domain allowlist
+  - Enhanced webview security with more restrictive CSP settings
+  - Improved permission handling with explicit permission allowlist
+
+### [0.5.91] - Fixed React Component Lifecycle and CSP Compliance
+
+## React Component Lifecycle Fix
+- Fixed "Can't call setState on a component that is not yet mounted" error in TabManagerButton:
+  - Added isMountedRef with useRef to track component mount state
+  - Implemented safety checks before all setState calls to prevent operations on unmounted components
+  - Enhanced event handler cleanup with proper mount state verification
+  - Improved component lifecycle management with better unmounting detection
+  - Added comprehensive null checks for enhanced error prevention
+
+## Content Security Policy Update
+- Updated webpack.config.js CSP definition to ensure consistency:
+  - Added https: source to the img-src directive in webpack configuration
+  - Ensured all CSP directives match between webpack, index.html, and main.js
+  - Fixed potential image loading violations with consistent policy
+
+### [0.5.90] - Fixed Worker Availability Check
+
+## Worker Extraction Error Fix
+- Fixed "No webview or URL available for extraction" error in Voyager browser:
+  - Enhanced isWorkerSystemAvailable helper to check for webview and URL availability
+  - Updated function to accept instance parameter for context-aware checks
+  - Modified all function call sites to pass the instance parameter
+  - Added more thorough validation of webview DOM connection
+  - Enhanced extractPageContentWithWorker with better webview validation
+  - Improved error handling during content extraction
+
+### [0.5.89] - Fixed Worker Initialization Timeout Issue
+
+## Browser Worker Ready Message Fix
+- Fixed worker initialization timeout by adding explicit ready message:
+  - Added missing `postMessage({ type: 'ready' })` to BrowserWorker.js
+  - Enhanced WorkerManager to better handle worker initialization flow
+  - Improved isWorkerSystemAvailable helper with more reliable detection
+  - Added more comprehensive logging for worker initialization stages
+  - Enhanced message handler setup after worker ready state is confirmed
+  - Fixed fallback content extraction when worker system unavailable
+
+### [0.5.88] - Voyager Browser Worker System Reliability Improvements
+
+## Fixed Worker Initialization Timeout Issues
+- Enhanced WorkerManager initialization with better timeout handling:
+  - Increased initialization timeout from 5 seconds to 10 seconds for better reliability
+  - Added isAvailable flag to properly track worker system capability
+  - Implemented a more robust initialization promise system to prevent duplicate initialization attempts
+  - Added comprehensive event listener handling with proper cleanup
+  - Fixed initializationPromise tracking for better initialization flow
+  - Added worker log message handling for better debugging
+  - Enhanced error handling throughout the worker system
+  - Improved fallback handling when worker initialization fails
+  - Fixed task queueing logic to better handle system unavailability
+  - Added initializationAttempted flag to track initialization history
+
+## Fixed Webview DOM Connection Issues
+- Enhanced browser navigation with more reliable webview initialization:
+  - Created dedicated _scheduleInitialNavigation method with progressive retry logic
+  - Added intelligent webview recreation for persistent connection issues
+  - Increased initialization retry limit from 20 to 30 attempts
+  - Increased maximum initialization delay from 2000ms to 3000ms
+  - Enhanced DOM connection verification before navigation attempts
+  - Fixed React createRoot issues with tab manager button
+  - Added _tabManagerRoot tracking to prevent duplicate React roots
+  - Implemented proper webview element recreation after connection failures
+
+## Fixed React Root Creation Warning
+- Resolved "You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot()" warning:
+  - Added _tabManagerRoot tracking to reuse existing root
+  - Enhanced tab manager button rendering to properly update existing root
+
+### [0.5.87] - Voyager Browser Event Listener Cleanup Fix
+
+## Fixed Browser Event Listener Cleanup Error
+- Fixed "Cannot read properties of null (reading 'applyAllCriticalStyles')" error in Voyager.js:
+  - Added comprehensive null checks before accessing webview properties
+  - Wrapped event listener removal in try/catch blocks to handle potential errors
+  - Enhanced webview style manipulation with proper null and method existence checks
+  - Added explicit error handling for webview element access in cleanup method
+  - Improved safety checks when accessing applyAllCriticalStyles method
+
+### CSP Bypass for External Content Extraction
+
+## Fixed Content Security Policy (CSP) Violations in Content Extraction
+- Added missing 'server-fetch' handler to valid IPC channels in preload.js
+- Updated ExtractorManager to properly use electron.ipcRenderer instead of direct ipcRenderer access
+- Fixed FetchExtractor to correctly handle server-side fetching via IPC for CSP bypass
+- Enhanced IpcExtractor with proper error handling and fallback mechanisms
+- Improved logging throughout extraction process for better debugging
+- Added proper content-type detection for extracted content
+- Updated extraction strategies to correctly handle CSP restrictions on external sites
+
+### [0.5.86] - CSP Bypass and Content Extraction Improvements
+
+## Content Security Policy (CSP) Bypass Implementation
+- Fixed "ERR_ABORTED (-3)" errors in webview navigation:
+  - Added server-side fetch capability to bypass CSP restrictions
+  - Enhanced webview element creation with proper attribute ordering
+  - Implemented IPC-based content extraction fallback mechanism
+  - Added dom-ready CSP bypass script injection
+  - Fixed "connect-src" CSP violations in ExtractorManager
+  - Enhanced FetchExtractor with CSP-bypassing capabilities
+  - Added multiple extraction strategies with smart fallbacks
+  - Implemented enhanced header bypass for restricted sites
+  - Added server-fetch and extract-content IPC handlers
+  - Improved webview stability with crash event monitoring
+  - Fixed GUEST_VIEW_MANAGER_CALL errors via improved initialization
+
+### [0.5.85] - Web Worker DOMParser Implementation
+
+## Worker Environment DOM Handling Fix
+- Fixed "DOMParser is not defined" error in Web Worker context:
+  - Implemented custom WorkerDOMParser class in BrowserWorker.js
+  - Created DOM-like API for web workers that mimics browser DOM APIs
+  - Added selector engine with basic CSS selector support for worker environment
+  - Fixed HTML processing functions to work correctly in worker context
+  - Improved worker-based content extraction reliability
+  - Enhanced fallback mechanisms for worker/main thread extraction
+  - Modified DOM cleaning methods to avoid browser-only APIs like getComputedStyle
+
 ### [0.5.84] - Content Extraction System Refactor
 
 ## Content Extraction System Consolidation
@@ -2036,3454 +2480,71 @@
 - Improved test suite with memory management testing
 
 ### Fixed
-- Fixed memory issues in PDF processing by implementing dynamic batch sizing
-- Prevented memory leaks in batch processing by cleaning up resources between batches
-- Improved processing of large document sets by automatically adjusting batch sizes
-- Enhanced memory monitoring to identify and address high memory usage patterns
 
-## [0.3.7] - Stage 2 Initial Implementation
-
-### Added
-- Implemented semantic search functionality
-  - Created `backend/src/services/search.js`: Service for performing vector-based semantic searches
-  - Added search query embedding generation
-  - Implemented vector similarity search against stored text chunks
-  - Added result formatting with relevant metadata and text snippets
-- Created centralized IPC communication system
-  - Added `backend/src/ipcHandlers.js`: Module to centralize all IPC channel definitions
-  - Implemented search IPC channel for query input and result retrieval
-  - Refactored existing IPC handlers for better organization
-- Enhanced UI with search functionality
-  - Added search interface with query input and results display
-  - Implemented content viewing area for displaying search results
-  - Added interactive search results with click-to-view functionality
-  - Improved CSS styling with grid layout for better component organization
-- Added comprehensive testing
-  - Created `backend/test/search.test.js`: Tests for semantic search functionality
-  - Added `backend/test/ipc.test.js`: Tests for IPC communication
-  - Implemented tests for error handling and edge cases
-
-### Changed
-- Refactored frontend/src/main.js to use centralized IPC handlers
-- Updated frontend UI layout to accommodate search and content viewing components
-- Enhanced CSS with grid layout and improved component styling
-- Improved error handling in IPC communication
-
-### Fixed
-- Increased Node.js memory limit for tests to prevent "JavaScript heap out of memory" errors
-- Fixed database test mocks to match actual implementation, removing non-existent `query()` method reference that was causing memory leaks
-- Ensured test mocks properly reflect the vectordb v0.4.3 API limitations
-- Optimized Jest configuration to use less memory during testing with `--runInBand` and reduced workers
-- Implemented proper mock cleanup to prevent memory accumulation during tests
-- Simplified test mocks to avoid circular references which were causing excessive memory usage
-- Added Babel transformation for Chai to handle ESM export syntax issues
-- Configured Jest to skip problematic database.test.js until further optimizations can be made
-
-## [0.3.6] - New Chat Button and Header Fix
-
-### Fixed
-- Fixed New Chat button not working in the chat interface
-  - Added callback connection between ChatHeader and ChatUI components
-  - Implemented proper event listener for New Chat button
-  - Added setNewChatCallback method to ChatHeader.js
-  - Updated ChatUI to connect with ChatHeader
-  - Enhanced UI feedback with notifications on new chat creation
-- Fixed duplicate header issue
-  - Removed duplicate header rendering in ChatUI component
-  - Added setHeaderComponent method to connect to existing header
-  - Modified component architecture to maintain proper header ownership
-  - Updated App.js to connect ChatUI with the application header
-
-## [0.3.5] - Database Storage Location Fix
-
-### Fixed
-- Fixed database creating duplicate storage in the frontend directory
-  - Updated database path configuration to use proper application data directory
-  - Added explicit storage path configuration in config/index.js
-  - Created consistent data directory structure with absolute paths
-  - Modified main.js to properly pass user data path to backend
-  - Added environment variable APP_USER_DATA_PATH for consistent paths
-  - Enhanced database.js to use explicit storage paths without fallbacks
-  - Unified storage location to userData directory for proper persistence
-
-## [0.3.4] - Sieve Component UI Refinements
-
-### Changed
-- Enhanced Sieve component with streamlined UI and improved visual effects
-  - Removed card reflection effect for cleaner appearance
-  - Replaced "View" button with "Flip" button for more intuitive interaction
-  - Enhanced title styling with animated letter effects similar to Mnemosyne
-  - Added particle and glow effects to title for visual consistency
-  - Improved card flipping animation with smoother transitions
-
-## [0.3.3] - YouTube Video Thumbnail Preview and Link
-
-### Added
-- Enhanced YouTube video handling with thumbnail preview and direct video links
-  - Added thumbnail extraction and storage in database.js
-  - Implemented thumbnail display in Sieve component with play button overlay
-  - Added direct "Watch" button to YouTube items in Sieve component
-  - Created clickable thumbnails that open YouTube videos in a new tab
-  - Implemented YouTube link display on video cards
-
-## [0.3.2] - Sieve Component UI Enhancements
-
-### Changed
-- Enhanced Sieve component with modern UI details and visual improvements
-  - Added subtle gradient and pattern overlay to component background
-  - Improved header with animated accent line and title glow effect
-  - Enhanced refresh button with shine animation and interactive feedback
-  - Added depth to filter section with subtle shadows and backdrop blur
-  - Improved filter buttons with animated underline indicators
-  - Enhanced card styling with better shadows, gradients and hover effects
-  - Improved micro-interactions and transition animations throughout
-  - Optimized card flip animations with better timing functions
-  - Added subtle particles and glow effects for modern aesthetic
-
-## [0.3.1] - Removed Deprecated Sidebar Navigation Items
-
-### Changed
-- Removed deprecated "Search" and "Categories" buttons from sidebar
-  - Removed items from navItems array in Sidebar.js
-  - Updated CSS animation delays in sidebar.css to match fewer navigation items
-  - These features have been replaced by agent and Mnemosyne functionality
-  - 
-## [0.3.0] - Advanced Memory Management for Embedding Operations
-
-### Added
-- Enhanced memory management system for handling large embedding operations
-  - Added `backend/src/memory/batchOptimizer.js`: Specialized batch optimizer for embedding operations
-  - Implemented improved memory pressure detection and handling
-  - Added embedding-specific batch size calculation with dynamic adjustment
-  - Created batch tracking system to monitor active processing operations
-  - Added delayed garbage collection strategy for more effective memory reclamation
-
-### Changed
-- Updated DbMemoryManager with more robust memory pressure handling
-  - Added staged garbage collection with cooldown periods to prevent excessive GC
-  - Implemented critical memory pressure detection and emergency actions
-  - Added memory pressure state tracking for better cross-component coordination
-  - Enhanced cache clearing strategy with immediate effect during high memory usage
-- Enhanced MemoryManager with embedding-specific optimizations
-  - Added specialized batch size calculation for embedding operations
-  - Implemented batch tracking with automatic memory reclamation
-  - Added support for handling embedding vectors with optimized size calculation
-  - Improved garbage collection strategy with multi-phase approach
-  - Enhanced memory monitoring with more detailed statistics
-
-### Fixed
-- Fixed memory pressure issues during large YouTube content processing
-  - Resolved issue where memory usage remained high even after cache clearing
-  - Fixed ineffective garbage collection during embedding operations
-  - Added safeguards to prevent processing excessive batch sizes under memory pressure
-  - Implemented automatic batch size reduction for large documents
-  - Added document size detection to prevent memory exhaustion
-
-## [0.2.9] - Enhanced Mnemosyne Dark Theme UI
-
-### Changed
-- Enhanced Mnemosyne card UI with darker, more visually striking design
-  - Updated card backgrounds with deeper, richer dark tones
-  - Added subtle particle effects and enhanced glow animations
-  - Improved button hover effects with dynamic glowing animations
-  - Enhanced card headers with gradient backgrounds for visual depth
-  - Added card-specific particle effects for visual interest on hover
-  - Updated input styling for better contrast and visibility
-  - Enhanced title and text effects with improved shadows
-  - Implemented consistent dark theme variables for better theme cohesion
-  - Added subtle glow pulse animations to cards for modern aesthetic
-
-## [0.2.8] - Sieve Component Loading Spinner Removal
-
-### Changed
-- Removed loading spinner from Sieve component to prevent UI blocking
-  - Eliminated loading state logic to ensure items are always displayed
-  - Bypassed loading and error states that were preventing content visibility
-  - Simplified item display logic for more consistent rendering
-  - Fixed race conditions in item rendering
-  - Removed shouldUpdate check to always refresh content
-  - Ensured direct rendering of content without intermediate loading states
-
-## [0.2.7] - Sieve Component Memoization Fix
-
-### Fixed
-- Fixed Sieve component getting stuck in loading state after adding memoization
-  - Implemented a proper memoization system with cache clearing capability
-  - Created centralized memoization management with named caches
-  - Added explicit loading state management with proper state tracking
-  - Enhanced loading and error states with better DOM management
-  - Added additional logging to improve debugging
-  - Implemented short delay for DOM updates to ensure rendering completes
-  - Fixed race conditions in loading state management
-  - Added proper timeout handling for backend requests
-
-## [0.2.6] - Sieve Component Loading State Fix
-
-### Fixed
-- Fixed critical issue where Sieve component would get stuck in loading state
-  - Added timeout handling to prevent infinite loading
-  - Improved error handling for malformed API responses
-  - Added proper state cleanup to prevent stale data
-  - Enhanced shouldUpdate method with better null checking
-  - Fixed memoization cache clearing during refresh
-  - Added safety checks for invalid data throughout rendering process
-  - Added graceful error recovery to ensure UI is always responsive
-
-## [0.2.5] - Sieve Component Performance and Animation Enhancements
-
-### Added
-- Added enhanced delete animation for Sieve component items
-  - Implemented multi-step keyframe animation for smoother deletion effect
-  - Added scale, shadow, and translation effects for more visual feedback
-  - Synchronized animation timing with component cleanup for smoother transitions
-
-### Improved
-- Optimized Sieve component performance with memoization techniques
-  - Added memoization for expensive rendering functions to reduce CPU usage
-  - Implemented shouldUpdate method to prevent unnecessary re-renders
-  - Added memoized cache for component-wide optimization
-  - Improved item removal with smarter DOM manipulation
-  - Reduced render cycles with component update checking
-  - Enhanced display logic to only redraw changed items
-  - Added render count tracking for debugging performance issues
-
-## [0.2.4] - Sieve Component Delete Button Fix
-
-### Fixed
-- Fixed deletion functionality in Sieve component
-  - Added visual indication during deletion to prevent multiple clicks
-  - Prevented aggressive page reloads by throttling refreshes after deletion
-  - Implemented optimistic UI updates - removing items locally before server refresh
-  - Added cleanup for smooth animation when deleting items from the grid
-  - Enhanced error handling for better resilience when deletion fails
-  - Improved backend database `deleteItem` function with better logging and error handling
-  - Added safety checks to prevent duplicate deletion requests
-  - Fixed styling for delete button disabled state during deletion
-
-## [0.2.3] - Sieve Component View Button Fix
-
-### Fixed
-- Fixed View button functionality in Sieve component
-  - Updated database.js to include preview text in listItems response for proper content display
-  - Enhanced createItemCard with better ID handling to prevent errors with null/undefined IDs
-  - Improved handleCardFlip with better validation and error logging
-  - Fixed retry button in error state to properly use event handler instead of inline onclick
-  - Added fallback ID generation for items without IDs to prevent rendering issues
-  - Fixed card flip animation by adding proper 3D transform properties and z-index handling
-  - Added debug logging for card flip operations to help troubleshoot flipping issues
-  - Increased preview content length for better card information display
-  - Added setTimeout to ensure DOM updates before applying flip class
-
-## [0.2.2] - Database Schema Field Handling Fix
-
-### Fixed
-- Fixed database insertion errors by adding proper field handling
-  - Added handling for required fields in database schema that were missing:
-    - `text_chunks`: Added creation from extracted_text or a placeholder for empty content
-    - `summary`: Added placeholder summary generation from title or default text
-    - `transcript`: Added proper handling for video content vs non-video content
-    - `compressed`: Added default false value to the compressed flag field
-  - Enhanced error handling in database operations with better logging
-  - Improved database compatibility with vectordb schema requirements
-
-## [0.2.1] - Improved API Key Handling
-
-### Added
-- Added `setup-api-keys.js` tool for easy API key configuration
-- Created detailed API_KEYS.md documentation for troubleshooting and setup
-- Improved .env file detection in embedding service to find and load OpenAI API keys from multiple locations
-
-### Fixed
-- Fixed OpenAI embedding service to properly detect and load API keys from .env files
-- Enhanced error handling when API keys are missing or invalid
-- Made OpenAI embedding generation more robust with better error handling
-
-## [0.2.0] - Switched Embedding Service to OpenAI
-
-### Changed
-- Updated embedding service to use OpenAI instead of Google Vertex AI
-  - Removed Google Vertex AI embedding implementation
-  - Removed `google-auth-library` dependency
-  - Modified `backend/src/services/embedding.js` to use OpenAI exclusively
-  - Updated getOpenAIEmbedding function to support text-embedding-3-small and text-embedding-3-large models
-  - Added dimensions parameter support for OpenAI text-embedding-3 models
-  - Enhanced payload creation with model-specific options
-  - Maintained all existing functionality including caching, batching, and fallback
-
-## [0.1.4]
-
-### Added
-- Created `backend/src/utils/tempFileManager.js`: Modular utility for managing temporary files
-  - Provides consistent temp file path handling
-  - Includes safe file deletion with error handling
-  - Features TempFileHandler class for complex file patterns
-  - Supports fallback locations for files created outside temp directory
-  - Handles cleanup of temporary files automatically
-- Implemented batch processing system for efficient document processing and embedding
-  - Created `backend/src/utils/batchers/batchProcessor.js`: Generic batch processing utility with concurrency control
-  - Created `backend/src/utils/batchers/chunkerBatch.js`: Batch processing for text chunking operations
-  - Created `backend/src/utils/batchers/embeddingBatch.js`: Batch processing for embedding generation
-  - Created `backend/src/utils/documentProcessor.js`: End-to-end document processing pipeline
-  - Added comprehensive test suite for batch processing utilities
-  - Enhanced embedding service with parallel processing capabilities
-  - Added cosine similarity calculation functionality
-- Implemented unified document processing system
-  - Created `backend/src/utils/processors/processorFactory.js`: Produces configurable processor instances with consistent interfaces
-  - Integrated batch processing into PDF processor for multi-document handling
-  - Added PDFProcessor class for specialized PDF document handling
-  - Restructured processing pipeline with improved separation of concerns 
-  - Enhanced PDF extraction with multi-file batch processing
-  - Added robust error handling for batch document operations
-
-### Fixed
-- Fixed logger configuration in frontend/src/utils/logger.js to use an array for levels instead of an object, resolving "this.levels.includes is not a function" error.
-- Fixed console transport format in frontend logger to handle undefined date property, resolving "Cannot read properties of undefined (reading 'toISOString')" error.
-- Replaced custom format function with electron-log's standard format string to resolve "data.reduce is not a function" error in style transformation.
-- Updated deprecated `archiveLog` to `archiveLogFn` in file transport configuration to resolve deprecation warning.
-- Fixed preload script issues by removing dependency on path module and simplifying logger initialization in sandboxed context.
-- Modified logger.js to improve compatibility with Electron's preload script sandboxing restrictions.
-- Implemented inline logger in preload.js to avoid CommonJS module dependencies, addressing sandbox restrictions in Electron 20+.
-- Fixed "items.forEach is not a function" error in displayItems by properly handling the response object structure from IPC calls.
-- Fixed YouTube transcription handling to properly locate caption files in the temp directory
-- Resolved issue with YouTube caption processing creating files in the wrong location
-- Fixed incorrect logger import paths in batchers and processors modules to properly reference logger.js from the utils directory
-- Fixed test issues:
-  - Addressed PDF processor test mocking by using proper Sinon stubs instead of Jest mocks
-  - Fixed IPC handlers test by properly mocking the electron module and service dependencies
-  - Improved mocking for test compatibility between Jest and Sinon
-  - Fixed test dependency install issues by using legacy-peer-deps flag for compatibility
-
-## [0.1.3]
-
-### Enhanced
-- Improved backend logger with millisecond timestamp precision for detailed debugging
-- Enhanced context handling by passing it as metadata for better log filtering
-- Added circular reference detection to prevent logger crashes
-- Enhanced HTTP logger with intelligent log level selection based on response status and time
-- Added user-agent summary tracking to HTTP logger for better request identification
-- Improved sensitive data redaction to handle nested objects
-- Added generic log method for interface compatibility
-- Exported log levels for reference in other parts of the application
-
-## [0.1.2]
-
-### Changed
-- Integrated proper contextual logging across all backend services
-- Standardized error handling with detailed error logging
-- Enhanced debug information for text processing and embeddings
-- Implemented trace-level logging for fine-grained debugging
-- Improved metadata in log entries for better debugging and monitoring
-- Updated config bootstrapping with temporary logger
-
-## [0.1.1]
-
-### Added
-- Unified logging system with Winston (backend) and electron-log (frontend)
-- Context-based logging with different severity levels
-- Log rotation with daily file cycling
-- Colorized console output
-- HTTP request logging middleware
-
-### New Files
-- `backend/src/utils/logger.js`: Winston-based logger implementation
-- `backend/src/utils/httpLogger.js`: Morgan HTTP logging middleware
-- `frontend/src/utils/logger.js`: Electron-log implementation 
-- Tests for both frontend and backend loggers
-
-### Changed
-- Updated backend and frontend entry points to use structured logging
-- Added preload API for renderer process logging
-- Extended config with logging settings
-- Refactored services to use contextual loggers
-
-## New Features
-
-### Special Word Renderer Component
-- Added `SpecialWordRenderer.js` component that detects and applies special styling to the words "Mnemosyne" and "Cognivore" in chat messages
-- Created `special-words.css` for styling special words with gradient text, subtle animations, and hover effects
-- Integrated with ChatMessages and ChatUI components
-- Words are rendered at the same size as surrounding text but with special visual treatment to dramatize their importance
-- Added informative tooltips that appear on hover
-- Created demo page at `special-words-demo.html` for testing and demonstration
-
-## Change Log
-
-### 2023-10-17
-- Fixed browser interactivity issue in Voyager component by properly binding event handlers and resolving initialization conflicts between componentDidMount and initialize methods
-- Improved webview event handler binding to ensure navigation buttons and interactions work correctly
-- Fixed navigation and click interaction issues by adding proper event delegation 
-- Fixed "Cannot read properties of undefined (reading 'current')" error in App.js by properly initializing the browserRef with React.createRef()
-- Added handleContentCapture method to properly handle content captured from the browser component
-- Fixed "Cannot initialize Voyager - container not mounted" error with progressive retry mechanism using increasing backoff
-- Fixed "The object has already navigated, so its partition cannot be changed" error by setting a unique partition before any navigation
-- Added more robust initialization in packaged application with better ReactDOM handling
-- Improved mounting detection and error recovery for Electron environments
-
-## Browser UI Enhancement (Current)
-
-- Completely restyled browser component to match application theme
-- Added glass effect header with backdrop filter for modern appearance
-- Implemented interactive elements with ripple effects and smooth transitions
-- Enhanced address bar with search icon and improved focus states
-- Upgraded progress bar with animated gradient for better loading feedback
-- Improved research panel with smooth animations and visual feedback
-- Added responsive adaptations for different screen sizes
-- Fixed styling inconsistencies across all browser elements
-
-## Browser Webview Enhancement (Current)
-
-- Restored createWebviewElement function in BrowserRenderer.js with full functionality
-- Added executeSafelyInWebview helper function for robust webview JavaScript execution
-- Fixed syntax issues in webview creation logic
-- Improved webview rendering capabilities for better browser experience
-- Enhanced error handling for webview initialization
-
-## Browser UI and Interactivity Enhancement (Current)
-
-- Fixed overlapping icons in browser navigation and action buttons
-- Added visual feedback for button interactions with ripple effects and transitions
-- Implemented toast notification system for user action confirmations
-- Enhanced button states with better disabled styles and active indicators
-- Added animations for refresh button, bookmarks, and loading states
-- Improved focus states for address bar and interactive elements
-- Added tooltip functionality for navigation and action buttons
-- Enhanced mobile responsiveness with optimized spacing and interactions
-
-## [Unreleased]
-
-### Changed
-- Centralized research panel logic in Researcher component to remove duplication
-  - Removed duplicate panel creation from BrowserRenderer.js
-  - Updated Voyager.js to delegate research handling to Researcher
-  - Fixed issues with webview container sizing when toggling research mode
-
-### Fixed
-- Research panel initialization issues:
-  - Fixed initialization of Researcher component to ensure it's available before use
-  - Removed fallback mechanisms in toggleResearchMode to properly surface errors
-  - Updated event handlers to handle errors gracefully
-  - Improved component lifecycle integration between Voyager 
-
-## Researcher Component Styling Improvements (2023-07-08)
-- Enhanced ResearcherPanel.css with improved color scheme and consistent spacing
-- Fixed styling issues in ResearcherMessages.js while preserving existing functionality
-- Improved ResearcherInput.js visual appearance with better button styling
-- Refined Researcher.js styling consistency with existing code patterns
-
-### 2023-07-01
-- Added memoization to Researcher components to prevent unnecessary re-renders on keystrokes
-  - Converted class-based components to React functional components with memo
-  - Added debouncing for input handling in Researcher.js
-  - Implemented custom comparison functions for efficient component updates
-  - Created CSS files for the new React components
-
-### 2023-06-30
-- Improved conversation summarization with dynamic highlights
-  - Added new visualization component for summary highlights
-  - Integrated with GPT models for more accurate summary generation
-
-### 2023-06-28
-- Added voice chat features
-  - Integrated with browser speech recognition API
-  - Added controls for voice input and output
-  - Implemented real-time speech-to-text processing
-
-### 2023-07-02
-- Fixed Researcher component initialization error
-  - Restored proper class-based Researcher functionality
-  - Fixed "O is not a constructor" error in toggleResearchMode
-  - Maintained memoization for child components while preserving class structure
-
-### 2023-05-10
-
-- Fixed chat input rendering issue in Researcher component by integrating React components properly
-- Modified Researcher.js to use React-based UI components instead of direct DOM manipulation
-- Added proper cleanup for React components in componentWillUnmount
-
-## 2023-05-31
-### Fixed
-- Fixed issue in `Researcher.js` where `extractFullPageContent` was not returning a Promise correctly, causing "then is not a function" error
-- Added recursion prevention for tool call processing in `sendChatMessage` method with depth tracking
-- Enhanced recursion protection in `updateUI` method with depth tracking to prevent potential stack issues
-- Improved error handling for content extraction and DOM manipulation
-
-### 2023-XX-XX: Robust Content Extraction System
-
-- **Added** `ContentExtractionSystem.js` - A comprehensive content extraction system with multiple fallback mechanisms
-- **Updated** `ContentExtractor.js` - Integrated with new extraction system for reliable content extraction
-- **Updated** `ResearcherEventHandlers.js` - Improved event handlers for better webview readiness detection
-- **Updated** `Researcher.js` - Enhanced _processAndAnalyze method to work with pre-extracted content
-
-These changes address the "webview not ready" errors and provide a more robust extraction system with proper fallbacks when webview extraction fails.
-
-## 2023-07-10
-- UI: Improved Research Panel layout to occupy 45% of screen width
-- UI: Enhanced message styling for better readability and visual appeal
-- UI: Added better collapsed panel behavior and transitions
-- UI: Improved spacing and background styling for research messages
-
-## [0.5.3] - Text Formatting and Special Word Rendering Fixes
-
-### Fixed
-- Fixed text formatting issues in chat messages:
-  - Enhanced `SpecialWordRenderer.js` to properly exclude code blocks and their children from special word styling
-  - Updated `ChatUI.js` to preserve code blocks and pre-formatted text during message processing
-  - Added CSS rules to protect code blocks from special word styling effects
-  - Implemented proper parent hierarchy checking for code elements to prevent formatting conflicts
-  - Fixed multiple rendering issues with special words in formatted messages
-  - Added explicit formatting protection for inline code elements
-
-## [0.5.2] - Import Path Issues Fix
-
-### Fixed
-- Fixed import path issues causing build failures with missing modules
-  - Updated import paths in App.js to match actual file locations in the project structure
-  - Fixed path references in SearchSection.js to correctly import from ../../services
-  - Fixed path references in Mnemosyne.js to correctly import from ../../services and ../../utils
-  - Resolved "Module not found" errors for multiple components including ChatUI, ThemeSwitcher, ContentViewer
-  - Ensured proper build output by correcting relative paths between different component directories
-  - Fixed hierarchy inconsistencies between actual file locations and import statements
-
-## [0.5.2] - Character-by-Character Response Handling Fix
-
-### Fixed
-- Fixed messages not rendering due to character-by-character Gemini API response format
-  - Enhanced messageFormatter.js to properly detect and reconstruct indexed character arrays
-  - Added proper handling for JSON-wrapped responses with candidates structure
-  - Fixed "[ChatMessages] Message at index 1 has no content, setting empty string" warning by improving response parsing
-  - Implemented recursive processing of reconstructed messages for consistent handling
-  - Added detailed logging to trace response format transformations
-  - Enhanced LlmService.js to directly handle character-by-character responses
-  - Added content field synchronization between text and content properties
-  - Improved ChatUI to explicitly ensure content field never becomes null/undefined
-  - Fixed extractToolCallsFromText to maintain both text and content fields
-  - Added multiple validation steps throughout message processing pipeline
-  - Fixed a critical issue where the frontend wasn't properly interpreting the character-by-character format
-
-## [0.5.1] - ToolRenderer Initialization Fix
-
-### Fixed
-- Fixed ToolRenderer initialization issue causing messages not to render properly
-  - Added explicit initialization call for ToolRenderer in ChatMessages component
-  - Implemented initialization check in ToolRenderer to prevent duplicate initialization
-  - Added safeguards in createToolCallElement to ensure ToolRenderer is always initialized
-  - Enhanced error handling in tool rendering process with better logging
-  - Fixed empty message content handling to prevent rendering issues
-  - Improved validation of toolCall objects before rendering
-  - Added runtime initialization check in render method as a last resort safety measure
-  - Fixed cleanup process to properly handle initialization state
-
-## [0.4.4] - Enhanced Settings Logging and Feedback
-
-### Added
-- Enhanced logging for settings operations to improve visibility and troubleshooting
-  - Added console.log statements for immediate visibility in developer tools
-  - Added detailed API key status logging with secure redaction
-  - Enhanced IPC handler logging for backend settings operations
-  - Added visual save confirmation with animated button feedback
-  - Implemented detailed environment variable update logging
-  - Added secure API key logging that shows only first/last 4 characters
-- Improved error handling and user feedback in settings functionality
-  - Added more detailed error messages with specific causes
-  - Enhanced save button with visual feedback (color change and animation)
-  - Added loading state during save operations
-  - Implemented clear notifications for successful/failed operations
-
-### Changed
-- Updated Settings component with better visual feedback during saving
-- Enhanced SettingsService with more comprehensive logging
-- Improved backend IPC handlers with detailed operation logging
-- Added API key change tracking to monitor updates
-
-### Fixed
-- Fixed Gemini API response handling for enhanced reliability
-  - Fixed "result.response.text.trim is not a function" error with robust text extraction
-  - Improved response processing with multiple fallback paths for various response formats
-  - Enhanced error handling for inconsistent API responses
-  - Added type safety checks throughout response processing pipeline
-  - Fixed missing properties in chat responses causing rendering issues
-  - Standardized response format between backend and frontend for consistent handling
-  - Fixed "Invalid message at index 1" error with proper message formatting
-  - Added proper content type checking and conversion for message parts
-- Fixed message rendering errors in ChatMessages component
-  - Implemented comprehensive message sanitization to prevent invalid message errors
-  - Added robust validation for all message properties with appropriate defaults
-  - Enhanced error handling to gracefully display broken messages instead of crashing
-  - Fixed "Invalid message at index 1" error in ChatMessages component
-  - Added type checking and conversion for message content and toolCalls objects
-  - Improved robustness of tool call rendering with failsafe error handling
-  - Ensured proper timestamp handling when timestamps are missing from messages
-
-## [0.4.3] - Settings Page Implementation
-
-### Added
-- Created comprehensive settings page for API key management and application configuration
-  - Added `frontend/src/components/Settings.js`: Modern tabbed settings interface component
-  - Created `frontend/src/services/SettingsService.js`: Service for managing settings persistence
-  - Added `frontend/public/styles/components/settings.css`: Dedicated styling for settings component
-  - Implemented settings IPC handlers in `backend/src/ipcHandlers.js` for backend integration
-  - Added secure API key storage with environment variable integration
-  - Created test utility for validating API keys
-  - Added settings navigation in sidebar with "API Settings" and "Preferences" items
-- Enhanced settings experience with multiple configuration areas
-  - Added API Keys section with Google Gemini, OpenAI, Anthropic, and OpenRouter support
-  - Implemented General settings for interface preferences with dark mode and font size options
-  - Added Models section for configuring default chat and embedding models
-  - Created Advanced settings with developer options and model parameter configuration
-  - Implemented settings persistence with proper storage in userData directory
-  - Added environment variable integration for seamless API key usage across sessions
-
-### Changed
-- Updated App.js to integrate the new Settings component
-- Added settings CSS to index.html for proper styling
-- Enhanced sidebar navigation with settings-specific handling
-- Updated backend to use settings-based API keys when available
-
-## [0.4.2] - Critical LlmService Fix
-
-### Fixed
-- Fixed critical error in LlmService.js that prevented sending messages through the chat interface
-  - Corrected incorrect method call `this.isBackendHealthy()` to `this.checkBackendStatus()`
-  - Fixed undefined `ipcBridge` reference by using `window.server.chat` instead
-  - Added missing `getMemoryUsage()` helper method with safe browser implementation
-  - Enhanced error handling for memory usage logging to prevent crashes
-
-## [0.4.1] - Google API Key Handling Improvements
-
-### Added
-- Created comprehensive API key verification system
-  - Added `backend/verify-api-key.js`: Utility script to test Google API key validity
-  - Created `backend/API_SETUP.md`: Detailed instructions for setting up API keys
-  - Enhanced .env and config.json loading to support multiple key formats and locations
-  - Added explicit validation of API key format and validity
-  - Implemented user-friendly error messages with setup instructions
-- Enhanced error handling for missing or invalid API keys
-  - Updated `frontend/src/services/LlmService.js` with better error detection
-  - Added specific error messaging for API key issues
-  - Implemented helpful guidance in chat UI for API key setup
-  - Created guided error recovery process with step-by-step instructions
-
-### Fixed
-- Fixed "Method doesn't allow unregistered callers" error with improved API key handling
-  - Enhanced API key extraction from .env files with proper regex pattern
-  - Added regex pattern to handle quoted and unquoted API keys in .env files
-  - Fixed API key validation to properly detect invalid keys
-  - Added comprehensive API key debugging with source tracking
-  - Improved error handling in server.js with better API unavailability detection
-  - Fixed IPC error handling to provide helpful error messages to the UI
-  - Enhanced LlmService error handling for API key issues
-
-## [0.4.0] - Database Integration with Gemini
-
-### Added
-- Created new queryDatabase tool for natural language database querying
-  - Added tool definition in `frontend/src/services/tools/sharedToolDefinitions.js`
-  - Implemented backend logic in `backend/src/services/tools.js`
-  - Added direct access to database semanticSearch capabilities
-  - Implemented natural language query to embedding conversion
-  - Added filtering by source type and date range
-  - Enhanced database access through Gemini LLM
-- Updated system prompt to include the new database querying capabilities
-  - Added guidelines for when to use the database query tool
-  - Improved descriptions for complex database interactions
-
-### Changed
-- Enhanced LLM integration with direct database access
-  - Updated server.js with toolsService integration
-  - Added proper handlers for database query execution
-  - Improved error handling for database queries
-
-## [0.3.35] - Memory Management System Enhancements
-
-### Added
-- Implemented comprehensive file storage system for knowledge management
-  - Added file storage capabilities to database service for PDFs, websites, and videos
-  - Enhanced database schema with file paths, sizes, and compression information
-  - Created transcript storage with lossless compression for YouTube videos
-  - Added automatic file management with cleanup on item deletion
-- Upgraded embedding service with professional model integration
-  - Integrated actual embedding model via environment variable EMBEDDING_MODEL=embedding-005
-  - Added embedding caching to reduce API calls and improve performance
-  - Implemented fallback mechanism for offline embedding generation
-  - Enhanced memory efficiency with optimized vector handling
-  - Added Google Vertex AI authentication with Application Default Credentials
-  - Implemented rate limiting with exponential backoff for API calls
-  - Added smart batch processing with dynamic adjustment based on text length
-  - Improved error handling and retry logic for embedding generation
-  - Added Google Vertex AI embedding model support for text-embedding-005
-  - Implemented automatic provider selection based on model name
-  - Added GCP authentication for Vertex AI API access
-  - Fixed Vertex AI authentication using Google Auth Library and ADC
-  - Added field name normalization for database compatibility (camelCase to snake_case)
-  - Improved error handling during authentication and database operations
-- Improved Mnemosyne component with enhanced file storage integration
-  - Updated file processing with options for storing original files
-  - Added file size information display in content summary
-  - Enhanced YouTube processing with transcript preservation
-
-### Changed
-- Optimized database operations for better performance
-  - Added intelligent compression for text content using zlib
-  - Enhanced memory management during vector operations
-  - Improved file storage with type-specific organization
-  - Added file existence checking to prevent duplicate storage
-- Enhanced content processing workflow
-  - Improved PDF processing with original file preservation
-  - Enhanced web content storage with screenshots and HTML content
-  - Added comprehensive metadata storage for all content types
-  - Improved error handling during file operations
-
-### Fixed
-- Fixed missing file handling in document retrieval process
-- Improved content processing feedback with detailed success notifications
-- Enhanced error reporting during file operations with specific error messages
-- Database field naming compatibility (camelCase to snake_case conversion)
-- Embedding service authentication with Google Vertex AI
-- Rate limit handling for embedding generation API calls
-- Type compatibility issue in embedding batch processor (fixed "textChunks.reduce is not a function" error)
-- Improved handling of single string inputs in batch embedding functions
-
-### Improved
-- Memory management during embedding generation
-- Reliability of batch processing with timeout handling
-- Optimized batch sizing based on content length
-
-## [0.3.34] - Card Flip Content Viewing
-
-### Added
-- Implemented card flip animation for viewing content details
-  - Content now displayed by flipping cards in place instead of opening a separate viewer
-  - Each knowledge card can be flipped to reveal detailed content on the back
-  - Added smooth transitions and animations for a premium user experience
-
-### Changed
-- Removed reliance on separate ContentViewer component for Sieve
-- Enhanced metadata display with better formatting and organization
-- Added copy and export functionality directly on flipped cards
-- Improved scroll behavior with hidden scrollbars while maintaining scrollability
-
-### Fixed
-- Fixed layout issues when viewing content on different screen sizes
-- Improved content preview truncation to avoid layout shifts
-
-## [0.3.33] - UI Enhancements for Knowledge Management
-
-### Changed
-- Improved scrolling behavior with hidden scrollbars for cleaner interface
-  - Updated Sieve component to support scrolling without visible scrollbars
-  - Applied consistent scrolling behavior across all content areas
-- Enhanced ContentViewer design with modern glass morphism UI
-  - Added animations for a more polished user experience
-  - Improved information hierarchy with clearer typography
-
-## [0.3.32] - Sieve Knowledge Management Component
-
-### Added
-- Created new Sieve component for enhanced knowledge management
-  - Implemented `frontend/src/components/Sieve.js`: Modern UI for filtering and browsing knowledge items
-  - Added `frontend/public/styles/components/sieve.css`: Dedicated responsive styling for Sieve component 
-  - Created card-based grid layout for better content visualization
-  - Implemented filtering by content type (PDF, Web, Video)
-  - Added search functionality for finding specific knowledge items
-  - Enhanced item preview with better text truncation
-  - Added smooth loading states and animations
-  - Integrated with existing document management system
-- Updated Sidebar with Sieve navigation item
-  - Added Sieve to the Library section of the sidebar
-  - Used wave icon to represent the filtering nature of Sieve
-- Integrated Sieve component with main App.js
-  - Added proper initialization and cleanup for component lifecycle
-  - Ensured content updates flow properly to Sieve component
-
-### Changed
-- Enhanced content navigation with more specialized components
-  - Added explicit component for knowledge organization and filtering
-  - Enhanced document management workflow with multiple view options
-
-## [0.3.31] - Sidebar UI Improvement
-
-### Changed
-- Improved sidebar collapsed state UI
-  - Hid user avatar in collapsed state for better visual consistency
-  - Centered toggle button in sidebar footer when collapsed
-  - Fixed spacing issues in collapsed sidebar state
-  - Completely hidden logo when sidebar is collapsed for cleaner minimal interface
-
-## [0.3.30] - Navigation and Rendering Fix
-
-### Fixed
-- Fixed UI navigation and rendering glitches
-  - Added throttling to prevent excessive IPC calls
-  - Fixed sidebar active item state when viewing the Mnemosyne page
-  - Removed circular update triggers between components
-  - Prevented repeated list refreshes causing UI instability
-  - Resolved Cognivore remaining selected when on Mnemosyne page
-
-## [0.3.29] - Dark Mode UI Update
-
-### Changed
-- Modified theme handling to use dark mode only
-  - Removed light/dark mode toggle from UI
-  - Updated ThemeSwitcher component to always use dark mode
-  - Fixed theme implementation to prevent accidental light mode switching
-
-### Fixed
-- Fixed alignment between sidebar collapse button and chat input container for better visual consistency
-- Improved sidebar footer positioning to stay fixed at the bottom of the sidebar
-
-## [0.3.28] - UI Enhancements
-
-### Changed
-- Updated UI components for better user experience
-  - Modified sidebar to start in collapsed state by default
-  - Removed scrollbars from the application for cleaner interface
-  - Renamed "Documents" page to "Mnemosyne" in sidebar navigation
-  - Renamed "AI Assistant" to "Cognivore" throughout the application
-
-## [0.3.27] - IPC Handler Registration Fix
-
-### Fixed
-- Fixed critical IPC handler registration conflict causing chat and document functionality to fail
-  - Modified `backend/src/ipcHandlers.js` to safely register handlers without conflicts
-  - Added handler collision detection to prevent duplicate registrations
-  - Implemented fallback handling to skip already registered handlers instead of failing
-  - Enhanced error reporting for initialization issues
-  - Fixed "No handler registered for 'chat'" error that was preventing chat function
-  - Fixed "No handler registered for 'list-items'" error that was preventing document listing
-  - Fixed "No handler registered for 'process-pdf'" error that was preventing document uploads
-
-## [0.3.26] - Gemini System Role Compatibility Fix
-
-### Fixed
-- Fixed critical "Content with system role is not supported" error with Gemini models
-  - Updated `frontend/src/services/LlmService.js` to convert system prompts to user messages with special formatting
-  - Modified system prompt integration to be compatible with Gemini 2.0 Flash
-  - Enhanced `backend/src/services/llm.js` to properly handle role conversion for Gemini API
-  - Added better error handling for system role issues
-  - Ensured proper conversation flow when converting system instructions to user messages
-
-## [0.3.25] - Centralized Tool Definitions
-
-### Added
-- Created centralized tool definition system for frontend and backend
-  - Implemented `frontend/src/services/tools/sharedToolDefinitions.js`: Single source of truth for all tools
-  - Added `backend/src/utils/toolDefinitionsAdapter.js`: Backend adapter for shared definitions
-  - Implemented tool validation to ensure consistency across codebase
-  - Added location-based filtering to manage tool availability (frontend/backend/both)
-  - Created utility functions for accessing and working with tool definitions
-
-### Changed
-- Refactored tools system for unified definitions
-  - Updated `frontend/src/services/systemPrompt.js` to use shared tool definitions
-  - Modified `frontend/src/services/tools/index.js` to support shared definitions
-  - Updated `backend/src/services/tools.js` to validate against shared definitions
-  - Added backward compatibility notes to `frontend/src/services/tools/toolRegistry.json`
-  - Improved tool registration and validation process in backend
-  - Enhanced error handling for missing tool implementations
-
-### Fixed
-- Fixed module compatibility issues between frontend and backend
-  - Resolved "Unexpected token 'export'" error in shared tool definitions
-  - Updated backend tools service to properly initialize logger before use
-  - Simplified toolDefinitionsAdapter to use embedded definitions rather than dynamic imports
-  - Fixed ES module/CommonJS compatibility in frontend module exports
-  - Improved handling of module loading across different environments
-  - Added cross-environment support for both Electron renderer and Node.js contexts
-
-## [0.3.24] - System Prompt Integration
-
-### Added
-- Created modular system prompt management for agent configuration
-  - Implemented `frontend/src/services/systemPrompt.js`: Defines agent purpose and available tools
-  - Added configurable system prompt functions with user personalization
-  - Created minimal system prompt option for lightweight interactions
-  - Implemented tool definition standardization for consistent schema
-- Enhanced LLM service with system prompt integration
-  - Updated `frontend/src/services/LlmService.js` to use system prompts
-  - Added automatic system prompt insertion for chat history
-  - Created helper methods for generating different system prompt types
-  - Improved chat handling with proper system message integration
-
-### Changed
-- Refactored tool definitions to use centralized system
-  - Moved tool definitions from LlmService to systemPrompt module
-  - Enhanced consistency between frontend and backend tool definitions
-  - Improved organization of tool-related code
-- Updated chat processing pipeline
-  - Added formatChatHistoryWithSystemPrompt for automatic system prompt insertion
-  - Enhanced sendMessage method to use configured system prompts
-  - Improved chat initialization with proper system context
-
-## [0.3.23] - Retrieval Augmented Generation (RAG) System
-
-### Added
-- Implemented Retrieval Augmented Generation (RAG) system for LLM integration
-  - Added semanticSearch function to database.js for optimized RAG queries
-  - Added getItemById function to database.js for efficient content retrieval
-  - Created backend LLM service (llm.js) for Gemini model interactions
-  - Added RAG tools to tools.js (searchKnowledgeBase, getItemContent, recommendRelatedContent)
-  - Enhanced IPC handlers to support LLM chat, embedding generation, and tool execution
-  - Implemented memory-optimized content processing with token counting
-
-### Changed
-
-### Fixed
-
-## [0.3.22] - Chat Message Freezing Fix
-
-### Fixed
-- Fixed critical issue with chat messages freezing when sent
-  - Enhanced ChatInput with improved error handling and explicit console logging for debugging
-  - Added timeout protection to prevent infinite loading states
-  - Fixed event binding issues in ChatInput to ensure handleSubmit is properly called
-  - Added more robust server port detection to prevent conflicts
-  - Improved preload.js IPC bridge with timeout handling and better error recovery
-  - Enhanced error reporting to provide more helpful feedback to users
-  - Added explicit loading state management in ChatUI component
-
-## [0.3.21] - Message Handling and Backend Connection Fix
-
-### Fixed
-- Fixed critical issues with message handling in chat interface
-  - Enhanced ChatUI.handleSubmit() with more robust error handling and connection checks
-  - Added timeout handling for backend connections to prevent hangs
-  - Improved error reporting with specific, user-friendly error messages
-  - Added forceFullRerender() method to recover from DOM detachment issues
-  - Fixed UI update process to ensure messages are always displayed
-- Improved backend server port handling and connection stability
-  - Enhanced port conflict detection and resolution in server.js
-  - Added more comprehensive error handling for server startup
-  - Improved port availability checking with timeout protection
-  - Added automatic process termination for stuck ports
-  - Extended retry mechanism for finding available ports
-- Enhanced LlmService with better connectivity handling
-  - Added timeout protection for backend health checks
-  - Implemented progressive retry with increasing timeout windows
-  - Added detailed error reporting for different failure scenarios
-  - Improved connection retry logic with better error classification
-
-## [0.3.20] - Mnemosyne Document Processing UI
-
-### Added
-- Created new Mnemosyne component for centralized document processing
-  - Implemented `frontend/src/components/Mnemosyne.js`: Visual component for document processing workflow
-  - Added `frontend/public/mnemosyne.css`: Dedicated styling for the Mnemosyne component
-  - Created card-based interface with three content types (PDF, Web URL, YouTube)
-  - Implemented modern, visually appealing document processing UI
-  - Added responsive design with mobile support
-  - Integrated with existing DocProcessor service for backend communication
-  - Added content list with type badges and actions (view, delete)
-- Enhanced document processing experience
-  - Implemented file name display for selected PDF files
-  - Added content preview with truncated text display
-  - Created consistent color-coding for different content types
-  - Added hover states and subtle animations for interactive elements
-  - Implemented content type icons using SVG data URIs
-
-### Changed
-- Refactored document processing logic
-  - Replaced separate ContentInput and ContentList components with unified Mnemosyne component
-  - Updated App.js to use the new Mnemosyne component
-  - Modified document display with improved styling
-  - Enhanced application theme integration with CSS variables
-  - Improved document management workflow with unified interface
-
-## [0.3.19] - ChatUI DOM Connection Fix
-
-### Fixed
-- Fixed DOM connection issue in ChatUI component
-  - Fixed error "Main container is not connected to DOM!" when initializing ChatUI
-  - Added DOM connection checks in initialize() method to handle cases where container isn't ready
-  - Improved showBackendUnavailableMessage() to handle cases where container isn't connected
-  - Added short delay in initialization sequence to ensure DOM is fully updated
-  - Enhanced updateUI() method to robustly handle DOM connection issues
-
-## [0.3.18] - Advanced Type Validation System
-
-### Added
-- Implemented Pydantic-like validation system with strong type safety
-  - Created `frontend/src/services/tools/validation/SchemaValidator.js`: Robust schema validation utility
-  - Added `frontend/src/services/tools/validation/Model.js`: Type-safe data models with validation
-  - Implemented field definitions with strong typing and validation rules
-  - Added automatic type conversion and validation for all data types
-  - Created comprehensive validation error reporting
-- Enhanced summary generation with type-safe models
-  - Added `frontend/src/services/tools/summaryGenerator/models.js`: Type models for summary parameters and results
-  - Implemented SummaryParams, SummaryResult, and SummaryError models
-  - Added validation rules specific to summary generation
-  - Enhanced error handling with custom validation
-- Improved Gemini function calling with validation
-  - Updated GeminiFunctionCaller to handle validation errors
-  - Added FunctionCallResult for consistent error handling
-  - Enhanced tool execution with parameter validation
-  - Implemented more robust error reporting
-
-### Changed
-- Enhanced tool parameters with JSON Schema validation
-  - Updated tool registry to use schema validation
-  - Improved parameter validation for all tools
-  - Enhanced error handling with detailed validation errors
-- Improved type safety across the codebase
-  - Implemented validation before processing
-  - Added automatic type conversion where appropriate
-  - Enhanced error handling with validation context
-
-## [0.3.17] - Modular Tools System
-
-### Added
-- Created extensible tools system for document processing
-  - Implemented `backend/src/services/tools.js`: Main service for managing and executing tools
-  - Created `frontend/src/services/tools/` directory structure for modular tools
-  - Added `frontend/src/services/tools/registry.js`: Tool registry for managing available tools
-  - Created `frontend/src/services/tools/summaryGenerator/`: Document summary generation tool
-  - Added `frontend/src/services/tools/toolRegistry.json`: JSON configuration for available tools
-  - Created `frontend/src/services/tools/GeminiFunctionCaller.js`: Utility for Gemini function calling
-- Implemented document summary generation tool
-  - Added backend summary generation with text analysis
-  - Created frontend fallback for summary generation
-  - Implemented key points extraction from document text
-  - Added client/server execution capabilities
-- Enhanced ApiService with tools functionality
-  - Added methods for tool discovery and execution
-  - Implemented tool-specific API methods
-  - Enhanced error handling for tools
-
-### Changed
-- Updated IPC handlers to support tools functionality
-  - Added get-available-tools, execute-tool and generate-summary handlers
-  - Improved error handling for tool execution
-  - Enhanced backend initialization to include tools service
-
-## [0.3.16] - Frontend Logger Fix
-
-### Fixed
-- Fixed critical "process is not defined" error in frontend logger
-  - Updated `frontend/src/utils/logger.js` to properly detect browser environment
-  - Completely rewrote logger implementation to use pure browser-compatible code
-  - Removed all Node.js dependencies (electron-log, require, process) from browser code
-  - Used CommonJS module exports pattern for compatibility with Electron
-  - Enhanced environment detection to avoid process reference in browser context
-  - Fixed error that was preventing ThinkingVisualization component from loading
-
-## [0.3.15] - Chat Input Fix
-
-### Fixed
-- Fixed critical issue with chat input not properly sending messages
-  - Added proper method binding in ChatInput.js to prevent context loss 
-  - Improved Enter key handling with better input validation
-  - Fixed binding issues between App.js and ChatUI.js components
-  - Enhanced error handling in message submission process
-  - Added direct button click handler for better mobile support
-  - Created separated submitMessage method for cleaner code structure
-  - Fixed input state management after message submission
-  - Added proper validation of message content before submission
-
-## [0.3.14] - Backend Communication Fix
-
-### Fixed
-- Fixed critical backend communication issues preventing chat from functioning
-  - Added proper IPC handlers in `backend/server.js` to handle direct communication with frontend
-  - Updated `frontend/src/preload.js` to prioritize IPC communication over HTTP fallback
-  - Enhanced error handling for backend connection issues with better user feedback
-  - Fixed "Electron net module is not available" error by implementing proper IPC channels
-  - Added direct IPC handlers for health check, config, chat, and tool execution
-  - Improved `frontend/src/main.js` to initialize backend server and set up IPC handlers
-  - Added basic IPC handlers directly in the main process as a fallback
-  - Created robust failover from IPC to HTTP when needed
-  - Enhanced error reporting with specific error messages for connection issues
-
-### Added
-- Added better backend server integration with Electron
-  - Implemented proper backend server initialization in the main process
-  - Added IPC bridge between frontend and backend services
-  - Created direct communication channel between renderer process and backend
-
-### Changed
-- Improved communication architecture between frontend and backend
-  - Changed from HTTP-only to IPC-first with HTTP fallback approach
-  - Enhanced error handling for backend connectivity issues
-  - Improved logging for backend connection status
-
-## [0.3.13] - Chat Implementation Optimization
-
-### Fixed
-- Fixed duplicate header creation in ChatUI component
-- Resolved conflict between App component and ChatUI for header and footer management
-- Fixed chat layout issues with proper container hierarchy
-- Eliminated input container duplication issues
-- Improved component cleanup to ensure proper removal of all elements
-- Fixed focus issues in chat input when rendering component
-
-### Added
-- Added chat-container-wrapper component for better structure
-- Created proper separation between shared app structure and chat-specific components
-- Improved header integration with consistent styling
-
-### Changed
-- Moved header creation responsibilities to App component
-- Updated ChatUI component to focus on chat functionality only
-- Improved component lifecycles to prevent memory leaks
-- Enhanced input field management with proper focus handling
-- Added better component cleanup when navigating between sections
-
-## [0.3.12] - Frontend CSS Optimization
-
-### Fixed
-- Resolved duplicate CSP (Content Security Policy) definitions in index.html
-- Removed duplicate bundle.js script tag from index.html
-- Fixed conflicting CSS animation definitions between main.css and component stylesheets
-- Eliminated multiple implementations of the same UI components (header/footer)
-
-### Added
-- Created shared animations.css file for consistent animations across all components
-- Improved CSS organization with proper import hierarchy
-- Enhanced style maintainability through better component isolation
-
-### Changed
-- Optimized CSS import structure for better performance
-- Consolidated animations into a shared file to reduce duplication
-- Improved component styling organization for better maintainability
-
-## [0.3.11] - Modern Dark Theme Redesign
-
-### Added
-- Implemented modern dark-themed UI throughout the application
-- Added responsive header with navigation menu
-- Enhanced footer with links and copyright information
-- Added new UI animations and transitions
-- Implemented improved loading states for search
-- Added content actions (copy, export) to ContentViewer
-- Improved error handling and empty state displays
-
-### Changed
-- Completely redesigned the color scheme with dark palette
-- Enhanced typography with better contrast and readability
-- Improved component layouts for better user experience
-- Updated UI components with modern styling
-- Enhanced button styles with hover and active states
-- Added custom scrollbar styling for better integration
-- Improved responsive design for mobile devices
-
-### New Components/Features
-- Added navigation system for app sections
-
-### Fixed
-- Fixed TypeError in getSourceColor methods by adding null checks for undefined sourceType values
-  - Updated Dashboard.js, SearchSection.js, ContentList.js, and renderer.js to handle undefined source types
-  - Prevented "Cannot read properties of undefined (reading 'toLowerCase')" error that was breaking dashboard initialization
-- Fixed Content Security Policy issues with webpack bundling
-  - Modified webpack.config.js to use 'inline-source-map' instead of eval-based sourcemaps
-  - Added Content-Security-Policy meta tag in HtmlWebpackPlugin configuration
-  - Disabled webSecurity in Electron for development environments
-
-## [0.3.10] - Memory Management and Database Fixes
-
-### Fixed
-- Fixed memory manager batch size calculation to properly adjust for item size
-  - Updated `backend/src/memory/memoryManager.js` to ensure smaller items get larger batch sizes and larger items get smaller batch sizes
-  - Added logic to prevent large items from using maximum batch size, ensuring proper differentiation in batch sizing
-- Fixed search service database initialization issues in tests
-  - Updated `backend/test/search.test.js` to properly mock database collection
-  - Enhanced `backend/src/services/database.js` vectorSearch function to handle test environments better
-  - Added global.testCollection support for improved test reliability
-  - Fixed error message expectations in tests to match actual error messages
-- Fixed test framework incompatibilities
-  - Updated `backend/test/search.test.js` to use Jest's `beforeAll`/`afterAll` instead of Mocha's `before`/`after`
-  - Fixed Electron IPC mocking in `backend/test/ipc.test.js` by using proper getter methods for ipcMain
-  - Enhanced test stability for cross-framework compatibility
-- Fixed IPC handler initialization in main process
-  - Updated `frontend/src/main.js` to correctly call `initializeIpcHandlers` instead of non-existent `setupIpcHandlers` function
-  - Added database initialization to the main Electron process to ensure database is ready before IPC handlers are initialized
-  - Modified `backend/src/services/database.js` to use raw database connection when memory-managed connection is missing methods
-  - Resolved "Error: Database not initialized" error in listItems handler
-  - Fixed "Error: No handler registered for 'list-items'" error that was preventing database items from being listed
-- Enhanced memory manager to preserve all database connection methods
-  - Updated `backend/src/memory/dbMemoryManager.js` to wrap all methods from original connection objects
-  - Added intelligent handling for both async and sync database methods
-  - Expanded monitoring to include database-specific operations like `createTable` and `openTable`
-  - Improved method detection for proper async/sync handling
-  - Fixed "monitoredDb.createTable is not a function" error during database initialization
-
-## [0.3.9] - Enhanced Memory Management System
-
-### Added
-- Created comprehensive, modular memory management system
-  - Implemented `backend/src/memory/memoryManager.js`: Core class-based memory monitoring and optimization utility
-  - Created `backend/src/memory/heapAnalyzer.js`: Advanced heap analysis and memory issue detection
-  - Added `backend/src/memory/batchOptimizer.js`: Memory-optimized batch processing utility
-  - Created `backend/src/memory/index.js`: Unified module for accessing all memory management components
-  - Added `backend/src/memory/README.md`: Documentation for the memory management system
-
-### Enhanced
-- Improved memory monitoring capabilities
-  - Added memory trend analysis to detect potential memory leaks
-  - Implemented memory issue detection with comprehensive alerts and recommendations
-  - Added detailed memory statistics with heap usage analysis
-  - Created memory snapshot tracking for analyzing usage patterns over time
-- Extended batch processing with advanced memory optimization
-  - Added automatic process function optimization with memory monitoring
-  - Implemented operation-specific memory tracking for targeted optimization
-  - Enhanced adaptive batch sizing with dynamic adjustment based on memory conditions
-  - Added batch statistics and recommendations for performance tuning
-  - Improved automatic garbage collection triggering under memory pressure
-
-### Changed
-- Refactored existing memory utilities for better organization and extensibility
-  - Updated `backend/src/utils/batchers/batchProcessor.js` to use the new memory management system
-  - Enhanced `backend/src/utils/processors/documentProcessor.js` with advanced memory management features
-  - Restructured memory-related code into a dedicated module for reusability
-  - Added backward compatibility layer for existing code
-- Improved test suite with comprehensive memory management testing
-  - Added `backend/test/memory/memoryManager.test.js` for testing memory management components
-  - Updated `backend/test/utils/batchProcessing.test.js` to test with the new memory system
-
-### Fixed
-- Improved memory handling for large document processing
-- Enhanced memory optimization for batch operations with varying data sizes
-- Added more sophisticated memory monitoring to detect and address potential issues
-- Implemented better garbage collection optimization to reduce memory pressure
-
-## [0.3.8] - Memory Management Improvements
-
-### Added
-- Implemented advanced memory management system
-  - Created `backend/src/utils/memoryManager.js`: Utility for memory monitoring and dynamic batch sizing
-  - Added adaptive batch size calculation based on document/text size
-  - Implemented memory usage tracking and reporting
-  - Added garbage collection triggering for improved resource management
-  - Enhanced memory utilization by automatically scaling batch sizes for large documents
-  
-### Changed
-- Enhanced BatchProcessor with dynamic batch sizing capabilities
-  - Updated `backend/src/utils/batchers/batchProcessor.js` with memory-aware processing
-  - Added memory monitoring during batch processing
-  - Implemented automatic garbage collection between batch sets
-  - Improved batch sizing adaption for varying document sizes
-- Enhanced document processing pipeline with memory optimization
-  - Updated document processor to auto-detect large document sets and enable memory optimization
-  - Added memory state tracking and reporting throughout the processing pipeline
-  - Updated batch options to support memory-aware parameters
-- Improved test suite with memory management testing
-
-### Fixed
-- Fixed memory issues in PDF processing by implementing dynamic batch sizing
-- Prevented memory leaks in batch processing by cleaning up resources between batches
-- Improved processing of large document sets by automatically adjusting batch sizes
-- Enhanced memory monitoring to identify and address high memory usage patterns
-
-## [0.3.7] - Stage 2 Initial Implementation
-
-### Added
-- Implemented semantic search functionality
-  - Created `backend/src/services/search.js`: Service for performing vector-based semantic searches
-  - Added search query embedding generation
-  - Implemented vector similarity search against stored text chunks
-  - Added result formatting with relevant metadata and text snippets
-- Created centralized IPC communication system
-  - Added `backend/src/ipcHandlers.js`: Module to centralize all IPC channel definitions
-  - Implemented search IPC channel for query input and result retrieval
-  - Refactored existing IPC handlers for better organization
-- Enhanced UI with search functionality
-  - Added search interface with query input and results display
-  - Implemented content viewing area for displaying search results
-  - Added interactive search results with click-to-view functionality
-  - Improved CSS styling with grid layout for better component organization
-- Added comprehensive testing
-  - Created `backend/test/search.test.js`: Tests for semantic search functionality
-  - Added `backend/test/ipc.test.js`: Tests for IPC communication
-  - Implemented tests for error handling and edge cases
-
-### Changed
-- Refactored frontend/src/main.js to use centralized IPC handlers
-- Updated frontend UI layout to accommodate search and content viewing components
-- Enhanced CSS with grid layout and improved component styling
-- Improved error handling in IPC communication
-
-### Fixed
-- Increased Node.js memory limit for tests to prevent "JavaScript heap out of memory" errors
-- Fixed database test mocks to match actual implementation, removing non-existent `query()` method reference that was causing memory leaks
-- Ensured test mocks properly reflect the vectordb v0.4.3 API limitations
-- Optimized Jest configuration to use less memory during testing with `--runInBand` and reduced workers
-- Implemented proper mock cleanup to prevent memory accumulation during tests
-- Simplified test mocks to avoid circular references which were causing excessive memory usage
-- Added Babel transformation for Chai to handle ESM export syntax issues
-- Configured Jest to skip problematic database.test.js until further optimizations can be made
-
-## [0.3.6] - New Chat Button and Header Fix
-
-### Fixed
-- Fixed New Chat button not working in the chat interface
-  - Added callback connection between ChatHeader and ChatUI components
-  - Implemented proper event listener for New Chat button
-  - Added setNewChatCallback method to ChatHeader.js
-  - Updated ChatUI to connect with ChatHeader
-  - Enhanced UI feedback with notifications on new chat creation
-- Fixed duplicate header issue
-  - Removed duplicate header rendering in ChatUI component
-  - Added setHeaderComponent method to connect to existing header
-  - Modified component architecture to maintain proper header ownership
-  - Updated App.js to connect ChatUI with the application header
-
-## [0.3.5] - Database Storage Location Fix
-
-### Fixed
-- Fixed database creating duplicate storage in the frontend directory
-  - Updated database path configuration to use proper application data directory
-  - Added explicit storage path configuration in config/index.js
-  - Created consistent data directory structure with absolute paths
-  - Modified main.js to properly pass user data path to backend
-  - Added environment variable APP_USER_DATA_PATH for consistent paths
-  - Enhanced database.js to use explicit storage paths without fallbacks
-  - Unified storage location to userData directory for proper persistence
-
-## [0.3.4] - Sieve Component UI Refinements
-
-### Changed
-- Enhanced Sieve component with streamlined UI and improved visual effects
-  - Removed card reflection effect for cleaner appearance
-  - Replaced "View" button with "Flip" button for more intuitive interaction
-  - Enhanced title styling with animated letter effects similar to Mnemosyne
-  - Added particle and glow effects to title for visual consistency
-  - Improved card flipping animation with smoother transitions
-
-## [0.3.3] - YouTube Video Thumbnail Preview and Link
-
-### Added
-- Enhanced YouTube video handling with thumbnail preview and direct video links
-  - Added thumbnail extraction and storage in database.js
-  - Implemented thumbnail display in Sieve component with play button overlay
-  - Added direct "Watch" button to YouTube items in Sieve component
-  - Created clickable thumbnails that open YouTube videos in a new tab
-  - Implemented YouTube link display on video cards
-
-## [0.3.2] - Sieve Component UI Enhancements
-
-### Changed
-- Enhanced Sieve component with modern UI details and visual improvements
-  - Added subtle gradient and pattern overlay to component background
-  - Improved header with animated accent line and title glow effect
-  - Enhanced refresh button with shine animation and interactive feedback
-  - Added depth to filter section with subtle shadows and backdrop blur
-  - Improved filter buttons with animated underline indicators
-  - Enhanced card styling with better shadows, gradients and hover effects
-  - Improved micro-interactions and transition animations throughout
-  - Optimized card flip animations with better timing functions
-  - Added subtle particles and glow effects for modern aesthetic
-
-## [0.3.1] - Removed Deprecated Sidebar Navigation Items
-
-### Changed
-- Removed deprecated "Search" and "Categories" buttons from sidebar
-  - Removed items from navItems array in Sidebar.js
-  - Updated CSS animation delays in sidebar.css to match fewer navigation items
-  - These features have been replaced by agent and Mnemosyne functionality
-  - 
-## [0.3.0] - Advanced Memory Management for Embedding Operations
-
-### Added
-- Enhanced memory management system for handling large embedding operations
-  - Added `backend/src/memory/batchOptimizer.js`: Specialized batch optimizer for embedding operations
-  - Implemented improved memory pressure detection and handling
-  - Added embedding-specific batch size calculation with dynamic adjustment
-  - Created batch tracking system to monitor active processing operations
-  - Added delayed garbage collection strategy for more effective memory reclamation
-
-### Changed
-- Updated DbMemoryManager with more robust memory pressure handling
-  - Added staged garbage collection with cooldown periods to prevent excessive GC
-  - Implemented critical memory pressure detection and emergency actions
-  - Added memory pressure state tracking for better cross-component coordination
-  - Enhanced cache clearing strategy with immediate effect during high memory usage
-- Enhanced MemoryManager with embedding-specific optimizations
-  - Added specialized batch size calculation for embedding operations
-  - Implemented batch tracking with automatic memory reclamation
-  - Added support for handling embedding vectors with optimized size calculation
-  - Improved garbage collection strategy with multi-phase approach
-  - Enhanced memory monitoring with more detailed statistics
-
-### Fixed
-- Fixed memory pressure issues during large YouTube content processing
-  - Resolved issue where memory usage remained high even after cache clearing
-  - Fixed ineffective garbage collection during embedding operations
-  - Added safeguards to prevent processing excessive batch sizes under memory pressure
-  - Implemented automatic batch size reduction for large documents
-  - Added document size detection to prevent memory exhaustion
-
-## [0.2.9] - Enhanced Mnemosyne Dark Theme UI
-
-### Changed
-- Enhanced Mnemosyne card UI with darker, more visually striking design
-  - Updated card backgrounds with deeper, richer dark tones
-  - Added subtle particle effects and enhanced glow animations
-  - Improved button hover effects with dynamic glowing animations
-  - Enhanced card headers with gradient backgrounds for visual depth
-  - Added card-specific particle effects for visual interest on hover
-  - Updated input styling for better contrast and visibility
-  - Enhanced title and text effects with improved shadows
-  - Implemented consistent dark theme variables for better theme cohesion
-  - Added subtle glow pulse animations to cards for modern aesthetic
-
-## [0.2.8] - Sieve Component Loading Spinner Removal
-
-### Changed
-- Removed loading spinner from Sieve component to prevent UI blocking
-  - Eliminated loading state logic to ensure items are always displayed
-  - Bypassed loading and error states that were preventing content visibility
-  - Simplified item display logic for more consistent rendering
-  - Fixed race conditions in item rendering
-  - Removed shouldUpdate check to always refresh content
-  - Ensured direct rendering of content without intermediate loading states
-
-## [0.2.7] - Sieve Component Memoization Fix
-
-### Fixed
-- Fixed Sieve component getting stuck in loading state after adding memoization
-  - Implemented a proper memoization system with cache clearing capability
-  - Created centralized memoization management with named caches
-  - Added explicit loading state management with proper state tracking
-  - Enhanced loading and error states with better DOM management
-  - Added additional logging to improve debugging
-  - Implemented short delay for DOM updates to ensure rendering completes
-  - Fixed race conditions in loading state management
-  - Added proper timeout handling for backend requests
-
-## [0.2.6] - Sieve Component Loading State Fix
-
-### Fixed
-- Fixed critical issue where Sieve component would get stuck in loading state
-  - Added timeout handling to prevent infinite loading
-  - Improved error handling for malformed API responses
-  - Added proper state cleanup to prevent stale data
-  - Enhanced shouldUpdate method with better null checking
-  - Fixed memoization cache clearing during refresh
-  - Added safety checks for invalid data throughout rendering process
-  - Added graceful error recovery to ensure UI is always responsive
-
-## [0.2.5] - Sieve Component Performance and Animation Enhancements
-
-### Added
-- Added enhanced delete animation for Sieve component items
-  - Implemented multi-step keyframe animation for smoother deletion effect
-  - Added scale, shadow, and translation effects for more visual feedback
-  - Synchronized animation timing with component cleanup for smoother transitions
-
-### Improved
-- Optimized Sieve component performance with memoization techniques
-  - Added memoization for expensive rendering functions to reduce CPU usage
-  - Implemented shouldUpdate method to prevent unnecessary re-renders
-  - Added memoized cache for component-wide optimization
-  - Improved item removal with smarter DOM manipulation
-  - Reduced render cycles with component update checking
-  - Enhanced display logic to only redraw changed items
-  - Added render count tracking for debugging performance issues
-
-## [0.2.4] - Sieve Component Delete Button Fix
-
-### Fixed
-- Fixed deletion functionality in Sieve component
-  - Added visual indication during deletion to prevent multiple clicks
-  - Prevented aggressive page reloads by throttling refreshes after deletion
-  - Implemented optimistic UI updates - removing items locally before server refresh
-  - Added cleanup for smooth animation when deleting items from the grid
-  - Enhanced error handling for better resilience when deletion fails
-  - Improved backend database `deleteItem` function with better logging and error handling
-  - Added safety checks to prevent duplicate deletion requests
-  - Fixed styling for delete button disabled state during deletion
-
-## [0.2.3] - Sieve Component View Button Fix
-
-### Fixed
-- Fixed View button functionality in Sieve component
-  - Updated database.js to include preview text in listItems response for proper content display
-  - Enhanced createItemCard with better ID handling to prevent errors with null/undefined IDs
-  - Improved handleCardFlip with better validation and error logging
-  - Fixed retry button in error state to properly use event handler instead of inline onclick
-  - Added fallback ID generation for items without IDs to prevent rendering issues
-  - Fixed card flip animation by adding proper 3D transform properties and z-index handling
-  - Added debug logging for card flip operations to help troubleshoot flipping issues
-  - Increased preview content length for better card information display
-  - Added setTimeout to ensure DOM updates before applying flip class
-
-## [0.2.2] - Database Schema Field Handling Fix
-
-### Fixed
-- Fixed database insertion errors by adding proper field handling
-  - Added handling for required fields in database schema that were missing:
-    - `text_chunks`: Added creation from extracted_text or a placeholder for empty content
-    - `summary`: Added placeholder summary generation from title or default text
-    - `transcript`: Added proper handling for video content vs non-video content
-    - `compressed`: Added default false value to the compressed flag field
-  - Enhanced error handling in database operations with better logging
-  - Improved database compatibility with vectordb schema requirements
-
-## [0.2.1] - Improved API Key Handling
-
-### Added
-- Added `setup-api-keys.js` tool for easy API key configuration
-- Created detailed API_KEYS.md documentation for troubleshooting and setup
-- Improved .env file detection in embedding service to find and load OpenAI API keys from multiple locations
-
-### Fixed
-- Fixed OpenAI embedding service to properly detect and load API keys from .env files
-- Enhanced error handling when API keys are missing or invalid
-- Made OpenAI embedding generation more robust with better error handling
-
-## [0.2.0] - Switched Embedding Service to OpenAI
-
-### Changed
-- Updated embedding service to use OpenAI instead of Google Vertex AI
-  - Removed Google Vertex AI embedding implementation
-  - Removed `google-auth-library` dependency
-  - Modified `backend/src/services/embedding.js` to use OpenAI exclusively
-  - Updated getOpenAIEmbedding function to support text-embedding-3-small and text-embedding-3-large models
-  - Added dimensions parameter support for OpenAI text-embedding-3 models
-  - Enhanced payload creation with model-specific options
-  - Maintained all existing functionality including caching, batching, and fallback
-
-## [0.1.4]
-
-### Added
-- Created `backend/src/utils/tempFileManager.js`: Modular utility for managing temporary files
-  - Provides consistent temp file path handling
-  - Includes safe file deletion with error handling
-  - Features TempFileHandler class for complex file patterns
-  - Supports fallback locations for files created outside temp directory
-  - Handles cleanup of temporary files automatically
-- Implemented batch processing system for efficient document processing and embedding
-  - Created `backend/src/utils/batchers/batchProcessor.js`: Generic batch processing utility with concurrency control
-  - Created `backend/src/utils/batchers/chunkerBatch.js`: Batch processing for text chunking operations
-  - Created `backend/src/utils/batchers/embeddingBatch.js`: Batch processing for embedding generation
-  - Created `backend/src/utils/documentProcessor.js`: End-to-end document processing pipeline
-  - Added comprehensive test suite for batch processing utilities
-  - Enhanced embedding service with parallel processing capabilities
-  - Added cosine similarity calculation functionality
-- Implemented unified document processing system
-  - Created `backend/src/utils/processors/processorFactory.js`: Produces configurable processor instances with consistent interfaces
-  - Integrated batch processing into PDF processor for multi-document handling
-  - Added PDFProcessor class for specialized PDF document handling
-  - Restructured processing pipeline with improved separation of concerns 
-  - Enhanced PDF extraction with multi-file batch processing
-  - Added robust error handling for batch document operations
-
-### Fixed
-- Fixed logger configuration in frontend/src/utils/logger.js to use an array for levels instead of an object, resolving "this.levels.includes is not a function" error.
-- Fixed console transport format in frontend logger to handle undefined date property, resolving "Cannot read properties of undefined (reading 'toISOString')" error.
-- Replaced custom format function with electron-log's standard format string to resolve "data.reduce is not a function" error in style transformation.
-- Updated deprecated `archiveLog` to `archiveLogFn` in file transport configuration to resolve deprecation warning.
-- Fixed preload script issues by removing dependency on path module and simplifying logger initialization in sandboxed context.
-- Modified logger.js to improve compatibility with Electron's preload script sandboxing restrictions.
-- Implemented inline logger in preload.js to avoid CommonJS module dependencies, addressing sandbox restrictions in Electron 20+.
-- Fixed "items.forEach is not a function" error in displayItems by properly handling the response object structure from IPC calls.
-- Fixed YouTube transcription handling to properly locate caption files in the temp directory
-- Resolved issue with YouTube caption processing creating files in the wrong location
-- Fixed incorrect logger import paths in batchers and processors modules to properly reference logger.js from the utils directory
-- Fixed test issues:
-  - Addressed PDF processor test mocking by using proper Sinon stubs instead of Jest mocks
-  - Fixed IPC handlers test by properly mocking the electron module and service dependencies
-  - Improved mocking for test compatibility between Jest and Sinon
-  - Fixed test dependency install issues by using legacy-peer-deps flag for compatibility
-
-## [0.1.3]
-
-### Enhanced
-- Improved backend logger with millisecond timestamp precision for detailed debugging
-- Enhanced context handling by passing it as metadata for better log filtering
-- Added circular reference detection to prevent logger crashes
-- Enhanced HTTP logger with intelligent log level selection based on response status and time
-- Added user-agent summary tracking to HTTP logger for better request identification
-- Improved sensitive data redaction to handle nested objects
-- Added generic log method for interface compatibility
-- Exported log levels for reference in other parts of the application
-
-## [0.1.2]
-
-### Changed
-- Integrated proper contextual logging across all backend services
-- Standardized error handling with detailed error logging
-- Enhanced debug information for text processing and embeddings
-- Implemented trace-level logging for fine-grained debugging
-- Improved metadata in log entries for better debugging and monitoring
-- Updated config bootstrapping with temporary logger
-
-## [0.1.1]
-
-### Added
-- Unified logging system with Winston (backend) and electron-log (frontend)
-- Context-based logging with different severity levels
-- Log rotation with daily file cycling
-- Colorized console output
-- HTTP request logging middleware
-
-### New Files
-- `backend/src/utils/logger.js`: Winston-based logger implementation
-- `backend/src/utils/httpLogger.js`: Morgan HTTP logging middleware
-- `frontend/src/utils/logger.js`: Electron-log implementation 
-- Tests for both frontend and backend loggers
-
-### Changed
-- Updated backend and frontend entry points to use structured logging
-- Added preload API for renderer process logging
-- Extended config with logging settings
-- Refactored services to use contextual loggers
-
-## New Features
-
-### Special Word Renderer Component
-- Added `SpecialWordRenderer.js` component that detects and applies special styling to the words "Mnemosyne" and "Cognivore" in chat messages
-- Created `special-words.css` for styling special words with gradient text, subtle animations, and hover effects
-- Integrated with ChatMessages and ChatUI components
-- Words are rendered at the same size as surrounding text but with special visual treatment to dramatize their importance
-- Added informative tooltips that appear on hover
-- Created demo page at `special-words-demo.html` for testing and demonstration
-
-## Change Log
-
-### 2023-10-17
-- Fixed browser interactivity issue in Voyager component by properly binding event handlers and resolving initialization conflicts between componentDidMount and initialize methods
-- Improved webview event handler binding to ensure navigation buttons and interactions work correctly
-- Fixed navigation and click interaction issues by adding proper event delegation 
-- Fixed "Cannot read properties of undefined (reading 'current')" error in App.js by properly initializing the browserRef with React.createRef()
-- Added handleContentCapture method to properly handle content captured from the browser component
-- Fixed "Cannot initialize Voyager - container not mounted" error with progressive retry mechanism using increasing backoff
-- Fixed "The object has already navigated, so its partition cannot be changed" error by setting a unique partition before any navigation
-- Added more robust initialization in packaged application with better ReactDOM handling
-- Improved mounting detection and error recovery for Electron environments
-
-## Browser UI Enhancement (Current)
-
-- Completely restyled browser component to match application theme
-- Added glass effect header with backdrop filter for modern appearance
-- Implemented interactive elements with ripple effects and smooth transitions
-- Enhanced address bar with search icon and improved focus states
-- Upgraded progress bar with animated gradient for better loading feedback
-- Improved research panel with smooth animations and visual feedback
-- Added responsive adaptations for different screen sizes
-- Fixed styling inconsistencies across all browser elements
-
-## Browser Webview Enhancement (Current)
-
-- Restored createWebviewElement function in BrowserRenderer.js with full functionality
-- Added executeSafelyInWebview helper function for robust webview JavaScript execution
-- Fixed syntax issues in webview creation logic
-- Improved webview rendering capabilities for better browser experience
-- Enhanced error handling for webview initialization
-
-## Browser UI and Interactivity Enhancement (Current)
-
-- Fixed overlapping icons in browser navigation and action buttons
-- Added visual feedback for button interactions with ripple effects and transitions
-- Implemented toast notification system for user action confirmations
-- Enhanced button states with better disabled styles and active indicators
-- Added animations for refresh button, bookmarks, and loading states
-- Improved focus states for address bar and interactive elements
-- Added tooltip functionality for navigation and action buttons
-- Enhanced mobile responsiveness with optimized spacing and interactions
-
-## [Unreleased]
-
-### Changed
-- Centralized research panel logic in Researcher component to remove duplication
-  - Removed duplicate panel creation from BrowserRenderer.js
-  - Updated Voyager.js to delegate research handling to Researcher
-  - Fixed issues with webview container sizing when toggling research mode
-
-### Fixed
-- Research panel initialization issues:
-  - Fixed initialization of Researcher component to ensure it's available before use
-  - Removed fallback mechanisms in toggleResearchMode to properly surface errors
-  - Updated event handlers to handle errors gracefully
-  - Improved component lifecycle integration between Voyager 
-
-## Researcher Component Styling Improvements (2023-07-08)
-- Enhanced ResearcherPanel.css with improved color scheme and consistent spacing
-- Fixed styling issues in ResearcherMessages.js while preserving existing functionality
-- Improved ResearcherInput.js visual appearance with better button styling
-- Refined Researcher.js styling consistency with existing code patterns
-
-### 2023-07-01
-- Added memoization to Researcher components to prevent unnecessary re-renders on keystrokes
-  - Converted class-based components to React functional components with memo
-  - Added debouncing for input handling in Researcher.js
-  - Implemented custom comparison functions for efficient component updates
-  - Created CSS files for the new React components
-
-### 2023-06-30
-- Improved conversation summarization with dynamic highlights
-  - Added new visualization component for summary highlights
-  - Integrated with GPT models for more accurate summary generation
-
-### 2023-06-28
-- Added voice chat features
-  - Integrated with browser speech recognition API
-  - Added controls for voice input and output
-  - Implemented real-time speech-to-text processing
-
-### 2023-07-02
-- Fixed Researcher component initialization error
-  - Restored proper class-based Researcher functionality
-  - Fixed "O is not a constructor" error in toggleResearchMode
-  - Maintained memoization for child components while preserving class structure
-
-### 2023-05-10
-
-- Fixed chat input rendering issue in Researcher component by integrating React components properly
-- Modified Researcher.js to use React-based UI components instead of direct DOM manipulation
-- Added proper cleanup for React components in componentWillUnmount
-
-## 2023-05-31
-### Fixed
-- Fixed issue in `Researcher.js` where `extractFullPageContent` was not returning a Promise correctly, causing "then is not a function" error
-- Added recursion prevention for tool call processing in `sendChatMessage` method with depth tracking
-- Enhanced recursion protection in `updateUI` method with depth tracking to prevent potential stack issues
-- Improved error handling for content extraction and DOM manipulation
-
-### 2023-XX-XX: Robust Content Extraction System
-
-- **Added** `ContentExtractionSystem.js` - A comprehensive content extraction system with multiple fallback mechanisms
-- **Updated** `ContentExtractor.js` - Integrated with new extraction system for reliable content extraction
-- **Updated** `ResearcherEventHandlers.js` - Improved event handlers for better webview readiness detection
-- **Updated** `Researcher.js` - Enhanced _processAndAnalyze method to work with pre-extracted content
-
-These changes address the "webview not ready" errors and provide a more robust extraction system with proper fallbacks when webview extraction fails.
-
-## 2023-07-10
-- UI: Improved Research Panel layout to occupy 45% of screen width
-- UI: Enhanced message styling for better readability and visual appeal
-- UI: Added better collapsed panel behavior and transitions
-- UI: Improved spacing and background styling for research messages
-
-## [0.5.3] - Text Formatting and Special Word Rendering Fixes
-
-### Fixed
-- Fixed text formatting issues in chat messages:
-  - Enhanced `SpecialWordRenderer.js` to properly exclude code blocks and their children from special word styling
-  - Updated `ChatUI.js` to preserve code blocks and pre-formatted text during message processing
-  - Added CSS rules to protect code blocks from special word styling effects
-  - Implemented proper parent hierarchy checking for code elements to prevent formatting conflicts
-  - Fixed multiple rendering issues with special words in formatted messages
-  - Added explicit formatting protection for inline code elements
-
-## [0.5.2] - Import Path Issues Fix
-
-### Fixed
-- Fixed import path issues causing build failures with missing modules
-  - Updated import paths in App.js to match actual file locations in the project structure
-  - Fixed path references in SearchSection.js to correctly import from ../../services
-  - Fixed path references in Mnemosyne.js to correctly import from ../../services and ../../utils
-  - Resolved "Module not found" errors for multiple components including ChatUI, ThemeSwitcher, ContentViewer
-  - Ensured proper build output by correcting relative paths between different component directories
-  - Fixed hierarchy inconsistencies between actual file locations and import statements
-
-## [0.5.2] - Character-by-Character Response Handling Fix
-
-### Fixed
-- Fixed messages not rendering due to character-by-character Gemini API response format
-  - Enhanced messageFormatter.js to properly detect and reconstruct indexed character arrays
-  - Added proper handling for JSON-wrapped responses with candidates structure
-  - Fixed "[ChatMessages] Message at index 1 has no content, setting empty string" warning by improving response parsing
-  - Implemented recursive processing of reconstructed messages for consistent handling
-  - Added detailed logging to trace response format transformations
-  - Enhanced LlmService.js to directly handle character-by-character responses
-  - Added content field synchronization between text and content properties
-  - Improved ChatUI to explicitly ensure content field never becomes null/undefined
-  - Fixed extractToolCallsFromText to maintain both text and content fields
-  - Added multiple validation steps throughout message processing pipeline
-  - Fixed a critical issue where the frontend wasn't properly interpreting the character-by-character format
-
-## [0.5.1] - ToolRenderer Initialization Fix
-
-### Fixed
-- Fixed ToolRenderer initialization issue causing messages not to render properly
-  - Added explicit initialization call for ToolRenderer in ChatMessages component
-  - Implemented initialization check in ToolRenderer to prevent duplicate initialization
-  - Added safeguards in createToolCallElement to ensure ToolRenderer is always initialized
-  - Enhanced error handling in tool rendering process with better logging
-  - Fixed empty message content handling to prevent rendering issues
-  - Improved validation of toolCall objects before rendering
-  - Added runtime initialization check in render method as a last resort safety measure
-  - Fixed cleanup process to properly handle initialization state
-
-## [0.4.4] - Enhanced Settings Logging and Feedback
-
-### Added
-- Enhanced logging for settings operations to improve visibility and troubleshooting
-  - Added console.log statements for immediate visibility in developer tools
-  - Added detailed API key status logging with secure redaction
-  - Enhanced IPC handler logging for backend settings operations
-  - Added visual save confirmation with animated button feedback
-  - Implemented detailed environment variable update logging
-  - Added secure API key logging that shows only first/last 4 characters
-- Improved error handling and user feedback in settings functionality
-  - Added more detailed error messages with specific causes
-  - Enhanced save button with visual feedback (color change and animation)
-  - Added loading state during save operations
-  - Implemented clear notifications for successful/failed operations
-
-### Changed
-- Updated Settings component with better visual feedback during saving
-- Enhanced SettingsService with more comprehensive logging
-- Improved backend IPC handlers with detailed operation logging
-- Added API key change tracking to monitor updates
-
-### Fixed
-- Fixed Gemini API response handling for enhanced reliability
-  - Fixed "result.response.text.trim is not a function" error with robust text extraction
-  - Improved response processing with multiple fallback paths for various response formats
-  - Enhanced error handling for inconsistent API responses
-  - Added type safety checks throughout response processing pipeline
-  - Fixed missing properties in chat responses causing rendering issues
-  - Standardized response format between backend and frontend for consistent handling
-  - Fixed "Invalid message at index 1" error with proper message formatting
-  - Added proper content type checking and conversion for message parts
-- Fixed message rendering errors in ChatMessages component
-  - Implemented comprehensive message sanitization to prevent invalid message errors
-  - Added robust validation for all message properties with appropriate defaults
-  - Enhanced error handling to gracefully display broken messages instead of crashing
-  - Fixed "Invalid message at index 1" error in ChatMessages component
-  - Added type checking and conversion for message content and toolCalls objects
-  - Improved robustness of tool call rendering with failsafe error handling
-  - Ensured proper timestamp handling when timestamps are missing from messages
-
-## [0.4.3] - Settings Page Implementation
-
-### Added
-- Created comprehensive settings page for API key management and application configuration
-  - Added `frontend/src/components/Settings.js`: Modern tabbed settings interface component
-  - Created `frontend/src/services/SettingsService.js`: Service for managing settings persistence
-  - Added `frontend/public/styles/components/settings.css`: Dedicated styling for settings component
-  - Implemented settings IPC handlers in `backend/src/ipcHandlers.js` for backend integration
-  - Added secure API key storage with environment variable integration
-  - Created test utility for validating API keys
-  - Added settings navigation in sidebar with "API Settings" and "Preferences" items
-- Enhanced settings experience with multiple configuration areas
-  - Added API Keys section with Google Gemini, OpenAI, Anthropic, and OpenRouter support
-  - Implemented General settings for interface preferences with dark mode and font size options
-  - Added Models section for configuring default chat and embedding models
-  - Created Advanced settings with developer options and model parameter configuration
-  - Implemented settings persistence with proper storage in userData directory
-  - Added environment variable integration for seamless API key usage across sessions
-
-### Changed
-- Updated App.js to integrate the new Settings component
-- Added settings CSS to index.html for proper styling
-- Enhanced sidebar navigation with settings-specific handling
-- Updated backend to use settings-based API keys when available
-
-## [0.4.2] - Critical LlmService Fix
-
-### Fixed
-- Fixed critical error in LlmService.js that prevented sending messages through the chat interface
-  - Corrected incorrect method call `this.isBackendHealthy()` to `this.checkBackendStatus()`
-  - Fixed undefined `ipcBridge` reference by using `window.server.chat` instead
-  - Added missing `getMemoryUsage()` helper method with safe browser implementation
-  - Enhanced error handling for memory usage logging to prevent crashes
-
-## [0.4.1] - Google API Key Handling Improvements
-
-### Added
-- Created comprehensive API key verification system
-  - Added `backend/verify-api-key.js`: Utility script to test Google API key validity
-  - Created `backend/API_SETUP.md`: Detailed instructions for setting up API keys
-  - Enhanced .env and config.json loading to support multiple key formats and locations
-  - Added explicit validation of API key format and validity
-  - Implemented user-friendly error messages with setup instructions
-- Enhanced error handling for missing or invalid API keys
-  - Updated `frontend/src/services/LlmService.js` with better error detection
-  - Added specific error messaging for API key issues
-  - Implemented helpful guidance in chat UI for API key setup
-  - Created guided error recovery process with step-by-step instructions
-
-### Fixed
-- Fixed "Method doesn't allow unregistered callers" error with improved API key handling
-  - Enhanced API key extraction from .env files with proper regex pattern
-  - Added regex pattern to handle quoted and unquoted API keys in .env files
-  - Fixed API key validation to properly detect invalid keys
-  - Added comprehensive API key debugging with source tracking
-  - Improved error handling in server.js with better API unavailability detection
-  - Fixed IPC error handling to provide helpful error messages to the UI
-  - Enhanced LlmService error handling for API key issues
-
-## [0.4.0] - Database Integration with Gemini
-
-### Added
-- Created new queryDatabase tool for natural language database querying
-  - Added tool definition in `frontend/src/services/tools/sharedToolDefinitions.js`
-  - Implemented backend logic in `backend/src/services/tools.js`
-  - Added direct access to database semanticSearch capabilities
-  - Implemented natural language query to embedding conversion
-  - Added filtering by source type and date range
-  - Enhanced database access through Gemini LLM
-- Updated system prompt to include the new database querying capabilities
-  - Added guidelines for when to use the database query tool
-  - Improved descriptions for complex database interactions
-
-### Changed
-- Enhanced LLM integration with direct database access
-  - Updated server.js with toolsService integration
-  - Added proper handlers for database query execution
-  - Improved error handling for database queries
-
-## [0.3.35] - Memory Management System Enhancements
-
-### Added
-- Implemented comprehensive file storage system for knowledge management
-  - Added file storage capabilities to database service for PDFs, websites, and videos
-  - Enhanced database schema with file paths, sizes, and compression information
-  - Created transcript storage with lossless compression for YouTube videos
-  - Added automatic file management with cleanup on item deletion
-- Upgraded embedding service with professional model integration
-  - Integrated actual embedding model via environment variable EMBEDDING_MODEL=embedding-005
-  - Added embedding caching to reduce API calls and improve performance
-  - Implemented fallback mechanism for offline embedding generation
-  - Enhanced memory efficiency with optimized vector handling
-  - Added Google Vertex AI authentication with Application Default Credentials
-  - Implemented rate limiting with exponential backoff for API calls
-  - Added smart batch processing with dynamic adjustment based on text length
-  - Improved error handling and retry logic for embedding generation
-  - Added Google Vertex AI embedding model support for text-embedding-005
-  - Implemented automatic provider selection based on model name
-  - Added GCP authentication for Vertex AI API access
-  - Fixed Vertex AI authentication using Google Auth Library and ADC
-  - Added field name normalization for database compatibility (camelCase to snake_case)
-  - Improved error handling during authentication and database operations
-- Improved Mnemosyne component with enhanced file storage integration
-  - Updated file processing with options for storing original files
-  - Added file size information display in content summary
-  - Enhanced YouTube processing with transcript preservation
-
-### Changed
-- Optimized database operations for better performance
-  - Added intelligent compression for text content using zlib
-  - Enhanced memory management during vector operations
-  - Improved file storage with type-specific organization
-  - Added file existence checking to prevent duplicate storage
-- Enhanced content processing workflow
-  - Improved PDF processing with original file preservation
-  - Enhanced web content storage with screenshots and HTML content
-  - Added comprehensive metadata storage for all content types
-  - Improved error handling during file operations
-
-### Fixed
-- Fixed missing file handling in document retrieval process
-- Improved content processing feedback with detailed success notifications
-- Enhanced error reporting during file operations with specific error messages
-- Database field naming compatibility (camelCase to snake_case conversion)
-- Embedding service authentication with Google Vertex AI
-- Rate limit handling for embedding generation API calls
-- Type compatibility issue in embedding batch processor (fixed "textChunks.reduce is not a function" error)
-- Improved handling of single string inputs in batch embedding functions
-
-### Improved
-- Memory management during embedding generation
-- Reliability of batch processing with timeout handling
-- Optimized batch sizing based on content length
-
-## [0.3.34] - Card Flip Content Viewing
-
-### Added
-- Implemented card flip animation for viewing content details
-  - Content now displayed by flipping cards in place instead of opening a separate viewer
-  - Each knowledge card can be flipped to reveal detailed content on the back
-  - Added smooth transitions and animations for a premium user experience
-
-### Changed
-- Removed reliance on separate ContentViewer component for Sieve
-- Enhanced metadata display with better formatting and organization
-- Added copy and export functionality directly on flipped cards
-- Improved scroll behavior with hidden scrollbars while maintaining scrollability
-
-### Fixed
-- Fixed layout issues when viewing content on different screen sizes
-- Improved content preview truncation to avoid layout shifts
-
-## [0.3.33] - UI Enhancements for Knowledge Management
-
-### Changed
-- Improved scrolling behavior with hidden scrollbars for cleaner interface
-  - Updated Sieve component to support scrolling without visible scrollbars
-  - Applied consistent scrolling behavior across all content areas
-- Enhanced ContentViewer design with modern glass morphism UI
-  - Added animations for a more polished user experience
-  - Improved information hierarchy with clearer typography
-
-## [0.3.32] - Sieve Knowledge Management Component
-
-### Added
-- Created new Sieve component for enhanced knowledge management
-  - Implemented `frontend/src/components/Sieve.js`: Modern UI for filtering and browsing knowledge items
-  - Added `frontend/public/styles/components/sieve.css`: Dedicated responsive styling for Sieve component 
-  - Created card-based grid layout for better content visualization
-  - Implemented filtering by content type (PDF, Web, Video)
-  - Added search functionality for finding specific knowledge items
-  - Enhanced item preview with better text truncation
-  - Added smooth loading states and animations
-  - Integrated with existing document management system
-- Updated Sidebar with Sieve navigation item
-  - Added Sieve to the Library section of the sidebar
-  - Used wave icon to represent the filtering nature of Sieve
-- Integrated Sieve component with main App.js
-  - Added proper initialization and cleanup for component lifecycle
-  - Ensured content updates flow properly to Sieve component
-
-### Changed
-- Enhanced content navigation with more specialized components
-  - Added explicit component for knowledge organization and filtering
-  - Enhanced document management workflow with multiple view options
-
-## [0.3.31] - Sidebar UI Improvement
-
-### Changed
-- Improved sidebar collapsed state UI
-  - Hid user avatar in collapsed state for better visual consistency
-  - Centered toggle button in sidebar footer when collapsed
-  - Fixed spacing issues in collapsed sidebar state
-  - Completely hidden logo when sidebar is collapsed for cleaner minimal interface
-
-## [0.3.30] - Navigation and Rendering Fix
-
-### Fixed
-- Fixed UI navigation and rendering glitches
-  - Added throttling to prevent excessive IPC calls
-  - Fixed sidebar active item state when viewing the Mnemosyne page
-  - Removed circular update triggers between components
-  - Prevented repeated list refreshes causing UI instability
-  - Resolved Cognivore remaining selected when on Mnemosyne page
-
-## [0.3.29] - Dark Mode UI Update
-
-### Changed
-- Modified theme handling to use dark mode only
-  - Removed light/dark mode toggle from UI
-  - Updated ThemeSwitcher component to always use dark mode
-  - Fixed theme implementation to prevent accidental light mode switching
-
-### Fixed
-- Fixed alignment between sidebar collapse button and chat input container for better visual consistency
-- Improved sidebar footer positioning to stay fixed at the bottom of the sidebar
-
-## [0.3.28] - UI Enhancements
-
-### Changed
-- Updated UI components for better user experience
-  - Modified sidebar to start in collapsed state by default
-  - Removed scrollbars from the application for cleaner interface
-  - Renamed "Documents" page to "Mnemosyne" in sidebar navigation
-  - Renamed "AI Assistant" to "Cognivore" throughout the application
-
-## [0.3.27] - IPC Handler Registration Fix
-
-### Fixed
-- Fixed critical IPC handler registration conflict causing chat and document functionality to fail
-  - Modified `backend/src/ipcHandlers.js` to safely register handlers without conflicts
-  - Added handler collision detection to prevent duplicate registrations
-  - Implemented fallback handling to skip already registered handlers instead of failing
-  - Enhanced error reporting for initialization issues
-  - Fixed "No handler registered for 'chat'" error that was preventing chat function
-  - Fixed "No handler registered for 'list-items'" error that was preventing document listing
-  - Fixed "No handler registered for 'process-pdf'" error that was preventing document uploads
-
-## [0.3.26] - Gemini System Role Compatibility Fix
-
-### Fixed
-- Fixed critical "Content with system role is not supported" error with Gemini models
-  - Updated `frontend/src/services/LlmService.js` to convert system prompts to user messages with special formatting
-  - Modified system prompt integration to be compatible with Gemini 2.0 Flash
-  - Enhanced `backend/src/services/llm.js` to properly handle role conversion for Gemini API
-  - Added better error handling for system role issues
-  - Ensured proper conversation flow when converting system instructions to user messages
-
-## [0.3.25] - Centralized Tool Definitions
-
-### Added
-- Created centralized tool definition system for frontend and backend
-  - Implemented `frontend/src/services/tools/sharedToolDefinitions.js`: Single source of truth for all tools
-  - Added `backend/src/utils/toolDefinitionsAdapter.js`: Backend adapter for shared definitions
-  - Implemented tool validation to ensure consistency across codebase
-  - Added location-based filtering to manage tool availability (frontend/backend/both)
-  - Created utility functions for accessing and working with tool definitions
-
-### Changed
-- Refactored tools system for unified definitions
-  - Updated `frontend/src/services/systemPrompt.js` to use shared tool definitions
-  - Modified `frontend/src/services/tools/index.js` to support shared definitions
-  - Updated `backend/src/services/tools.js` to validate against shared definitions
-  - Added backward compatibility notes to `frontend/src/services/tools/toolRegistry.json`
-  - Improved tool registration and validation process in backend
-  - Enhanced error handling for missing tool implementations
-
-### Fixed
-- Fixed module compatibility issues between frontend and backend
-  - Resolved "Unexpected token 'export'" error in shared tool definitions
-  - Updated backend tools service to properly initialize logger before use
-  - Simplified toolDefinitionsAdapter to use embedded definitions rather than dynamic imports
-  - Fixed ES module/CommonJS compatibility in frontend module exports
-  - Improved handling of module loading across different environments
-  - Added cross-environment support for both Electron renderer and Node.js contexts
-
-## [0.3.24] - System Prompt Integration
-
-### Added
-- Created modular system prompt management for agent configuration
-  - Implemented `frontend/src/services/systemPrompt.js`: Defines agent purpose and available tools
-  - Added configurable system prompt functions with user personalization
-  - Created minimal system prompt option for lightweight interactions
-  - Implemented tool definition standardization for consistent schema
-- Enhanced LLM service with system prompt integration
-  - Updated `frontend/src/services/LlmService.js` to use system prompts
-  - Added automatic system prompt insertion for chat history
-  - Created helper methods for generating different system prompt types
-  - Improved chat handling with proper system message integration
-
-### Changed
-- Refactored tool definitions to use centralized system
-  - Moved tool definitions from LlmService to systemPrompt module
-  - Enhanced consistency between frontend and backend tool definitions
-  - Improved organization of tool-related code
-- Updated chat processing pipeline
-  - Added formatChatHistoryWithSystemPrompt for automatic system prompt insertion
-  - Enhanced sendMessage method to use configured system prompts
-  - Improved chat initialization with proper system context
-
-## [0.3.23] - Retrieval Augmented Generation (RAG) System
-
-### Added
-- Implemented Retrieval Augmented Generation (RAG) system for LLM integration
-  - Added semanticSearch function to database.js for optimized RAG queries
-  - Added getItemById function to database.js for efficient content retrieval
-  - Created backend LLM service (llm.js) for Gemini model interactions
-  - Added RAG tools to tools.js (searchKnowledgeBase, getItemContent, recommendRelatedContent)
-  - Enhanced IPC handlers to support LLM chat, embedding generation, and tool execution
-  - Implemented memory-optimized content processing with token counting
-
-### Changed
-
-### Fixed
-
-## [0.3.22] - Chat Message Freezing Fix
-
-### Fixed
-- Fixed critical issue with chat messages freezing when sent
-  - Enhanced ChatInput with improved error handling and explicit console logging for debugging
-  - Added timeout protection to prevent infinite loading states
-  - Fixed event binding issues in ChatInput to ensure handleSubmit is properly called
-  - Added more robust server port detection to prevent conflicts
-  - Improved preload.js IPC bridge with timeout handling and better error recovery
-  - Enhanced error reporting to provide more helpful feedback to users
-  - Added explicit loading state management in ChatUI component
-
-## [0.3.21] - Message Handling and Backend Connection Fix
-
-### Fixed
-- Fixed critical issues with message handling in chat interface
-  - Enhanced ChatUI.handleSubmit() with more robust error handling and connection checks
-  - Added timeout handling for backend connections to prevent hangs
-  - Improved error reporting with specific, user-friendly error messages
-  - Added forceFullRerender() method to recover from DOM detachment issues
-  - Fixed UI update process to ensure messages are always displayed
-- Improved backend server port handling and connection stability
-  - Enhanced port conflict detection and resolution in server.js
-  - Added more comprehensive error handling for server startup
-  - Improved port availability checking with timeout protection
-  - Added automatic process termination for stuck ports
-  - Extended retry mechanism for finding available ports
-- Enhanced LlmService with better connectivity handling
-  - Added timeout protection for backend health checks
-  - Implemented progressive retry with increasing timeout windows
-  - Added detailed error reporting for different failure scenarios
-  - Improved connection retry logic with better error classification
-
-## [0.3.20] - Mnemosyne Document Processing UI
-
-### Added
-- Created new Mnemosyne component for centralized document processing
-  - Implemented `frontend/src/components/Mnemosyne.js`: Visual component for document processing workflow
-  - Added `frontend/public/mnemosyne.css`: Dedicated styling for the Mnemosyne component
-  - Created card-based interface with three content types (PDF, Web URL, YouTube)
-  - Implemented modern, visually appealing document processing UI
-  - Added responsive design with mobile support
-  - Integrated with existing DocProcessor service for backend communication
-  - Added content list with type badges and actions (view, delete)
-- Enhanced document processing experience
-  - Implemented file name display for selected PDF files
-  - Added content preview with truncated text display
-  - Created consistent color-coding for different content types
-  - Added hover states and subtle animations for interactive elements
-  - Implemented content type icons using SVG data URIs
-
-### Changed
-- Refactored document processing logic
-  - Replaced separate ContentInput and ContentList components with unified Mnemosyne component
-  - Updated App.js to use the new Mnemosyne component
-  - Modified document display with improved styling
-  - Enhanced application theme integration with CSS variables
-  - Improved document management workflow with unified interface
-
-## [0.3.19] - ChatUI DOM Connection Fix
-
-### Fixed
-- Fixed DOM connection issue in ChatUI component
-  - Fixed error "Main container is not connected to DOM!" when initializing ChatUI
-  - Added DOM connection checks in initialize() method to handle cases where container isn't ready
-  - Improved showBackendUnavailableMessage() to handle cases where container isn't connected
-  - Added short delay in initialization sequence to ensure DOM is fully updated
-  - Enhanced updateUI() method to robustly handle DOM connection issues
-
-## [0.3.18] - Advanced Type Validation System
-
-### Added
-- Implemented Pydantic-like validation system with strong type safety
-  - Created `frontend/src/services/tools/validation/SchemaValidator.js`: Robust schema validation utility
-  - Added `frontend/src/services/tools/validation/Model.js`: Type-safe data models with validation
-  - Implemented field definitions with strong typing and validation rules
-  - Added automatic type conversion and validation for all data types
-  - Created comprehensive validation error reporting
-- Enhanced summary generation with type-safe models
-  - Added `frontend/src/services/tools/summaryGenerator/models.js`: Type models for summary parameters and results
-  - Implemented SummaryParams, SummaryResult, and SummaryError models
-  - Added validation rules specific to summary generation
-  - Enhanced error handling with custom validation
-- Improved Gemini function calling with validation
-  - Updated GeminiFunctionCaller to handle validation errors
-  - Added FunctionCallResult for consistent error handling
-  - Enhanced tool execution with parameter validation
-  - Implemented more robust error reporting
-
-### Changed
-- Enhanced tool parameters with JSON Schema validation
-  - Updated tool registry to use schema validation
-  - Improved parameter validation for all tools
-  - Enhanced error handling with detailed validation errors
-- Improved type safety across the codebase
-  - Implemented validation before processing
-  - Added automatic type conversion where appropriate
-  - Enhanced error handling with validation context
-
-## [0.3.17] - Modular Tools System
-
-### Added
-- Created extensible tools system for document processing
-  - Implemented `backend/src/services/tools.js`: Main service for managing and executing tools
-  - Created `frontend/src/services/tools/` directory structure for modular tools
-  - Added `frontend/src/services/tools/registry.js`: Tool registry for managing available tools
-  - Created `frontend/src/services/tools/summaryGenerator/`: Document summary generation tool
-  - Added `frontend/src/services/tools/toolRegistry.json`: JSON configuration for available tools
-  - Created `frontend/src/services/tools/GeminiFunctionCaller.js`: Utility for Gemini function calling
-- Implemented document summary generation tool
-  - Added backend summary generation with text analysis
-  - Created frontend fallback for summary generation
-  - Implemented key points extraction from document text
-  - Added client/server execution capabilities
-- Enhanced ApiService with tools functionality
-  - Added methods for tool discovery and execution
-  - Implemented tool-specific API methods
-  - Enhanced error handling for tools
-
-### Changed
-- Updated IPC handlers to support tools functionality
-  - Added get-available-tools, execute-tool and generate-summary handlers
-  - Improved error handling for tool execution
-  - Enhanced backend initialization to include tools service
-
-## [0.3.16] - Frontend Logger Fix
-
-### Fixed
-- Fixed critical "process is not defined" error in frontend logger
-  - Updated `frontend/src/utils/logger.js` to properly detect browser environment
-  - Completely rewrote logger implementation to use pure browser-compatible code
-  - Removed all Node.js dependencies (electron-log, require, process) from browser code
-  - Used CommonJS module exports pattern for compatibility with Electron
-  - Enhanced environment detection to avoid process reference in browser context
-  - Fixed error that was preventing ThinkingVisualization component from loading
-
-## [0.3.15] - Chat Input Fix
-
-### Fixed
-- Fixed critical issue with chat input not properly sending messages
-  - Added proper method binding in ChatInput.js to prevent context loss 
-  - Improved Enter key handling with better input validation
-  - Fixed binding issues between App.js and ChatUI.js components
-  - Enhanced error handling in message submission process
-  - Added direct button click handler for better mobile support
-  - Created separated submitMessage method for cleaner code structure
-  - Fixed input state management after message submission
-  - Added proper validation of message content before submission
-
-## [0.3.14] - Backend Communication Fix
-
-### Fixed
-- Fixed critical backend communication issues preventing chat from functioning
-  - Added proper IPC handlers in `backend/server.js` to handle direct communication with frontend
-  - Updated `frontend/src/preload.js` to prioritize IPC communication over HTTP fallback
-  - Enhanced error handling for backend connection issues with better user feedback
-  - Fixed "Electron net module is not available" error by implementing proper IPC channels
-  - Added direct IPC handlers for health check, config, chat, and tool execution
-  - Improved `frontend/src/main.js` to initialize backend server and set up IPC handlers
-  - Added basic IPC handlers directly in the main process as a fallback
-  - Created robust failover from IPC to HTTP when needed
-  - Enhanced error reporting with specific error messages for connection issues
-
-### Added
-- Added better backend server integration with Electron
-  - Implemented proper backend server initialization in the main process
-  - Added IPC bridge between frontend and backend services
-  - Created direct communication channel between renderer process and backend
-
-### Changed
-- Improved communication architecture between frontend and backend
-  - Changed from HTTP-only to IPC-first with HTTP fallback approach
-  - Enhanced error handling for backend connectivity issues
-  - Improved logging for backend connection status
-
-## [0.3.13] - Chat Implementation Optimization
-
-### Fixed
-- Fixed duplicate header creation in ChatUI component
-- Resolved conflict between App component and ChatUI for header and footer management
-- Fixed chat layout issues with proper container hierarchy
-- Eliminated input container duplication issues
-- Improved component cleanup to ensure proper removal of all elements
-- Fixed focus issues in chat input when rendering component
-
-### Added
-- Added chat-container-wrapper component for better structure
-- Created proper separation between shared app structure and chat-specific components
-- Improved header integration with consistent styling
-
-### Changed
-- Moved header creation responsibilities to App component
-- Updated ChatUI component to focus on chat functionality only
-- Improved component lifecycles to prevent memory leaks
-- Enhanced input field management with proper focus handling
-- Added better component cleanup when navigating between sections
-
-## [0.3.12] - Frontend CSS Optimization
-
-### Fixed
-- Resolved duplicate CSP (Content Security Policy) definitions in index.html
-- Removed duplicate bundle.js script tag from index.html
-- Fixed conflicting CSS animation definitions between main.css and component stylesheets
-- Eliminated multiple implementations of the same UI components (header/footer)
-
-### Added
-- Created shared animations.css file for consistent animations across all components
-- Improved CSS organization with proper import hierarchy
-- Enhanced style maintainability through better component isolation
-
-### Changed
-- Optimized CSS import structure for better performance
-- Consolidated animations into a shared file to reduce duplication
-- Improved component styling organization for better maintainability
-
-## [0.3.11] - Modern Dark Theme Redesign
-
-### Added
-- Implemented modern dark-themed UI throughout the application
-- Added responsive header with navigation menu
-- Enhanced footer with links and copyright information
-- Added new UI animations and transitions
-- Implemented improved loading states for search
-- Added content actions (copy, export) to ContentViewer
-- Improved error handling and empty state displays
-
-### Changed
-- Completely redesigned the color scheme with dark palette
-- Enhanced typography with better contrast and readability
-- Improved component layouts for better user experience
-- Updated UI components with modern styling
-- Enhanced button styles with hover and active states
-- Added custom scrollbar styling for better integration
-- Improved responsive design for mobile devices
-
-### New Components/Features
-- Added navigation system for app sections
-
-### Fixed
-- Fixed TypeError in getSourceColor methods by adding null checks for undefined sourceType values
-  - Updated Dashboard.js, SearchSection.js, ContentList.js, and renderer.js to handle undefined source types
-  - Prevented "Cannot read properties of undefined (reading 'toLowerCase')" error that was breaking dashboard initialization
-- Fixed Content Security Policy issues with webpack bundling
-  - Modified webpack.config.js to use 'inline-source-map' instead of eval-based sourcemaps
-  - Added Content-Security-Policy meta tag in HtmlWebpackPlugin configuration
-  - Disabled webSecurity in Electron for development environments
-
-## [0.3.10] - Memory Management and Database Fixes
-
-### Fixed
-- Fixed memory manager batch size calculation to properly adjust for item size
-  - Updated `backend/src/memory/memoryManager.js` to ensure smaller items get larger batch sizes and larger items get smaller batch sizes
-  - Added logic to prevent large items from using maximum batch size, ensuring proper differentiation in batch sizing
-- Fixed search service database initialization issues in tests
-  - Updated `backend/test/search.test.js` to properly mock database collection
-  - Enhanced `backend/src/services/database.js` vectorSearch function to handle test environments better
-  - Added global.testCollection support for improved test reliability
-  - Fixed error message expectations in tests to match actual error messages
-- Fixed test framework incompatibilities
-  - Updated `backend/test/search.test.js` to use Jest's `beforeAll`/`afterAll` instead of Mocha's `before`/`after`
-  - Fixed Electron IPC mocking in `backend/test/ipc.test.js` by using proper getter methods for ipcMain
-  - Enhanced test stability for cross-framework compatibility
-- Fixed IPC handler initialization in main process
-  - Updated `frontend/src/main.js` to correctly call `initializeIpcHandlers` instead of non-existent `setupIpcHandlers` function
-  - Added database initialization to the main Electron process to ensure database is ready before IPC handlers are initialized
-  - Modified `backend/src/services/database.js` to use raw database connection when memory-managed connection is missing methods
-  - Resolved "Error: Database not initialized" error in listItems handler
-  - Fixed "Error: No handler registered for 'list-items'" error that was preventing database items from being listed
-- Enhanced memory manager to preserve all database connection methods
-  - Updated `backend/src/memory/dbMemoryManager.js` to wrap all methods from original connection objects
-  - Added intelligent handling for both async and sync database methods
-  - Expanded monitoring to include database-specific operations like `createTable` and `openTable`
-  - Improved method detection for proper async/sync handling
-  - Fixed "monitoredDb.createTable is not a function" error during database initialization
-
-## [0.3.9] - Enhanced Memory Management System
-
-### Added
-- Created comprehensive, modular memory management system
-  - Implemented `backend/src/memory/memoryManager.js`: Core class-based memory monitoring and optimization utility
-  - Created `backend/src/memory/heapAnalyzer.js`: Advanced heap analysis and memory issue detection
-  - Added `backend/src/memory/batchOptimizer.js`: Memory-optimized batch processing utility
-  - Created `backend/src/memory/index.js`: Unified module for accessing all memory management components
-  - Added `backend/src/memory/README.md`: Documentation for the memory management system
-
-### Enhanced
-- Improved memory monitoring capabilities
-  - Added memory trend analysis to detect potential memory leaks
-  - Implemented memory issue detection with comprehensive alerts and recommendations
-  - Added detailed memory statistics with heap usage analysis
-  - Created memory snapshot tracking for analyzing usage patterns over time
-- Extended batch processing with advanced memory optimization
-  - Added automatic process function optimization with memory monitoring
-  - Implemented operation-specific memory tracking for targeted optimization
-  - Enhanced adaptive batch sizing with dynamic adjustment based on memory conditions
-  - Added batch statistics and recommendations for performance tuning
-  - Improved automatic garbage collection triggering under memory pressure
-
-### Changed
-- Refactored existing memory utilities for better organization and extensibility
-  - Updated `backend/src/utils/batchers/batchProcessor.js` to use the new memory management system
-  - Enhanced `backend/src/utils/processors/documentProcessor.js` with advanced memory management features
-  - Restructured memory-related code into a dedicated module for reusability
-  - Added backward compatibility layer for existing code
-- Improved test suite with comprehensive memory management testing
-  - Added `backend/test/memory/memoryManager.test.js` for testing memory management components
-  - Updated `backend/test/utils/batchProcessing.test.js` to test with the new memory system
-
-### Fixed
-- Improved memory handling for large document processing
-- Enhanced memory optimization for batch operations with varying data sizes
-- Added more sophisticated memory monitoring to detect and address potential issues
-- Implemented better garbage collection optimization to reduce memory pressure
-
-## [0.3.8] - Memory Management Improvements
-
-### Added
-- Implemented advanced memory management system
-  - Created `backend/src/utils/memoryManager.js`: Utility for memory monitoring and dynamic batch sizing
-  - Added adaptive batch size calculation based on document/text size
-  - Implemented memory usage tracking and reporting
-  - Added garbage collection triggering for improved resource management
-  - Enhanced memory utilization by automatically scaling batch sizes for large documents
-  
-### Changed
-- Enhanced BatchProcessor with dynamic batch sizing capabilities
-  - Updated `backend/src/utils/batchers/batchProcessor.js` with memory-aware processing
-  - Added memory monitoring during batch processing
-  - Implemented automatic garbage collection between batch sets
-  - Improved batch sizing adaption for varying document sizes
-- Enhanced document processing pipeline with memory optimization
-  - Updated document processor to auto-detect large document sets and enable memory optimization
-  - Added memory state tracking and reporting throughout the processing pipeline
-  - Updated batch options to support memory-aware parameters
-- Improved test suite with memory management testing
-
-### Fixed
-- Fixed memory issues in PDF processing by implementing dynamic batch sizing
-- Prevented memory leaks in batch processing by cleaning up resources between batches
-- Improved processing of large document sets by automatically adjusting batch sizes
-- Enhanced memory monitoring to identify and address high memory usage patterns
-
-## [0.3.7] - Stage 2 Initial Implementation
-
-### Added
-- Implemented semantic search functionality
-  - Created `backend/src/services/search.js`: Service for performing vector-based semantic searches
-  - Added search query embedding generation
-  - Implemented vector similarity search against stored text chunks
-  - Added result formatting with relevant metadata and text snippets
-- Created centralized IPC communication system
-  - Added `backend/src/ipcHandlers.js`: Module to centralize all IPC channel definitions
-  - Implemented search IPC channel for query input and result retrieval
-  - Refactored existing IPC handlers for better organization
-- Enhanced UI with search functionality
-  - Added search interface with query input and results display
-  - Implemented content viewing area for displaying search results
-  - Added interactive search results with click-to-view functionality
-  - Improved CSS styling with grid layout for better component organization
-- Added comprehensive testing
-  - Created `backend/test/search.test.js`: Tests for semantic search functionality
-  - Added `backend/test/ipc.test.js`: Tests for IPC communication
-  - Implemented tests for error handling and edge cases
-
-### Changed
-- Refactored frontend/src/main.js to use centralized IPC handlers
-- Updated frontend UI layout to accommodate search and content viewing components
-- Enhanced CSS with grid layout and improved component styling
-- Improved error handling in IPC communication
-
-### Fixed
-- Increased Node.js memory limit for tests to prevent "JavaScript heap out of memory" errors
-- Fixed database test mocks to match actual implementation, removing non-existent `query()` method reference that was causing memory leaks
-- Ensured test mocks properly reflect the vectordb v0.4.3 API limitations
-- Optimized Jest configuration to use less memory during testing with `--runInBand` and reduced workers
-- Implemented proper mock cleanup to prevent memory accumulation during tests
-- Simplified test mocks to avoid circular references which were causing excessive memory usage
-- Added Babel transformation for Chai to handle ESM export syntax issues
-- Configured Jest to skip problematic database.test.js until further optimizations can be made
-
-## [0.3.6] - New Chat Button and Header Fix
-
-### Fixed
-- Fixed New Chat button not working in the chat interface
-  - Added callback connection between ChatHeader and ChatUI components
-  - Implemented proper event listener for New Chat button
-  - Added setNewChatCallback method to ChatHeader.js
-  - Updated ChatUI to connect with ChatHeader
-  - Enhanced UI feedback with notifications on new chat creation
-- Fixed duplicate header issue
-  - Removed duplicate header rendering in ChatUI component
-  - Added setHeaderComponent method to connect to existing header
-  - Modified component architecture to maintain proper header ownership
-  - Updated App.js to connect ChatUI with the application header
-
-## [0.3.5] - Database Storage Location Fix
-
-### Fixed
-- Fixed database creating duplicate storage in the frontend directory
-  - Updated database path configuration to use proper application data directory
-  - Added explicit storage path configuration in config/index.js
-  - Created consistent data directory structure with absolute paths
-  - Modified main.js to properly pass user data path to backend
-  - Added environment variable APP_USER_DATA_PATH for consistent paths
-  - Enhanced database.js to use explicit storage paths without fallbacks
-  - Unified storage location to userData directory for proper persistence
-
-## [0.3.4] - Sieve Component UI Refinements
-
-### Changed
-- Enhanced Sieve component with streamlined UI and improved visual effects
-  - Removed card reflection effect for cleaner appearance
-  - Replaced "View" button with "Flip" button for more intuitive interaction
-  - Enhanced title styling with animated letter effects similar to Mnemosyne
-  - Added particle and glow effects to title for visual consistency
-  - Improved card flipping animation with smoother transitions
-
-## [0.3.3] - YouTube Video Thumbnail Preview and Link
-
-### Added
-- Enhanced YouTube video handling with thumbnail preview and direct video links
-  - Added thumbnail extraction and storage in database.js
-  - Implemented thumbnail display in Sieve component with play button overlay
-  - Added direct "Watch" button to YouTube items in Sieve component
-  - Created clickable thumbnails that open YouTube videos in a new tab
-  - Implemented YouTube link display on video cards
-
-## [0.3.2] - Sieve Component UI Enhancements
-
-### Changed
-- Enhanced Sieve component with modern UI details and visual improvements
-  - Added subtle gradient and pattern overlay to component background
-  - Improved header with animated accent line and title glow effect
-  - Enhanced refresh button with shine animation and interactive feedback
-  - Added depth to filter section with subtle shadows and backdrop blur
-  - Improved filter buttons with animated underline indicators
-  - Enhanced card styling with better shadows, gradients and hover effects
-  - Improved micro-interactions and transition animations throughout
-  - Optimized card flip animations with better timing functions
-  - Added subtle particles and glow effects for modern aesthetic
-
-## [0.3.1] - Removed Deprecated Sidebar Navigation Items
-
-### Changed
-- Removed deprecated "Search" and "Categories" buttons from sidebar
-  - Removed items from navItems array in Sidebar.js
-  - Updated CSS animation delays in sidebar.css to match fewer navigation items
-  - These features have been replaced by agent and Mnemosyne functionality
-  - 
-## [0.3.0] - Advanced Memory Management for Embedding Operations
-
-### Added
-- Enhanced memory management system for handling large embedding operations
-  - Added `backend/src/memory/batchOptimizer.js`: Specialized batch optimizer for embedding operations
-  - Implemented improved memory pressure detection and handling
-  - Added embedding-specific batch size calculation with dynamic adjustment
-  - Created batch tracking system to monitor active processing operations
-  - Added delayed garbage collection strategy for more effective memory reclamation
-
-### Changed
-- Updated DbMemoryManager with more robust memory pressure handling
-  - Added staged garbage collection with cooldown periods to prevent excessive GC
-  - Implemented critical memory pressure detection and emergency actions
-  - Added memory pressure state tracking for better cross-component coordination
-  - Enhanced cache clearing strategy with immediate effect during high memory usage
-- Enhanced MemoryManager with embedding-specific optimizations
-  - Added specialized batch size calculation for embedding operations
-  - Implemented batch tracking with automatic memory reclamation
-  - Added support for handling embedding vectors with optimized size calculation
-  - Improved garbage collection strategy with multi-phase approach
-  - Enhanced memory monitoring with more detailed statistics
-
-### Fixed
-- Fixed memory pressure issues during large YouTube content processing
-  - Resolved issue where memory usage remained high even after cache clearing
-  - Fixed ineffective garbage collection during embedding operations
-  - Added safeguards to prevent processing excessive batch sizes under memory pressure
-  - Implemented automatic batch size reduction for large documents
-  - Added document size detection to prevent memory exhaustion
-
-## [0.2.9] - Enhanced Mnemosyne Dark Theme UI
-
-### Changed
-- Enhanced Mnemosyne card UI with darker, more visually striking design
-  - Updated card backgrounds with deeper, richer dark tones
-  - Added subtle particle effects and enhanced glow animations
-  - Improved button hover effects with dynamic glowing animations
-  - Enhanced card headers with gradient backgrounds for visual depth
-  - Added card-specific particle effects for visual interest on hover
-  - Updated input styling for better contrast and visibility
-  - Enhanced title and text effects with improved shadows
-  - Implemented consistent dark theme variables for better theme cohesion
-  - Added subtle glow pulse animations to cards for modern aesthetic
-
-## [0.2.8] - Sieve Component Loading Spinner Removal
-
-### Changed
-- Removed loading spinner from Sieve component to prevent UI blocking
-  - Eliminated loading state logic to ensure items are always displayed
-  - Bypassed loading and error states that were preventing content visibility
-  - Simplified item display logic for more consistent rendering
-  - Fixed race conditions in item rendering
-  - Removed shouldUpdate check to always refresh content
-  - Ensured direct rendering of content without intermediate loading states
-
-## [0.2.7] - Sieve Component Memoization Fix
-
-### Fixed
-- Fixed Sieve component getting stuck in loading state after adding memoization
-  - Implemented a proper memoization system with cache clearing capability
-  - Created centralized memoization management with named caches
-  - Added explicit loading state management with proper state tracking
-  - Enhanced loading and error states with better DOM management
-  - Added additional logging to improve debugging
-  - Implemented short delay for DOM updates to ensure rendering completes
-  - Fixed race conditions in loading state management
-  - Added proper timeout handling for backend requests
-
-## [0.2.6] - Sieve Component Loading State Fix
-
-### Fixed
-- Fixed critical issue where Sieve component would get stuck in loading state
-  - Added timeout handling to prevent infinite loading
-  - Improved error handling for malformed API responses
-  - Added proper state cleanup to prevent stale data
-  - Enhanced shouldUpdate method with better null checking
-  - Fixed memoization cache clearing during refresh
-  - Added safety checks for invalid data throughout rendering process
-  - Added graceful error recovery to ensure UI is always responsive
-
-## [0.2.5] - Sieve Component Performance and Animation Enhancements
-
-### Added
-- Added enhanced delete animation for Sieve component items
-  - Implemented multi-step keyframe animation for smoother deletion effect
-  - Added scale, shadow, and translation effects for more visual feedback
-  - Synchronized animation timing with component cleanup for smoother transitions
-
-### Improved
-- Optimized Sieve component performance with memoization techniques
-  - Added memoization for expensive rendering functions to reduce CPU usage
-  - Implemented shouldUpdate method to prevent unnecessary re-renders
-  - Added memoized cache for component-wide optimization
-  - Improved item removal with smarter DOM manipulation
-  - Reduced render cycles with component update checking
-  - Enhanced display logic to only redraw changed items
-  - Added render count tracking for debugging performance issues
-
-## [0.2.4] - Sieve Component Delete Button Fix
-
-### Fixed
-- Fixed deletion functionality in Sieve component
-  - Added visual indication during deletion to prevent multiple clicks
-  - Prevented aggressive page reloads by throttling refreshes after deletion
-  - Implemented optimistic UI updates - removing items locally before server refresh
-  - Added cleanup for smooth animation when deleting items from the grid
-  - Enhanced error handling for better resilience when deletion fails
-  - Improved backend database `deleteItem` function with better logging and error handling
-  - Added safety checks to prevent duplicate deletion requests
-  - Fixed styling for delete button disabled state during deletion
-
-## [0.2.3] - Sieve Component View Button Fix
-
-### Fixed
-- Fixed View button functionality in Sieve component
-  - Updated database.js to include preview text in listItems response for proper content display
-  - Enhanced createItemCard with better ID handling to prevent errors with null/undefined IDs
-  - Improved handleCardFlip with better validation and error logging
-  - Fixed retry button in error state to properly use event handler instead of inline onclick
-  - Added fallback ID generation for items without IDs to prevent rendering issues
-  - Fixed card flip animation by adding proper 3D transform properties and z-index handling
-  - Added debug logging for card flip operations to help troubleshoot flipping issues
-  - Increased preview content length for better card information display
-  - Added setTimeout to ensure DOM updates before applying flip class
-
-## [0.2.2] - Database Schema Field Handling Fix
-
-### Fixed
-- Fixed database insertion errors by adding proper field handling
-  - Added handling for required fields in database schema that were missing:
-    - `text_chunks`: Added creation from extracted_text or a placeholder for empty content
-    - `summary`: Added placeholder summary generation from title or default text
-    - `transcript`: Added proper handling for video content vs non-video content
-    - `compressed`: Added default false value to the compressed flag field
-  - Enhanced error handling in database operations with better logging
-  - Improved database compatibility with vectordb schema requirements
-
-## [0.2.1] - Improved API Key Handling
-
-### Added
-- Added `setup-api-keys.js` tool for easy API key configuration
-- Created detailed API_KEYS.md documentation for troubleshooting and setup
-- Improved .env file detection in embedding service to find and load OpenAI API keys from multiple locations
-
-### Fixed
-- Fixed OpenAI embedding service to properly detect and load API keys from .env files
-- Enhanced error handling when API keys are missing or invalid
-- Made OpenAI embedding generation more robust with better error handling
-
-## [0.2.0] - Switched Embedding Service to OpenAI
-
-### Changed
-- Updated embedding service to use OpenAI instead of Google Vertex AI
-  - Removed Google Vertex AI embedding implementation
-  - Removed `google-auth-library` dependency
-  - Modified `backend/src/services/embedding.js` to use OpenAI exclusively
-  - Updated getOpenAIEmbedding function to support text-embedding-3-small and text-embedding-3-large models
-  - Added dimensions parameter support for OpenAI text-embedding-3 models
-  - Enhanced payload creation with model-specific options
-  - Maintained all existing functionality including caching, batching, and fallback
-
-## [0.1.4]
-
-### Added
-- Created `backend/src/utils/tempFileManager.js`: Modular utility for managing temporary files
-  - Provides consistent temp file path handling
-  - Includes safe file deletion with error handling
-  - Features TempFileHandler class for complex file patterns
-  - Supports fallback locations for files created outside temp directory
-  - Handles cleanup of temporary files automatically
-- Implemented batch processing system for efficient document processing and embedding
-  - Created `backend/src/utils/batchers/batchProcessor.js`: Generic batch processing utility with concurrency control
-  - Created `backend/src/utils/batchers/chunkerBatch.js`: Batch processing for text chunking operations
-  - Created `backend/src/utils/batchers/embeddingBatch.js`: Batch processing for embedding generation
-  - Created `backend/src/utils/documentProcessor.js`: End-to-end document processing pipeline
-  - Added comprehensive test suite for batch processing utilities
-  - Enhanced embedding service with parallel processing capabilities
-  - Added cosine similarity calculation functionality
-- Implemented unified document processing system
-  - Created `backend/src/utils/processors/processorFactory.js`: Produces configurable processor instances with consistent interfaces
-  - Integrated batch processing into PDF processor for multi-document handling
-  - Added PDFProcessor class for specialized PDF document handling
-  - Restructured processing pipeline with improved separation of concerns 
-  - Enhanced PDF extraction with multi-file batch processing
-  - Added robust error handling for batch document operations
-
-### Fixed
-- Fixed logger configuration in frontend/src/utils/logger.js to use an array for levels instead of an object, resolving "this.levels.includes is not a function" error.
-- Fixed console transport format in frontend logger to handle undefined date property, resolving "Cannot read properties of undefined (reading 'toISOString')" error.
-- Replaced custom format function with electron-log's standard format string to resolve "data.reduce is not a function" error in style transformation.
-- Updated deprecated `archiveLog` to `archiveLogFn` in file transport configuration to resolve deprecation warning.
-- Fixed preload script issues by removing dependency on path module and simplifying logger initialization in sandboxed context.
-- Modified logger.js to improve compatibility with Electron's preload script sandboxing restrictions.
-- Implemented inline logger in preload.js to avoid CommonJS module dependencies, addressing sandbox restrictions in Electron 20+.
-- Fixed "items.forEach is not a function" error in displayItems by properly handling the response object structure from IPC calls.
-- Fixed YouTube transcription handling to properly locate caption files in the temp directory
-- Resolved issue with YouTube caption processing creating files in the wrong location
-- Fixed incorrect logger import paths in batchers and processors modules to properly reference logger.js from the utils directory
-- Fixed test issues:
-  - Addressed PDF processor test mocking by using proper Sinon stubs instead of Jest mocks
-  - Fixed IPC handlers test by properly mocking the electron module and service dependencies
-  - Improved mocking for test compatibility between Jest and Sinon
-  - Fixed test dependency install issues by using legacy-peer-deps flag for compatibility
-
-## [0.1.3]
-
-### Enhanced
-- Improved backend logger with millisecond timestamp precision for detailed debugging
-- Enhanced context handling by passing it as metadata for better log filtering
-- Added circular reference detection to prevent logger crashes
-- Enhanced HTTP logger with intelligent log level selection based on response status and time
-- Added user-agent summary tracking to HTTP logger for better request identification
-- Improved sensitive data redaction to handle nested objects
-- Added generic log method for interface compatibility
-- Exported log levels for reference in other parts of the application
-
-## [0.1.2]
-
-### Changed
-- Integrated proper contextual logging across all backend services
-- Standardized error handling with detailed error logging
-- Enhanced debug information for text processing and embeddings
-- Implemented trace-level logging for fine-grained debugging
-- Improved metadata in log entries for better debugging and monitoring
-- Updated config bootstrapping with temporary logger
-
-## [0.1.1]
-
-### Added
-- Unified logging system with Winston (backend) and electron-log (frontend)
-- Context-based logging with different severity levels
-- Log rotation with daily file cycling
-- Colorized console output
-- HTTP request logging middleware
-
-### New Files
-- `backend/src/utils/logger.js`: Winston-based logger implementation
-- `backend/src/utils/httpLogger.js`: Morgan HTTP logging middleware
-- `frontend/src/utils/logger.js`: Electron-log implementation 
-- Tests for both frontend and backend loggers
-
-### Changed
-- Updated backend and frontend entry points to use structured logging
-- Added preload API for renderer process logging
-- Extended config with logging settings
-- Refactored services to use contextual loggers
-
-## New Features
-
-### Special Word Renderer Component
-- Added `SpecialWordRenderer.js` component that detects and applies special styling to the words "Mnemosyne" and "Cognivore" in chat messages
-- Created `special-words.css` for styling special words with gradient text, subtle animations, and hover effects
-- Integrated with ChatMessages and ChatUI components
-- Words are rendered at the same size as surrounding text but with special visual treatment to dramatize their importance
-- Added informative tooltips that appear on hover
-- Created demo page at `special-words-demo.html` for testing and demonstration
-
-## Change Log
-
-### 2023-10-17
-- Fixed browser interactivity issue in Voyager component by properly binding event handlers and resolving initialization conflicts between componentDidMount and initialize methods
-- Improved webview event handler binding to ensure navigation buttons and interactions work correctly
-- Fixed navigation and click interaction issues by adding proper event delegation 
-- Fixed "Cannot read properties of undefined (reading 'current')" error in App.js by properly initializing the browserRef with React.createRef()
-- Added handleContentCapture method to properly handle content captured from the browser component
-- Fixed "Cannot initialize Voyager - container not mounted" error with progressive retry mechanism using increasing backoff
-- Fixed "The object has already navigated, so its partition cannot be changed" error by setting a unique partition before any navigation
-- Added more robust initialization in packaged application with better ReactDOM handling
-- Improved mounting detection and error recovery for Electron environments
-
-## Browser UI Enhancement (Current)
-
-- Completely restyled browser component to match application theme
-- Added glass effect header with backdrop filter for modern appearance
-- Implemented interactive elements with ripple effects and smooth transitions
-- Enhanced address bar with search icon and improved focus states
-- Upgraded progress bar with animated gradient for better loading feedback
-- Improved research panel with smooth animations and visual feedback
-- Added responsive adaptations for different screen sizes
-- Fixed styling inconsistencies across all browser elements
-
-## Browser Webview Enhancement (Current)
-
-- Restored createWebviewElement function in BrowserRenderer.js with full functionality
-- Added executeSafelyInWebview helper function for robust webview JavaScript execution
-- Fixed syntax issues in webview creation logic
-- Improved webview rendering capabilities for better browser experience
-- Enhanced error handling for webview initialization
-
-## Browser UI and Interactivity Enhancement (Current)
-
-- Fixed overlapping icons in browser navigation and action buttons
-- Added visual feedback for button interactions with ripple effects and transitions
-- Implemented toast notification system for user action confirmations
-- Enhanced button states with better disabled styles and active indicators
-- Added animations for refresh button, bookmarks, and loading states
-- Improved focus states for address bar and interactive elements
-- Added tooltip functionality for navigation and action buttons
-- Enhanced mobile responsiveness with optimized spacing and interactions
-
-## [Unreleased]
-
-### Changed
-- Centralized research panel logic in Researcher component to remove duplication
-  - Removed duplicate panel creation from BrowserRenderer.js
-  - Updated Voyager.js to delegate research handling to Researcher
-  - Fixed issues with webview container sizing when toggling research mode
-
-### Fixed
-- Research panel initialization issues:
-  - Fixed initialization of Researcher component to ensure it's available before use
-  - Removed fallback mechanisms in toggleResearchMode to properly surface errors
-  - Updated event handlers to handle errors gracefully
-  - Improved component lifecycle integration between Voyager 
-
-## Researcher Component Styling Improvements (2023-07-08)
-- Enhanced ResearcherPanel.css with improved color scheme and consistent spacing
-- Fixed styling issues in ResearcherMessages.js while preserving existing functionality
-- Improved ResearcherInput.js visual appearance with better button styling
-- Refined Researcher.js styling consistency with existing code patterns
-
-### 2023-07-01
-- Added memoization to Researcher components to prevent unnecessary re-renders on keystrokes
-  - Converted class-based components to React functional components with memo
-  - Added debouncing for input handling in Researcher.js
-  - Implemented custom comparison functions for efficient component updates
-  - Created CSS files for the new React components
-
-### 2023-06-30
-- Improved conversation summarization with dynamic highlights
-  - Added new visualization component for summary highlights
-  - Integrated with GPT models for more accurate summary generation
-
-### 2023-06-28
-- Added voice chat features
-  - Integrated with browser speech recognition API
-  - Added controls for voice input and output
-  - Implemented real-time speech-to-text processing
-
-### 2023-07-02
-- Fixed Researcher component initialization error
-  - Restored proper class-based Researcher functionality
-  - Fixed "O is not a constructor" error in toggleResearchMode
-  - Maintained memoization for child components while preserving class structure
-
-### 2023-05-10
-
-- Fixed chat input rendering issue in Researcher component by integrating React components properly
-- Modified Researcher.js to use React-based UI components instead of direct DOM manipulation
-- Added proper cleanup for React components in componentWillUnmount
-
-## 2023-05-31
-### Fixed
-- Fixed issue in `Researcher.js` where `extractFullPageContent` was not returning a Promise correctly, causing "then is not a function" error
-- Added recursion prevention for tool call processing in `sendChatMessage` method with depth tracking
-- Enhanced recursion protection in `updateUI` method with depth tracking to prevent potential stack issues
-- Improved error handling for content extraction and DOM manipulation
-
-### 2023-XX-XX: Robust Content Extraction System
-
-- **Added** `ContentExtractionSystem.js` - A comprehensive content extraction system with multiple fallback mechanisms
-- **Updated** `ContentExtractor.js` - Integrated with new extraction system for reliable content extraction
-- **Updated** `ResearcherEventHandlers.js` - Improved event handlers for better webview readiness detection
-- **Updated** `Researcher.js` - Enhanced _processAndAnalyze method to work with pre-extracted content
-
-These changes address the "webview not ready" errors and provide a more robust extraction system with proper fallbacks when webview extraction fails.
-
-## 2023-07-10
-- UI: Improved Research Panel layout to occupy 45% of screen width
-- UI: Enhanced message styling for better readability and visual appeal
-- UI: Added better collapsed panel behavior and transitions
-- UI: Improved spacing and background styling for research messages
-
-## [0.5.3] - Text Formatting and Special Word Rendering Fixes
-
-### Fixed
-- Fixed text formatting issues in chat messages:
-  - Enhanced `SpecialWordRenderer.js` to properly exclude code blocks and their children from special word styling
-  - Updated `ChatUI.js` to preserve code blocks and pre-formatted text during message processing
-  - Added CSS rules to protect code blocks from special word styling effects
-  - Implemented proper parent hierarchy checking for code elements to prevent formatting conflicts
-  - Fixed multiple rendering issues with special words in formatted messages
-  - Added explicit formatting protection for inline code elements
-
-## [0.5.2] - Import Path Issues Fix
-
-### Fixed
-- Fixed import path issues causing build failures with missing modules
-  - Updated import paths in App.js to match actual file locations in the project structure
-  - Fixed path references in SearchSection.js to correctly import from ../../services
-  - Fixed path references in Mnemosyne.js to correctly import from ../../services and ../../utils
-  - Resolved "Module not found" errors for multiple components including ChatUI, ThemeSwitcher, ContentViewer
-  - Ensured proper build output by correcting relative paths between different component directories
-  - Fixed hierarchy inconsistencies between actual file locations and import statements
-
-## [0.5.2] - Character-by-Character Response Handling Fix
-
-### Fixed
-- Fixed messages not rendering due to character-by-character Gemini API response format
-  - Enhanced messageFormatter.js to properly detect and reconstruct indexed character arrays
-  - Added proper handling for JSON-wrapped responses with candidates structure
-  - Fixed "[ChatMessages] Message at index 1 has no content, setting empty string" warning by improving response parsing
-  - Implemented recursive processing of reconstructed messages for consistent handling
-  - Added detailed logging to trace response format transformations
-  - Enhanced LlmService.js to directly handle character-by-character responses
-  - Added content field synchronization between text and content properties
-  - Improved ChatUI to explicitly ensure content field never becomes null/undefined
-  - Fixed extractToolCallsFromText to maintain both text and content fields
-  - Added multiple validation steps throughout message processing pipeline
-  - Fixed a critical issue where the frontend wasn't properly interpreting the character-by-character format
-
-## [0.5.1] - ToolRenderer Initialization Fix
-
-### Fixed
-- Fixed ToolRenderer initialization issue causing messages not to render properly
-  - Added explicit initialization call for ToolRenderer in ChatMessages component
-  - Implemented initialization check in ToolRenderer to prevent duplicate initialization
-  - Added safeguards in createToolCallElement to ensure ToolRenderer is always initialized
-  - Enhanced error handling in tool rendering process with better logging
-  - Fixed empty message content handling to prevent rendering issues
-  - Improved validation of toolCall objects before rendering
-  - Added runtime initialization check in render method as a last resort safety measure
-  - Fixed cleanup process to properly handle initialization state
-
-## [0.4.4] - Enhanced Settings Logging and Feedback
-
-### Added
-- Enhanced logging for settings operations to improve visibility and troubleshooting
-  - Added console.log statements for immediate visibility in developer tools
-  - Added detailed API key status logging with secure redaction
-  - Enhanced IPC handler logging for backend settings operations
-  - Added visual save confirmation with animated button feedback
-  - Implemented detailed environment variable update logging
-  - Added secure API key logging that shows only first/last 4 characters
-- Improved error handling and user feedback in settings functionality
-  - Added more detailed error messages with specific causes
-  - Enhanced save button with visual feedback (color change and animation)
-  - Added loading state during save operations
-  - Implemented clear notifications for successful/failed operations
-
-### Changed
-- Updated Settings component with better visual feedback during saving
-- Enhanced SettingsService with more comprehensive logging
-- Improved backend IPC handlers with detailed operation logging
-- Added API key change tracking to monitor updates
-
-### Fixed
-- Fixed Gemini API response handling for enhanced reliability
-  - Fixed "result.response.text.trim is not a function" error with robust text extraction
-  - Improved response processing with multiple fallback paths for various response formats
-  - Enhanced error handling for inconsistent API responses
-  - Added type safety checks throughout response processing pipeline
-  - Fixed missing properties in chat responses causing rendering issues
-  - Standardized response format between backend and frontend for consistent handling
-  - Fixed "Invalid message at index 1" error with proper message formatting
-  - Added proper content type checking and conversion for message parts
-- Fixed message rendering errors in ChatMessages component
-  - Implemented comprehensive message sanitization to prevent invalid message errors
-  - Added robust validation for all message properties with appropriate defaults
-  - Enhanced error handling to gracefully display broken messages instead of crashing
-  - Fixed "Invalid message at index 1" error in ChatMessages component
-  - Added type checking and conversion for message content and toolCalls objects
-  - Improved robustness of tool call rendering with failsafe error handling
-  - Ensured proper timestamp handling when timestamps are missing from messages
-
-## [0.4.3] - Settings Page Implementation
-
-### Added
-- Created comprehensive settings page for API key management and application configuration
-  - Added `frontend/src/components/Settings.js`: Modern tabbed settings interface component
-  - Created `frontend/src/services/SettingsService.js`: Service for managing settings persistence
-  - Added `frontend/public/styles/components/settings.css`: Dedicated styling for settings component
-  - Implemented settings IPC handlers in `backend/src/ipcHandlers.js` for backend integration
-  - Added secure API key storage with environment variable integration
-  - Created test utility for validating API keys
-  - Added settings navigation in sidebar with "API Settings" and "Preferences" items
-- Enhanced settings experience with multiple configuration areas
-  - Added API Keys section with Google Gemini, OpenAI, Anthropic, and OpenRouter support
-  - Implemented General settings for interface preferences with dark mode and font size options
-  - Added Models section for configuring default chat and embedding models
-  - Created Advanced settings with developer options and model parameter configuration
-  - Implemented settings persistence with proper storage in userData directory
-  - Added environment variable integration for seamless API key usage across sessions
-
-### Changed
-- Updated App.js to integrate the new Settings component
-- Added settings CSS to index.html for proper styling
-- Enhanced sidebar navigation with settings-specific handling
-- Updated backend to use settings-based API keys when available
-
-## [0.4.2] - Critical LlmService Fix
-
-### Fixed
-- Fixed critical error in LlmService.js that prevented sending messages through the chat interface
-  - Corrected incorrect method call `this.isBackendHealthy()` to `this.checkBackendStatus()`
-  - Fixed undefined `ipcBridge` reference by using `window.server.chat` instead
-  - Added missing `getMemoryUsage()` helper method with safe browser implementation
-  - Enhanced error handling for memory usage logging to prevent crashes
-
-## [0.4.1] - Google API Key Handling Improvements
-
-### Added
-- Created comprehensive API key verification system
-  - Added `backend/verify-api-key.js`: Utility script to test Google API key validity
-  - Created `backend/API_SETUP.md`: Detailed instructions for setting up API keys
-  - Enhanced .env and config.json loading to support multiple key formats and locations
-  - Added explicit validation of API key format and validity
-  - Implemented user-friendly error messages with setup instructions
-- Enhanced error handling for missing or invalid API keys
-  - Updated `frontend/src/services/LlmService.js` with better error detection
-  - Added specific error messaging for API key issues
-  - Implemented helpful guidance in chat UI for API key setup
-  - Created guided error recovery process with step-by-step instructions
-
-### Fixed
-- Fixed "Method doesn't allow unregistered callers" error with improved API key handling
-  - Enhanced API key extraction from .env files with proper regex pattern
-  - Added regex pattern to handle quoted and unquoted API keys in .env files
-  - Fixed API key validation to properly detect invalid keys
-  - Added comprehensive API key debugging with source tracking
-  - Improved error handling in server.js with better API unavailability detection
-  - Fixed IPC error handling to provide helpful error messages to the UI
-  - Enhanced LlmService error handling for API key issues
-
-## [0.4.0] - Database Integration with Gemini
-
-### Added
-- Created new queryDatabase tool for natural language database querying
-  - Added tool definition in `frontend/src/services/tools/sharedToolDefinitions.js`
-  - Implemented backend logic in `backend/src/services/tools.js`
-  - Added direct access to database semanticSearch capabilities
-  - Implemented natural language query to embedding conversion
-  - Added filtering by source type and date range
-  - Enhanced database access through Gemini LLM
-- Updated system prompt to include the new database querying capabilities
-  - Added guidelines for when to use the database query tool
-  - Improved descriptions for complex database interactions
-
-### Changed
-- Enhanced LLM integration with direct database access
-  - Updated server.js with toolsService integration
-  - Added proper handlers for database query execution
-  - Improved error handling for database queries
-
-## [0.3.35] - Memory Management System Enhancements
-
-### Added
-- Implemented comprehensive file storage system for knowledge management
-  - Added file storage capabilities to database service for PDFs, websites, and videos
-  - Enhanced database schema with file paths, sizes, and compression information
-  - Created transcript storage with lossless compression for YouTube videos
-  - Added automatic file management with cleanup on item deletion
-- Upgraded embedding service with professional model integration
-  - Integrated actual embedding model via environment variable EMBEDDING_MODEL=embedding-005
-  - Added embedding caching to reduce API calls and improve performance
-  - Implemented fallback mechanism for offline embedding generation
-  - Enhanced memory efficiency with optimized vector handling
-  - Added Google Vertex AI authentication with Application Default Credentials
-  - Implemented rate limiting with exponential backoff for API calls
-  - Added smart batch processing with dynamic adjustment based on text length
-  - Improved error handling and retry logic for embedding generation
-  - Added Google Vertex AI embedding model support for text-embedding-005
-  - Implemented automatic provider selection based on model name
-  - Added GCP authentication for Vertex AI API access
-  - Fixed Vertex AI authentication using Google Auth Library and ADC
-  - Added field name normalization for database compatibility (camelCase to snake_case)
-  - Improved error handling during authentication and database operations
-- Improved Mnemosyne component with enhanced file storage integration
-  - Updated file processing with options for storing original files
-  - Added file size information display in content summary
-  - Enhanced YouTube processing with transcript preservation
-
-### Changed
-- Optimized database operations for better performance
-  - Added intelligent compression for text content using zlib
-  - Enhanced memory management during vector operations
-  - Improved file storage with type-specific organization
-  - Added file existence checking to prevent duplicate storage
-- Enhanced content processing workflow
-  - Improved PDF processing with original file preservation
-  - Enhanced web content storage with screenshots and HTML content
-  - Added comprehensive metadata storage for all content types
-  - Improved error handling during file operations
-
-### Fixed
-- Fixed missing file handling in document retrieval process
-- Improved content processing feedback with detailed success notifications
-- Enhanced error reporting during file operations with specific error messages
-- Database field naming compatibility (camelCase to snake_case conversion)
-- Embedding service authentication with Google Vertex AI
-- Rate limit handling for embedding generation API calls
-- Type compatibility issue in embedding batch processor (fixed "textChunks.reduce is not a function" error)
-- Improved handling of single string inputs in batch embedding functions
-
-### Improved
-- Memory management during embedding generation
-- Reliability of batch processing with timeout handling
-- Optimized batch sizing based on content length
-
-## [0.3.34] - Card Flip Content Viewing
-
-### Added
-- Implemented card flip animation for viewing content details
-  - Content now displayed by flipping cards in place instead of opening a separate viewer
-  - Each knowledge card can be flipped to reveal detailed content on the back
-  - Added smooth transitions and animations for a premium user experience
-
-### Changed
-- Removed reliance on separate ContentViewer component for Sieve
-- Enhanced metadata display with better formatting and organization
-- Added copy and export functionality directly on flipped cards
-- Improved scroll behavior with hidden scrollbars while maintaining scrollability
-
-### Fixed
-- Fixed layout issues when viewing content on different screen sizes
-- Improved content preview truncation to avoid layout shifts
-
-## [0.3.33] - UI Enhancements for Knowledge Management
-
-### Changed
-- Improved scrolling behavior with hidden scrollbars for cleaner interface
-  - Updated Sieve component to support scrolling without visible scrollbars
-  - Applied consistent scrolling behavior across all content areas
-- Enhanced ContentViewer design with modern glass morphism UI
-  - Added animations for a more polished user experience
-  - Improved information hierarchy with clearer typography
-
-## [0.3.32] - Sieve Knowledge Management Component
-
-### Added
-- Created new Sieve component for enhanced knowledge management
-  - Implemented `frontend/src/components/Sieve.js`: Modern UI for filtering and browsing knowledge items
-  - Added `frontend/public/styles/components/sieve.css`: Dedicated responsive styling for Sieve component 
-  - Created card-based grid layout for better content visualization
-  - Implemented filtering by content type (PDF, Web, Video)
-  - Added search functionality for finding specific knowledge items
-  - Enhanced item preview with better text truncation
-  - Added smooth loading states and animations
-  - Integrated with existing document management system
-- Updated Sidebar with Sieve navigation item
-  - Added Sieve to the Library section of the sidebar
-  - Used wave icon to represent the filtering nature of Sieve
-- Integrated Sieve component with main App.js
-  - Added proper initialization and cleanup for component lifecycle
-  - Ensured content updates flow properly to Sieve component
-
-### Changed
-- Enhanced content navigation with more specialized components
-  - Added explicit component for knowledge organization and filtering
-  - Enhanced document management workflow with multiple view options
-
-## [0.3.31] - Sidebar UI Improvement
-
-### Changed
-- Improved sidebar collapsed state UI
-  - Hid user avatar in collapsed state for better visual consistency
-  - Centered toggle button in sidebar footer when collapsed
-  - Fixed spacing issues in collapsed sidebar state
-  - Completely hidden logo when sidebar is collapsed for cleaner minimal interface
-
-## [0.3.30] - Navigation and Rendering Fix
-
-### Fixed
-- Fixed UI navigation and rendering glitches
-  - Added throttling to prevent excessive IPC calls
-  - Fixed sidebar active item state when viewing the Mnemosyne page
-  - Removed circular update triggers between components
-  - Prevented repeated list refreshes causing UI instability
-  - Resolved Cognivore remaining selected when on Mnemosyne page
-
-## [0.3.29] - Dark Mode UI Update
-
-### Changed
-- Modified theme handling to use dark mode only
-  - Removed light/dark mode toggle from UI
-  - Updated ThemeSwitcher component to always use dark mode
-  - Fixed theme implementation to prevent accidental light mode switching
-
-### Fixed
-- Fixed alignment between sidebar collapse button and chat input container for better visual consistency
-- Improved sidebar footer positioning to stay fixed at the bottom of the sidebar
-
-## [0.3.28] - UI Enhancements
-
-### Changed
-- Updated UI components for better user experience
-  - Modified sidebar to start in collapsed state by default
-  - Removed scrollbars from the application for cleaner interface
-  - Renamed "Documents" page to "Mnemosyne" in sidebar navigation
-  - Renamed "AI Assistant" to "Cognivore" throughout the application
-
-## [0.3.27] - IPC Handler Registration Fix
-
-### Fixed
-- Fixed critical IPC handler registration conflict causing chat and document functionality to fail
-  - Modified `backend/src/ipcHandlers.js` to safely register handlers without conflicts
-  - Added handler collision detection to prevent duplicate registrations
-  - Implemented fallback handling to skip already registered handlers instead of failing
-  - Enhanced error reporting for initialization issues
-  - Fixed "No handler registered for 'chat'" error that was preventing chat function
-  - Fixed "No handler registered for 'list-items'" error that was preventing document listing
-  - Fixed "No handler registered for 'process-pdf'" error that was preventing document uploads
-
-## [0.3.26] - Gemini System Role Compatibility Fix
-
-### Fixed
-- Fixed critical "Content with system role is not supported" error with Gemini models
-  - Updated `frontend/src/services/LlmService.js` to convert system prompts to user messages with special formatting
-  - Modified system prompt integration to be compatible with Gemini 2.0 Flash
-  - Enhanced `backend/src/services/llm.js` to properly handle role conversion for Gemini API
-  - Added better error handling for system role issues
-  - Ensured proper conversation flow when converting system instructions to user messages
-
-## [0.3.25] - Centralized Tool Definitions
-
-### Added
-- Created centralized tool definition system for frontend and backend
-  - Implemented `frontend/src/services/tools/sharedToolDefinitions.js`: Single source of truth for all tools
-  - Added `backend/src/utils/toolDefinitionsAdapter.js`: Backend adapter for shared definitions
-  - Implemented tool validation to ensure consistency across codebase
-  - Added location-based filtering to manage tool availability (frontend/backend/both)
-  - Created utility functions for accessing and working with tool definitions
-
-### Changed
-- Refactored tools system for unified definitions
-  - Updated `frontend/src/services/systemPrompt.js` to use shared tool definitions
-  - Modified `frontend/src/services/tools/index.js` to support shared definitions
-  - Updated `backend/src/services/tools.js` to validate against shared definitions
-  - Added backward compatibility notes to `frontend/src/services/tools/toolRegistry.json`
-  - Improved tool registration and validation process in backend
-  - Enhanced error handling for missing tool implementations
-
-### Fixed
-- Fixed module compatibility issues between frontend and backend
-  - Resolved "Unexpected token 'export'" error in shared tool definitions
-  - Updated backend tools service to properly initialize logger before use
-  - Simplified toolDefinitionsAdapter to use embedded definitions rather than dynamic imports
-  - Fixed ES module/CommonJS compatibility in frontend module exports
-  - Improved handling of module loading across different environments
-  - Added cross-environment support for both Electron renderer and Node.js contexts
-
-## [0.3.24] - System Prompt Integration
-
-### Added
-- Created modular system prompt management for agent configuration
-  - Implemented `frontend/src/services/systemPrompt.js`: Defines agent purpose and available tools
-  - Added configurable system prompt functions with user personalization
-  - Created minimal system prompt option for lightweight interactions
-  - Implemented tool definition standardization for consistent schema
-- Enhanced LLM service with system prompt integration
-  - Updated `frontend/src/services/LlmService.js` to use system prompts
-  - Added automatic system prompt insertion for chat history
-  - Created helper methods for generating different system prompt types
-  - Improved chat handling with proper system message integration
-
-### Changed
-- Refactored tool definitions to use centralized system
-  - Moved tool definitions from LlmService to systemPrompt module
-  - Enhanced consistency between frontend and backend tool definitions
-  - Improved organization of tool-related code
-- Updated chat processing pipeline
-  - Added formatChatHistoryWithSystemPrompt for automatic system prompt insertion
-  - Enhanced sendMessage method to use configured system prompts
-  - Improved chat initialization with proper system context
-
-## [0.3.23] - Retrieval Augmented Generation (RAG) System
-
-### Added
-- Implemented Retrieval Augmented Generation (RAG) system for LLM integration
-  - Added semanticSearch function to database.js for optimized RAG queries
-  - Added getItemById function to database.js for efficient content retrieval
-  - Created backend LLM service (llm.js) for Gemini model interactions
-  - Added RAG tools to tools.js (searchKnowledgeBase, getItemContent, recommendRelatedContent)
-  - Enhanced IPC handlers to support LLM chat, embedding generation, and tool execution
-  - Implemented memory-optimized content processing with token counting
-
-### Changed
-
-### Fixed
-
-## [0.3.22] - Chat Message Freezing Fix
-
-### Fixed
-- Fixed critical issue with chat messages freezing when sent
-  - Enhanced ChatInput with improved error handling and explicit console logging for debugging
-  - Added timeout protection to prevent infinite loading states
-  - Fixed event binding issues in ChatInput to ensure handleSubmit is properly called
-  - Added more robust server port detection to prevent conflicts
-  - Improved preload.js IPC bridge with timeout handling and better error recovery
-  - Enhanced error reporting to provide more helpful feedback to users
-  - Added explicit loading state management in ChatUI component
-
-## [0.3.21] - Message Handling and Backend Connection Fix
-
-### Fixed
-- Fixed critical issues with message handling in chat interface
-  - Enhanced ChatUI.handleSubmit() with more robust error handling and connection checks
-  - Added timeout handling for backend connections to prevent hangs
-  - Improved error reporting with specific, user-friendly error messages
-  - Added forceFullRerender() method to recover from DOM detachment issues
-  - Fixed UI update process to ensure messages are always displayed
-- Improved backend server port handling and connection stability
-  - Enhanced port conflict detection and resolution in server.js
-  - Added more comprehensive error handling for server startup
-  - Improved port availability checking with timeout protection
-  - Added automatic process termination for stuck ports
-  - Extended retry mechanism for finding available ports
-- Enhanced LlmService with better connectivity handling
-  - Added timeout protection for backend health checks
-  - Implemented progressive retry with increasing timeout windows
-  - Added detailed error reporting for different failure scenarios
-  - Improved connection retry logic with better error classification
-
-## [0.3.20] - Mnemosyne Document Processing UI
-
-### Added
-- Created new Mnemosyne component for centralized document processing
-  - Implemented `frontend/src/components/Mnemosyne.js`: Visual component for document processing workflow
-  - Added `frontend/public/mnemosyne.css`: Dedicated styling for the Mnemosyne component
-  - Created card-based interface with three content types (PDF, Web URL, YouTube)
-  - Implemented modern, visually appealing document processing UI
-  - Added responsive design with mobile support
-  - Integrated with existing DocProcessor service for backend communication
-  - Added content list with type badges and actions (view, delete)
-- Enhanced document processing experience
-  - Implemented file name display for selected PDF files
-  - Added content preview with truncated text display
-  - Created consistent color-coding for different content types
-  - Added hover states and subtle animations for interactive elements
-  - Implemented content type icons using SVG data URIs
-
-### Changed
-- Refactored document processing logic
-  - Replaced separate ContentInput and ContentList components with unified Mnemosyne component
-  - Updated App.js to use the new Mnemosyne component
-  - Modified document display with improved styling
-  - Enhanced application theme integration with CSS variables
-  - Improved document management workflow with unified interface
-
-## [0.3.19] - ChatUI DOM Connection Fix
-
-### Fixed
-- Fixed DOM connection issue in ChatUI component
-  - Fixed error "Main container is not connected to DOM!" when initializing ChatUI
-  - Added DOM connection checks in initialize() method to handle cases where container isn't ready
-  - Improved showBackendUnavailableMessage() to handle cases where container isn't connected
-  - Added short delay in initialization sequence to ensure DOM is fully updated
-  - Enhanced updateUI() method to robustly handle DOM connection issues
-
-## [0.3.18] - Advanced Type Validation System
-
-### Added
-- Implemented Pydantic-like validation system with strong type safety
-  - Created `frontend/src/services/tools/validation/SchemaValidator.js`: Robust schema validation utility
-  - Added `frontend/src/services/tools/validation/Model.js`: Type-safe data models with validation
-  - Implemented field definitions with strong typing and validation rules
-  - Added automatic type conversion and validation for all data types
-  - Created comprehensive validation error reporting
-- Enhanced summary generation with type-safe models
-  - Added `frontend/src/services/tools/summaryGenerator/models.js`: Type models for summary parameters and results
-  - Implemented SummaryParams, SummaryResult, and SummaryError models
-  - Added validation rules specific to summary generation
-  - Enhanced error handling with custom validation
-- Improved Gemini function calling with validation
-  - Updated GeminiFunctionCaller to handle validation errors
-  - Added FunctionCallResult for consistent error handling
-  - Enhanced tool execution with parameter validation
-  - Implemented more robust error reporting
-
-### Changed
-- Enhanced tool parameters with JSON Schema validation
-  - Updated tool registry to use schema validation
-  - Improved parameter validation for all tools
-  - Enhanced error handling with detailed validation errors
-- Improved type safety across the codebase
-  - Implemented validation before processing
-  - Added automatic type conversion where appropriate
-  - Enhanced error handling with validation context
+## 2023-07-14
+- Modified Electron web security settings to allow loading of external resources:
+  - Disabled `webSecurity` setting to fix MIME type checking issues
+  - Updated Content Security Policy to allow loading scripts from CDN sources
+  - Added 'unsafe-eval' and 'unsafe-inline' to script-src directive
+  - Expanded allowed domains for external resources
+  - Fixed webview CSP to support Three.js and other external libraries
+
+## Browser rendering fixes
+- Fixed issue with browser component not rendering pages
+- Enhanced webview security configuration to allow proper rendering while maintaining security
+- Added improved content security policy and CORS headers for webviews
+- Enhanced webview preload script injection and configuration
+
+## Logger Exception Handling Fix
+- Fixed "write after end" error in Winston logger:
+  - Modified exception handling approach to prevent errors when multiple processes access logs
+  - Replaced `exceptionHandlers` array with `handleExceptions` configuration on transports
+  - Improved stability when running multiple application instances
+  - Fixed startup crash related to log file access
+
+## WebContents API Fix
+- Fixed "webContents.getWebPreferences is not a function" error:
+  - Removed unsupported getWebPreferences method calls in webview configuration
+  - Replaced with direct property setting using standard WebContents API methods
+  - Added better error handling for webview property configuration
+  - Improved webview rendering reliability with safer property access
+
+## Improvements & Fixes
+
+- **[Fix]** Fixed critical webview connection error: "Cannot set property isConnected of #<Node> which has only a getter"
+  - Replaced direct setting of read-only isConnected property with custom _isAttached property
+  - Updated all connection verification checks to handle both native isConnected and custom _isAttached
+  - Fixed recurring webview recreation attempts caused by isConnected setter error
+
+- **[Fix]** Fixed webview rendering issues by improving webview element visibility and attachment to DOM with enhanced styling
+- **[Fix]** Ensured proper z-index hierarchy for webview content display
+- **[Fix]** Added redundant style application to prevent rendering issues in Electron 
+
+## 2024-01-XX - Fixed React Component Errors in Voyager
+- Fixed Researcher component being incorrectly used as React component instead of plain JS class
+- Removed JSX rendering of Researcher in Voyager.render() method  
+- Updated initializeResearcher() to properly pass containerRef and autoAnalyze props
+- Fixed handleBackAction/handleForwardAction references in render method to use instance methods
+- Fixed handleBookmarkCreation call to use addBookmark instance method
+- Researcher now initializes programmatically and manages its own DOM
+- Note: muse-loader.js missing file error is gracefully handled with CSS fallback
+
+## 2024-01-08 - Enhanced Voyager Browser Component
+
+## 2024-01-XX - Created Comprehensive Test Suites for Voyager and Researcher
+- Created test suite for Voyager component (frontend/test/components/browser/Voyager.test.js)
+  - Tests for component initialization, researcher integration, navigation methods
+  - Tests for bookmark functionality, URL navigation, lifecycle methods
+  - Tests for error handling and webview styles
+- Created test suite for Researcher component (frontend/test/components/browser/researcher/Researcher.test.js)
+  - Tests for initialization with various prop combinations
+  - Tests for component methods (initialize, updateUrl, updateTitle, etc.)
+  - Tests for DOM manipulation and event handling
+  - Tests for auto-analyze feature
+- Set up Jest configuration for frontend testing (frontend/jest.config.js)
+  - Configured Babel transformation for React components
+  - Added support for ES modules from dependencies (nanoid, d3, etc.)
+  - Created mock files for CSS, images, nanoid, and d3
+- Added test scripts to frontend package.json (test, test:watch, test:coverage)
+- Created test setup file with global mocks for Electron APIs
+- Installed testing dependencies: jest, @testing-library/react, @testing-library/jest-dom, babel-jest

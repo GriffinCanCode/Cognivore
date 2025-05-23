@@ -8,6 +8,9 @@ const { createContextLogger } = require('./utils/logger');
 const logger = createContextLogger('IPC');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 
 // Import services
 const { processPDF } = require('./services/pdfProcessor');
@@ -320,6 +323,122 @@ function findStoryDirectory() {
 
   logger.error('Story directory not found in any of the expected locations');
   return null;
+}
+
+/**
+ * Server-side fetch to bypass CSP restrictions
+ * @param {string} url - URL to fetch
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} Promise resolving to content data
+ */
+async function serverFetch(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      logger.info(`Server-side fetch for ${url}`);
+      const parsedUrl = new URL(url);
+      
+      // Select protocol handler
+      const requestModule = parsedUrl.protocol === 'https:' ? https : http;
+      
+      // Configure request options
+      const requestOptions = {
+        method: 'GET',
+        headers: {
+          'User-Agent': options.userAgent || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        timeout: options.timeout || 30000
+      };
+      
+      // Make the request
+      const req = requestModule.request(url, requestOptions, (res) => {
+        const chunks = [];
+        
+        // Get content type for processing
+        const contentType = res.headers['content-type'];
+        
+        // Handle redirects
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          logger.info(`Following redirect to ${res.headers.location}`);
+          // Use relative URL resolution if needed
+          const redirectUrl = new URL(res.headers.location, url).toString();
+          return serverFetch(redirectUrl, options)
+            .then(resolve)
+            .catch(reject);
+        }
+        
+        // Handle non-successful status codes
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return reject(new Error(`HTTP error status: ${res.statusCode}`));
+        }
+        
+        // Collect data
+        res.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+        
+        // Process data on end
+        res.on('end', () => {
+          try {
+            const buffer = Buffer.concat(chunks);
+            const data = buffer.toString('utf8');
+            
+            // Ensure all returned data is fully serializable for IPC communication
+            const safeHeaders = {};
+            // Convert headers to a plain object with string values
+            for (const [key, value] of Object.entries(res.headers)) {
+              safeHeaders[key] = typeof value === 'string' ? value : String(value);
+            }
+            
+            // Extremely aggressive truncation to guarantee serialization
+            const maxDataSize = 2 * 1024 * 1024; // 2MB max (reduced from 5MB)
+            const truncatedData = data.length > maxDataSize ? 
+              data.substring(0, maxDataSize) + '... [truncated due to size]' : 
+              data;
+            
+            // Create a very minimal response with only essential data as plain strings
+            // This is the safest approach to avoid any serialization issues
+            const safeResponse = {
+              data: truncatedData,
+              contentType: String(contentType || ''),
+              url: String(res.responseUrl || url || ''),
+              statusCode: Number(res.statusCode) || 0,
+              // Don't include full headers, just a few important ones
+              contentLength: safeHeaders['content-length'] ? String(safeHeaders['content-length']) : '',
+              contentType: safeHeaders['content-type'] ? String(safeHeaders['content-type']) : '',
+              server: safeHeaders['server'] ? String(safeHeaders['server']) : '',
+              timestamp: new Date().toISOString()
+            };
+            
+            resolve(safeResponse);
+          } catch (err) {
+            reject(new Error(`Error processing response: ${err.message}`));
+          }
+        });
+      });
+      
+      // Handle request errors
+      req.on('error', (err) => {
+        logger.error(`Server fetch error: ${err.message}`);
+        reject(new Error(`Request failed: ${err.message}`));
+      });
+      
+      // Handle timeout
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error(`Request timed out after ${options.timeout || 30000}ms`));
+      });
+      
+      // End the request
+      req.end();
+    } catch (err) {
+      logger.error(`Server fetch error: ${err.message}`);
+      reject(err);
+    }
+  });
 }
 
 /**
@@ -888,6 +1007,140 @@ function initializeIpcHandlers() {
     }
   });
 
+  // Server-side fetch to bypass CSP
+  safelyRegisterHandler('server-fetch', async (event, { url, options = {} }) => {
+    try {
+      logger.info(`Server-side fetch requested for URL: ${url}`);
+      
+      if (!url) {
+        return { error: 'No URL provided' };
+      }
+      
+                try {
+            const result = await serverFetch(url, options);
+            
+            // ULTRA-MINIMAL response - only primitive strings, nothing complex
+            // This is the most aggressive serialization-safe approach possible
+            return {
+              success: "true", // Use string "true" instead of boolean true
+              data: typeof result.data === 'string' ? 
+                String(result.data || '').substring(0, 100000) : // Limit to 100KB max
+                'Data could not be serialized',
+              url: String(url || ''),
+              timestamp: String(new Date().toISOString())
+            };
+      } catch (fetchError) {
+        logger.error(`Server fetch internal error: ${fetchError.message}`);
+                  return { 
+            success: "false", // String instead of boolean
+            error: String(fetchError.message || 'Unknown error'),
+            url: String(url || '')
+          };
+      }
+    } catch (error) {
+      logger.error(`Server-side fetch error for ${url}:`, error);
+      return { 
+        success: "false", // String instead of boolean
+        error: String(error.message || 'Unknown error'),
+        url: String(url || '')
+      };
+    }
+  });
+  
+  // Check if a channel is already registered 
+  safelyRegisterHandler('check-channel-availability', async (event, channelName) => {
+    try {
+      // There's no direct way to check if a channel is registered in Electron,
+      // so we'll use an indirect approach by checking our registered handlers
+      const isAvailable = ipcMain._invokeHandlers && ipcMain._invokeHandlers.has(channelName);
+      logger.debug(`Channel availability check for ${channelName}: ${!isAvailable}`);
+      return !isAvailable;
+    } catch (error) {
+      logger.error(`Channel availability check error for ${channelName}:`, error);
+      return false;
+    }
+  });
+  
+  // Register extract-content handler if not already registered
+  safelyRegisterHandler('register-extract-content', async () => {
+    try {
+      if (!ipcMain._invokeHandlers || !ipcMain._invokeHandlers.has('extract-content')) {
+        safelyRegisterHandler('extract-content', async (event, { url, options = {} }) => {
+          try {
+            logger.info(`Content extraction requested for URL: ${url}`);
+            
+            if (!url) {
+              return { error: 'No URL provided' };
+            }
+            
+            // Use server-side fetch to get the HTML content
+            const fetchResult = await serverFetch(url, options);
+            
+            // If the content type is HTML, extract useful information
+            if (fetchResult.contentType && fetchResult.contentType.includes('text/html')) {
+              // Extract basic information in a serializable format
+              const title = extractTitleFromHtml(fetchResult.data) || url;
+              const text = extractTextFromHtml(fetchResult.data) || '';
+              
+              // Truncate HTML to avoid serialization issues with large pages
+              const maxHtmlSize = 500 * 1024; // 500KB limit for HTML (reduced from 1MB)
+              const truncatedHtml = fetchResult.data.length > maxHtmlSize ? 
+                fetchResult.data.substring(0, maxHtmlSize) + '<!-- truncated due to size -->' : 
+                fetchResult.data;
+              
+              // Truncate text for safer serialization
+              const maxTextSize = 300 * 1024; // 300KB limit for text (reduced from 500KB)
+              const truncatedText = text.length > maxTextSize ? 
+                text.substring(0, maxTextSize) + '... [truncated due to size]' : 
+                text;
+              
+              // ULTRA-MINIMAL response - just primitive strings, nothing more
+              // This is the most aggressive serialization-safe approach possible
+              return {
+                success: "true", // Use string "true" instead of boolean true
+                title: String(title || '').substring(0, 200), // Ultra short title
+                text: String(truncatedText || '').substring(0, 5000), // Extremely truncated text
+                url: String(url || ''),
+                timestamp: String(new Date().toISOString())
+              };
+            }
+            
+            // For non-HTML content, return basic information
+            // Ensure data is limited in size
+            const maxDataSize = 300 * 1024; // 300KB limit (reduced from 500KB)
+            let safeData = typeof fetchResult.data === 'string' ? fetchResult.data : String(fetchResult.data || '');
+            
+            // Truncate if needed
+            if (safeData.length > maxDataSize) {
+              safeData = safeData.substring(0, maxDataSize) + '... [truncated due to size]';
+            }
+            
+            // ULTRA-MINIMAL response for non-HTML - only primitive strings
+            return {
+              success: "true", // Use string "true" instead of boolean true
+              title: String(url).substring(0, 200), // Ultra short title
+              text: String(safeData || '').substring(0, 5000), // Extremely truncated
+              url: String(url || ''),
+              timestamp: String(new Date().toISOString())
+            };
+          } catch (error) {
+            logger.error(`Content extraction error for ${url}:`, error);
+            return { error: error.message };
+          }
+        });
+        
+        logger.info('Registered extract-content handler');
+        return { success: true };
+      }
+      
+      logger.info('extract-content handler already registered');
+      return { success: true, alreadyRegistered: true };
+    } catch (error) {
+      logger.error('Error registering extract-content handler:', error);
+      return { error: error.message };
+    }
+  });
+
   logger.info('IPC handlers initialized');
 }
 
@@ -967,10 +1220,46 @@ async function savePageToKnowledgeBase(event, pageData) {
   }
 }
 
+/**
+ * Extract title from HTML content
+ * @param {string} html - HTML content
+ * @returns {string} Extracted title or empty string
+ */
+function extractTitleFromHtml(html) {
+  try {
+    const titleMatch = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
+    return titleMatch ? titleMatch[1].trim() : '';
+  } catch (error) {
+    logger.error('Error extracting title from HTML:', error);
+    return '';
+  }
+}
+
+/**
+ * Extract text from HTML content
+ * @param {string} html - HTML content
+ * @returns {string} Extracted text or empty string
+ */
+function extractTextFromHtml(html) {
+  try {
+    // Very basic text extraction - remove all HTML tags
+    return html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove scripts
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')    // Remove styles
+      .replace(/<[^>]*>/g, ' ')                                           // Remove HTML tags
+      .replace(/\s+/g, ' ')                                              // Normalize whitespace
+      .trim();
+  } catch (error) {
+    logger.error('Error extracting text from HTML:', error);
+    return '';
+  }
+}
+
 module.exports = {
   initializeIpcHandlers,
-  getSettingsPath, // Export for testing
-  loadSettings,    // Export for testing
-  saveSettings,    // Export for testing
+  getSettingsPath,     // Export for testing
+  loadSettings,        // Export for testing
+  saveSettings,        // Export for testing
   savePageToKnowledgeBase,
+  serverFetch          // Export for testing
 }; 

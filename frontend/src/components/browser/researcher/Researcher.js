@@ -2860,6 +2860,177 @@ ${toolResult.keyPoints ? toolResult.keyPoints.map(point => `- ${point}`).join('\
         return null;
       });
   }
+
+  /**
+   * Update content insights with enhanced data from worker processing
+   * This is called by Voyager component when parallel processing completes
+   * @param {Object} enhancedContent - Enhanced content from worker processing
+   * @returns {Promise<void>}
+   */
+  updateContentInsights(enhancedContent) {
+    if (!enhancedContent || !this.state.isActive) {
+      return Promise.resolve();
+    }
+
+    this.logger.info('Updating research panel with enhanced content insights');
+
+    // Find the matching research entry for current URL
+    const currentUrl = enhancedContent.url;
+    const entryIndex = this.state.researchEntries.findIndex(entry => 
+      entry.url === currentUrl || 
+      (entry.originalUrl && entry.originalUrl === currentUrl)
+    );
+
+    if (entryIndex === -1) {
+      this.logger.warn('No matching research entry found for URL:', currentUrl);
+      return Promise.resolve();
+    }
+
+    // Create a new array to avoid mutating state directly
+    const updatedEntries = [...this.state.researchEntries];
+    const entry = updatedEntries[entryIndex];
+
+    // Update entry with enhanced data
+    const updatedEntry = {
+      ...entry,
+      // Update basic metrics
+      wordCount: enhancedContent.wordCount || entry.wordCount,
+      readingTime: enhancedContent.estimatedReadingTime || entry.readingTime,
+      readabilityScore: enhancedContent.readabilityScore,
+      
+      // Update enhanced data
+      enhancedLinks: enhancedContent.enhancedLinks || entry.enhancedLinks,
+      enhancedMetadata: enhancedContent.enhancedMetadata || entry.enhancedMetadata,
+      
+      // Add headings if available
+      headings: enhancedContent.headings || entry.headings,
+      
+      // Mark as enhanced to show improved UI
+      isEnhanced: true,
+      
+      // Add timestamp of enhancement
+      enhancedAt: new Date().toISOString(),
+      
+      // Update extraction info
+      extractionMethod: enhancedContent.extractionMethod || entry.extractionMethod,
+      extractionTime: enhancedContent.extractionTime || entry.extractionTime
+    };
+
+    // Replace the entry in the array
+    updatedEntries[entryIndex] = updatedEntry;
+
+    // Update state with enhanced entries
+    this.setState({ 
+      researchEntries: updatedEntries 
+    }, () => {
+      // Update the UI for this specific entry
+      this.updateResearchPanel(updatedEntry);
+      
+      // If this is the active research item, update the insights UI
+      const entryElement = document.querySelector(`.research-entry[data-entry-id="${entry.id}"]`);
+      if (entryElement && entryElement.classList.contains('active')) {
+        this.updateInsightsUI(updatedEntry);
+      }
+    });
+
+    return Promise.resolve();
+  }
+  
+  /**
+   * Update insights UI with enhanced data
+   * @param {Object} entry - Enhanced research entry
+   */
+  updateInsightsUI(entry) {
+    if (!entry || !entry.isEnhanced) return;
+    
+    const insightsContainer = document.querySelector('.research-insights-container');
+    if (!insightsContainer) return;
+    
+    // Check if we already have insights displayed
+    let insightsElement = insightsContainer.querySelector('.entry-insights');
+    
+    if (!insightsElement) {
+      // Create insights element if it doesn't exist
+      insightsElement = document.createElement('div');
+      insightsElement.className = 'entry-insights';
+      insightsContainer.appendChild(insightsElement);
+    }
+    
+    // Create insights content
+    let insightsHtml = `
+      <div class="insights-header">
+        <h3>Content Insights</h3>
+        <span class="insights-source">${entry.extractionMethod || 'unknown'}</span>
+      </div>
+      <div class="insights-metrics">
+        <div class="metric">
+          <span class="metric-label">Words:</span>
+          <span class="metric-value">${entry.wordCount || 'N/A'}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Reading Time:</span>
+          <span class="metric-value">${entry.readingTime || 'N/A'} min</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Readability:</span>
+          <span class="metric-value">${entry.readabilityScore ? `${entry.readabilityScore}/100` : 'N/A'}</span>
+        </div>
+      </div>
+    `;
+    
+    // Add headings section if available
+    if (entry.headings && entry.headings.length > 0) {
+      insightsHtml += `
+        <div class="insights-section">
+          <h4>Document Structure</h4>
+          <div class="headings-list">
+            ${entry.headings.slice(0, 10).map(heading => 
+              `<div class="heading-item level-${heading.level}">
+                ${DOMPurify.sanitize(heading.text)}
+              </div>`
+            ).join('')}
+            ${entry.headings.length > 10 ? 
+              `<div class="more-headings">+${entry.headings.length - 10} more headings</div>` : 
+              ''}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Add enhanced metadata if available
+    if (entry.enhancedMetadata) {
+      const metadata = entry.enhancedMetadata;
+      insightsHtml += `
+        <div class="insights-section">
+          <h4>Metadata</h4>
+          <div class="metadata-list">
+            ${metadata.author ? `<div class="metadata-item"><span>Author:</span> ${DOMPurify.sanitize(metadata.author)}</div>` : ''}
+            ${metadata.publishedDate ? `<div class="metadata-item"><span>Published:</span> ${DOMPurify.sanitize(metadata.publishedDate)}</div>` : ''}
+            ${metadata.siteName ? `<div class="metadata-item"><span>Site:</span> ${DOMPurify.sanitize(metadata.siteName)}</div>` : ''}
+            ${metadata.type ? `<div class="metadata-item"><span>Type:</span> ${DOMPurify.sanitize(metadata.type)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Update the insights element
+    insightsElement.innerHTML = DOMPurify.sanitize(insightsHtml);
+    
+    // Add event listeners for expandable sections
+    const moreHeadings = insightsElement.querySelector('.more-headings');
+    if (moreHeadings) {
+      moreHeadings.addEventListener('click', () => {
+        const headingsList = insightsElement.querySelector('.headings-list');
+        if (headingsList) {
+          headingsList.innerHTML = entry.headings.map(heading => 
+            `<div class="heading-item level-${heading.level}">
+              ${DOMPurify.sanitize(heading.text)}
+            </div>`
+          ).join('');
+        }
+      });
+    }
+  }
 }
 
 // Make sure to export the class directly

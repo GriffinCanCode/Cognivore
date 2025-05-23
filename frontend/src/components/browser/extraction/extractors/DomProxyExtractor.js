@@ -7,6 +7,7 @@
 
 import logger from '../../../../utils/logger';
 import DomUtils from '../utils/DomUtils';
+import WorkerManager from '../../utils/WorkerManager';
 
 // Create a logger instance for this module
 const extractorLogger = logger.scope('DomProxyExtractor');
@@ -25,6 +26,67 @@ function extract(contentFrame, url) {
   
   extractorLogger.info(`Extracting content via DOM proxy from ${url}`);
   
+  // Try to extract content with worker first if available
+  return extractWithWorker(contentFrame, url)
+    .catch(error => {
+      extractorLogger.warn(`Worker-based extraction failed: ${error.message}, falling back to direct extraction`);
+      return extractDirect(contentFrame, url);
+    });
+}
+
+/**
+ * Extract content using worker
+ * @param {Object} contentFrame - Content frame with DOM access
+ * @param {string} url - URL to extract from
+ * @returns {Promise<Object>} Extracted content
+ */
+async function extractWithWorker(contentFrame, url) {
+  const doc = contentFrame.contentDocument;
+  
+  try {
+    // Get the HTML content
+    const html = doc.documentElement.outerHTML;
+    
+    // Check if WorkerManager is initialized
+    if (!WorkerManager.isInitialized) {
+      return Promise.reject(new Error('Worker system not initialized'));
+    }
+    
+    // Use worker to process DOM
+    const result = await WorkerManager.executeTask('process-dom', {
+      html,
+      url,
+      options: {
+        clean: true,
+        extractMain: true,
+        extractHeadings: true,
+        extractLinks: true,
+        extractMetadata: true,
+        createJsonDom: true,
+        jsonDomOptions: {
+          maxDepth: 5,
+          includeContent: true,
+          includeAttributes: true
+        }
+      }
+    });
+    
+    // Add extraction method
+    result.extractionMethod = 'domproxy-worker';
+    
+    return result;
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
+
+/**
+ * Extract content directly without worker
+ * @param {Object} contentFrame - Content frame with DOM access
+ * @param {string} url - URL to extract from
+ * @returns {Object} Extracted content
+ */
+function extractDirect(contentFrame, url) {
   try {
     const doc = contentFrame.contentDocument;
     

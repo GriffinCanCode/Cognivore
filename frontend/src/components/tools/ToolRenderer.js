@@ -52,42 +52,18 @@ class ToolRenderer {
    * Set up any necessary event handlers or resources
    */
   initialize() {
-    // Prevent double initialization
+    // Only initialize once
     if (this._initialized) {
-      toolLogger.debug('ToolRenderer already initialized, skipping');
       return;
     }
     
-    toolLogger.info('Initializing ToolRenderer');
-    
     // Add event listener for tool actions
-    document.addEventListener('tool:action', this.handleToolAction);
-    
-    // Register CSS
-    this.loadToolStyles();
+    document.addEventListener('tool:action', this.handleToolAction.bind(this));
     
     // Mark as initialized
     this._initialized = true;
     
     toolLogger.info('ToolRenderer initialized');
-  }
-  
-  /**
-   * Load tool renderer styles
-   */
-  loadToolStyles() {
-    // Skip if already loaded
-    if (document.querySelector('link[href="/styles/components/tool-renderers.css"]')) {
-      return;
-    }
-    
-    // Create and append the stylesheet link
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = '/styles/components/tool-renderers.css';
-    document.head.appendChild(link);
-    
-    toolLogger.debug('Tool renderer styles loaded');
   }
   
   /**

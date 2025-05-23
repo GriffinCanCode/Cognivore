@@ -18,7 +18,7 @@ import Settings from './ui/Settings.js';
 import ToolRenderer from './tools/ToolRenderer.js';
 import Browser from './browser/Voyager.js';
 import React, { Component } from 'react';
-import ReactDOM from 'react-dom';
+import * as ReactDOM from 'react-dom/client';
 
 // Create context-specific logger
 const appLogger = logger.scope('App');
@@ -64,6 +64,9 @@ class App extends Component {
     
     // Load required CSS files
     this.loadStylesheets();
+    
+    // Load required external scripts
+    this.loadExternalScripts();
     
     // Create notification service (can be null for now)
     const notificationService = null;
@@ -172,14 +175,16 @@ class App extends Component {
    * Load required stylesheets for the application
    */
   loadStylesheets() {
-    // Load tool renderers CSS
-    this.loadStylesheet('./styles/components/tool-renderers.css');
+    // Define all required stylesheets
+    const stylesheets = [
+      './styles/components/browser.css',
+      './styles/components/ResearchPanel.css'
+    ];
     
-    // Load browser component CSS
-    this.loadStylesheet('./styles/components/browser.css');
-
-    // Load research panel CSS
-    this.loadStylesheet('./styles/components/ResearchPanel.css');
+    // Load each stylesheet with error handling
+    stylesheets.forEach(href => {
+      this.loadStylesheet(href);
+    });
   }
 
   /**
@@ -191,8 +196,71 @@ class App extends Component {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = href;
+      
+      // Add error handling
+      link.onerror = () => {
+        appLogger.warn(`Failed to load stylesheet: ${href}`);
+        // Continue without the stylesheet - application should still function
+      };
+      
       document.head.appendChild(link);
-      appLogger.debug(`Loaded stylesheet: ${href}`);
+      appLogger.debug(`Loading stylesheet: ${href}`);
+    }
+  }
+
+  /**
+   * Load external script dependencies with error handling
+   */
+  loadExternalScripts() {
+    const scripts = [
+      { 
+        src: 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js',
+        id: 'three-js-core'
+      }
+    ];
+    
+    scripts.forEach(script => {
+      this.loadScript(script.src, script.id, script.optional);
+    });
+  }
+
+  /**
+   * Load a script if it hasn't been loaded already
+   * @param {string} src - Path to the script
+   * @param {string} id - Identifier for the script element
+   * @param {boolean} optional - Whether the script is optional (default: false)
+   */
+  loadScript(src, id, optional = false) {
+    if (!document.getElementById(id)) {
+      const script = document.createElement('script');
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      
+      // Add error handling
+      script.onerror = () => {
+        const severity = optional ? 'warn' : 'error';
+        appLogger[severity](`Failed to load script: ${src}`);
+        
+        // If script is optional, application should continue
+        if (!optional) {
+          // Display error in UI for required scripts
+          const errorEvent = new CustomEvent('application:error', {
+            detail: {
+              message: `Failed to load required script: ${src}`,
+              type: 'script-load-error'
+            }
+          });
+          document.dispatchEvent(errorEvent);
+        }
+      };
+      
+      script.onload = () => {
+        appLogger.debug(`Loaded script: ${src}`);
+      };
+      
+      document.head.appendChild(script);
+      appLogger.debug(`Loading script: ${src}`);
     }
   }
 
@@ -222,6 +290,18 @@ class App extends Component {
     document.addEventListener('settings:changed', (e) => {
       appLogger.info('Settings changed, updating application');
       // You could add logic here to handle settings changes
+    });
+    
+    // Listen for application errors
+    document.addEventListener('application:error', (e) => {
+      appLogger.error(`Application error: ${e.detail.message}`, e.detail);
+      // Could display this in the UI if needed
+    });
+    
+    // Listen for service registration errors
+    document.addEventListener('service:registration:error', (e) => {
+      appLogger.warn(`Service registration error: ${e.detail.service}`, e.detail.error);
+      // Continue with application initialization despite service errors
     });
   }
 
@@ -410,14 +490,36 @@ class App extends Component {
   render() {
     appLogger.info('App.render called');
     
-    // Clear any existing app container
-    const existingApp = document.getElementById('app');
-    if (existingApp) {
-      while (existingApp.firstChild) {
-        existingApp.removeChild(existingApp.firstChild);
+    let appElement = document.getElementById('app');
+    
+    // Create the app element if it doesn't exist
+    if (!appElement) {
+      appLogger.warn('No #app element found in DOM, creating one');
+      try {
+        const newAppElement = document.createElement('div');
+        newAppElement.id = 'app';
+        document.body.appendChild(newAppElement);
+        appElement = newAppElement;
+        appLogger.info('Created new #app element');
+      } catch (err) {
+        appLogger.error('Failed to create #app element:', err);
       }
     }
     
+    // Clear any existing app container
+    if (appElement) {
+      try {
+        while (appElement.firstChild) {
+          appElement.removeChild(appElement.firstChild);
+        }
+      } catch (err) {
+        appLogger.error('Error clearing #app element:', err);
+      }
+    } else {
+      appLogger.error('Fatal error: Unable to find or create #app element');
+      return; // Exit early if we can't render
+    }
+
     // Create main container
     this.container = document.createElement('div');
     this.container.className = 'chat-container-wrapper';
@@ -497,6 +599,7 @@ class App extends Component {
         // Create browser component directly in main content
         const browserElement = document.createElement('div');
         browserElement.id = 'browser-container';
+        browserElement.className = 'voyager-browser-container'; // Add class for proper styling
         browserElement.style.cssText = `
           width: 100% !important;
           height: 100% !important;
@@ -518,42 +621,82 @@ class App extends Component {
         // Clean up any existing browser-mount to prevent duplicates
         const oldBrowserMount = document.getElementById('browser-mount');
         if (oldBrowserMount && oldBrowserMount.parentNode) {
-          if (ReactDOM && ReactDOM.unmountComponentAtNode) {
-            try {
-              ReactDOM.unmountComponentAtNode(oldBrowserMount);
-            } catch (err) {
-              console.warn('Error unmounting old browser component:', err);
-            }
+          try {
+            // In React 18, we just remove the element directly
+            oldBrowserMount.parentNode.removeChild(oldBrowserMount);
+          } catch (err) {
+            console.warn('Error removing old browser mount:', err);
           }
-          oldBrowserMount.parentNode.removeChild(oldBrowserMount);
         }
         
-        // Initialize browser with a longer delay to ensure container is ready
-        setTimeout(() => {
-          if (this.browser) {
-            // Check if container is properly in the DOM
-            if (this.browserContainer && this.browserContainer.isConnected) {
-              // Set the container reference for the browser
-              this.browser.containerRef = { current: this.browserContainer };
-              console.log('Initializing browser with container:', this.browserContainer);
-              this.browser.initialize();
-            } else {
-              console.warn('Browser container not connected to DOM, cannot initialize');
-            }
-          } else if (this.browserRef && this.browserRef.current) {
-            // Check if container is properly in the DOM
-            if (this.browserContainer && this.browserContainer.isConnected) {
-              // Set the container reference for the browser
-              this.browserRef.current.containerRef = { current: this.browserContainer };
-              console.log('Initializing browser with container:', this.browserContainer);
-              this.browserRef.current.initialize();
-            } else {
-              console.warn('Browser container not connected to DOM, cannot initialize');
-            }
-          } else {
-            console.warn('Browser reference not available for initialization');
+        // Use React to render the Voyager component for proper browser features
+        if (!this._browserRoot) {
+          try {
+            const ReactDOM = require('react-dom/client');
+            this._browserRoot = ReactDOM.createRoot(browserElement);
+          } catch (err) {
+            console.error('Error creating React root for browser:', err);
           }
-        }, 300); // Increased from 100ms to 300ms
+        }
+        
+        if (this._browserRoot) {
+          try {
+            // Import React for JSX
+            const React = require('react');
+            // Render the full browser component with React
+            this._browserRoot.render(
+              React.createElement(this.browser.constructor, {
+                ref: this.browserRef,
+                initialUrl: 'https://www.google.com',
+                notificationService: null,
+                enableResearch: true
+              })
+            );
+            console.log('Rendered Voyager browser component using React for full functionality');
+            
+            // Set up the container reference after React render
+            setTimeout(() => {
+              if (this.browserRef && this.browserRef.current) {
+                // Set the container reference to point to our created container
+                this.browserRef.current.containerRef = { current: this.browserContainer };
+                console.log('Set containerRef for React-rendered Voyager component');
+                
+                // Don't call initialize() here - it's already called in componentDidMount
+                // The component will initialize itself when it's ready
+              }
+            }, 100); // Short delay to ensure React render is complete
+            
+          } catch (err) {
+            console.error('Error rendering browser with React:', err);
+            
+            // Fallback to ensure container reference is set (don't reinitialize)
+            setTimeout(() => {
+              if (this.browser) {
+                // Check if container is properly in the DOM
+                if (this.browserContainer && this.browserContainer.isConnected) {
+                  // Set the container reference for the browser
+                  this.browser.containerRef = { current: this.browserContainer };
+                  console.log('Set browser container reference (fallback):', this.browserContainer);
+                  // Don't call initialize() - it should already be called by componentDidMount
+                } else {
+                  console.warn('Browser container not connected to DOM');
+                }
+              } else if (this.browserRef && this.browserRef.current) {
+                // Check if container is properly in the DOM
+                if (this.browserContainer && this.browserContainer.isConnected) {
+                  // Set the container reference for the browser
+                  this.browserRef.current.containerRef = { current: this.browserContainer };
+                  console.log('Set browser container reference (fallback):', this.browserContainer);
+                  // Don't call initialize() - it should already be called by componentDidMount
+                } else {
+                  console.warn('Browser container not connected to DOM');
+                }
+              } else {
+                console.warn('Browser reference not available');
+              }
+            }, 300);
+          }
+        }
         break;
         
       case 'anthology':
@@ -599,14 +742,26 @@ class App extends Component {
     
     this.container.appendChild(mainContent);
     
-    // Mount to DOM
-    document.getElementById('app').appendChild(this.container);
+    // Mount to DOM with robust error handling
+    try {
+      appElement.appendChild(this.container);
+    } catch (error) {
+      appLogger.error('Error appending to app container:', error);
+      // Emergency fallback - append directly to body
+      try {
+        document.body.appendChild(this.container);
+      } catch (bodyError) {
+        appLogger.error('Critical error: Failed to append to document body:', bodyError);
+      }
+    }
     
     // Focus the input field for chat views
     if (['ai-assistant', 'new-chat'].includes(this.currentSection)) {
       setTimeout(() => {
         // Delay focus to ensure DOM is fully rendered
-        this.chatUI.focusInput();
+        if (this.chatUI) {
+          this.chatUI.focusInput();
+        }
       }, 100);
     }
     
@@ -696,14 +851,14 @@ class App extends Component {
   }
 
   cleanupBrowser() {
-    // Unmount component to prevent memory leaks
+    // In React 18, we don't use unmountComponentAtNode anymore
     const browserMount = document.getElementById('browser-mount');
-    if (browserMount && ReactDOM.unmountComponentAtNode) {
+    if (browserMount && browserMount.parentNode) {
       try {
-        console.log('[App] Unmounting browser component');
-        ReactDOM.unmountComponentAtNode(browserMount);
+        console.log('[App] Removing browser mount from DOM');
+        browserMount.parentNode.removeChild(browserMount);
       } catch (error) {
-        console.error('[App] Error unmounting browser component:', error);
+        console.error('[App] Error removing browser mount:', error);
       }
     }
     

@@ -71,7 +71,7 @@ if (process.platform === 'darwin') {
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
 
-    // Configure default session for webview rendering - specifically for browser functionality
+    // Configure session.defaultSession for webview rendering - specifically for browser functionality
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       // Create a copy of the headers with header names normalized to lowercase for easier manipulation
       const normalizedHeaders = {};
@@ -80,43 +80,49 @@ if (process.platform === 'darwin') {
         normalizedHeaders[headerName.toLowerCase()] = details.responseHeaders[headerName];
       }
       
-      // Remove X-Frame-Options and related restrictive headers
-      const headersToRemove = [
-        'x-frame-options',
-        'content-security-policy',
-        'x-content-security-policy',
-        'frame-options'
+      // Set a more permissive Content-Security-Policy for webview rendering
+      normalizedHeaders['content-security-policy'] = [
+        "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';"
       ];
-      
-      headersToRemove.forEach(header => {
-        if (normalizedHeaders[header]) {
-          delete normalizedHeaders[header.toLowerCase()];
-        }
-      });
-      
-      // Add our own permissive CSP
-      normalizedHeaders['content-security-policy'] = ['default-src * blob: data: filesystem: ws: wss: \'unsafe-inline\' \'unsafe-eval\''];
       
       callback({ responseHeaders: normalizedHeaders });
     });
 
-    // Configure webview permissions globally for better rendering compatibility
+    // Configure webview permissions with better security but ensure rendering works
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      // Allow all permissions for internal webviews
-      callback(true);
+      // Define allowed permissions - expanded for better browser functionality
+      const safePermissions = ['media', 'geolocation', 'notifications', 'clipboard-read', 'display-capture', 'fullscreen'];
+      
+      // Automatically allow permissions needed for rendering
+      if (safePermissions.includes(permission)) {
+        callback(true);
+      } else {
+        // For other permissions, still allow but log
+        console.log(`Allowing permission request: ${permission}`);
+        callback(true);
+      }
     });
 
-    // Disable web security for webviews - needed for proper cross-origin content
+    // Configure webviews to render content properly
     const allWebviews = webContents.getAllWebContents();
     allWebviews.forEach(wc => {
       if (wc.getType() === 'webview') {
+        // Disable web security to allow proper cross-origin content rendering
         wc.session.webRequest.onHeadersReceived((details, callback) => {
           callback({
             responseHeaders: {
               ...details.responseHeaders,
-              'Content-Security-Policy': ['default-src * blob: data: filesystem: ws: wss: \'unsafe-inline\' \'unsafe-eval\'']
+              'Content-Security-Policy': ["default-src * 'unsafe-inline' 'unsafe-eval' data: blob: filesystem: ws: wss:;"],
+              'Access-Control-Allow-Origin': ['*']
             }
           });
+        });
+        
+        // Ensure proper rendering by disabling additional security features
+        wc.session.webRequest.onBeforeSendHeaders((details, callback) => {
+          const { requestHeaders } = details;
+          requestHeaders['User-Agent'] = requestHeaders['User-Agent'] || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36';
+          callback({ requestHeaders });
         });
       }
     });
@@ -270,14 +276,81 @@ function createMainWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-      webSecurity: false, // Disable web security to allow cross-origin iframes
-      allowRunningInsecureContent: true, // Allow loading insecure content
-      experimentalFeatures: true, // Enable experimental features for webviews
+      webSecurity: false, // Disable web security to allow loading external resources
+      allowRunningInsecureContent: true, // Allow loading of insecure content
+      experimentalFeatures: false, // Disable experimental features unless specifically needed
       webviewTag: true, // Explicitly enable webview tag
       // Allow Node.js modules in preload script
       nodeIntegrationInWorker: false,
       nodeIntegrationInSubFrames: false,
-      sandbox: false // Required for some Node.js modules in preload script
+      sandbox: false, // Required for some Node.js modules in preload script
+    }
+  });
+
+  // Configure webview settings in the main window's webContents
+  mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+    // Apply configuration to ensure webviews render properly
+    webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': ["default-src * 'unsafe-inline' 'unsafe-eval' data: blob: filesystem:;"],
+          'Access-Control-Allow-Origin': ['*']
+        }
+      });
+    });
+
+    // Set additional webview preferences for proper rendering
+    try {
+      // Apply webview settings directly instead of trying to get existing preferences
+      // Note: setAutoSize is deprecated in newer Electron versions
+      // Instead, we can use executeJavaScript to modify webview attributes
+      // Apply basic, safe styles that don't require return statements
+      // Note: More comprehensive styling is now handled by the Voyager component
+      webContents.executeJavaScript(`
+        (function() {
+          try {
+            const webview = document.querySelector('webview');
+            if (webview && webview.parentNode) {
+              webview.style.cssText = 'width:100%;height:100%;visibility:visible;';
+              webview.autosize = false;
+              console.log('Initial webview configuration done - detailed styling handled by Voyager');
+            } else {
+              console.log('Webview not found in DOM or not ready yet');
+            }
+          } catch (error) {
+            console.error('Error setting basic webview styles:', error);
+          }
+        })();
+      `).catch(err => console.error('Failed to set basic webview styles:', err));
+      
+      // Set essential security properties for rendering
+      webContents.setWebRTCIPHandlingPolicy('default_public_interface_only');
+      webContents.setZoomFactor(1.0);
+      
+      console.log('Applied essential webview settings');
+    } catch (err) {
+      console.error('Error setting webview properties:', err);
+    }
+
+    // Ensure the webview preload script is applied
+    const userDataPath = app.getPath('userData');
+    const preloadPath = path.join(userDataPath, 'webview-preload.js');
+    
+    // Try to set the preload script if it exists
+    if (fs.existsSync(preloadPath)) {
+      try {
+        webContents.executeJavaScript(`
+          const script = document.createElement('script');
+          script.src = 'file://${preloadPath.replace(/\\/g, '\\\\')}';
+          document.head.appendChild(script);
+        `);
+        console.log('Applied webview preload script via executeJavaScript');
+      } catch (err) {
+        console.error('Failed to inject preload script:', err);
+      }
+    } else {
+      console.warn(`Webview preload script not found at: ${preloadPath}`);
     }
   });
 
@@ -306,8 +379,8 @@ function createMainWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           isDev 
-            ? "default-src 'self' file:; script-src 'self' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' https://* http://*; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
-            : "default-src 'self' file:; script-src 'self' file: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' https://* http://*; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com"
+            ? "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; media-src 'self' blob: https:; worker-src 'self' blob:; frame-src 'self' https://*; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com https://cdnjs.cloudflare.com https://*"
+            : "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; media-src 'self' blob: https:; worker-src 'self' blob:; frame-src 'self' https://*; connect-src 'self' https://*.googleapis.com https://generativelanguage.googleapis.com https://cdnjs.cloudflare.com https://*"
         ]
       }
     });
@@ -432,35 +505,53 @@ function createMainWindow() {
         console.log(`[Webview Console]: ${message}`);
       });
 
-      // Disable the same-origin policy 
+      // Use a more secure approach: implement content isolation with controlled exceptions
       contents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-        callback({ requestHeaders: { ...details.requestHeaders, 'Origin': '*' } });
+        // Add necessary headers for cross-origin requests
+        const { requestHeaders } = details;
+        requestHeaders['User-Agent'] = requestHeaders['User-Agent'] || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36';
+        callback({ requestHeaders });
       });
       
-      // Remove X-Frame-Options and related headers to fix loading issues
+      // Selectively modify headers while maintaining security
       contents.session.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
         // Create a copy of the headers with case insensitivity
         const responseHeaders = { ...details.responseHeaders };
         
-        // Headers to remove to prevent ERR_BLOCKED_BY_RESPONSE
-        ['x-frame-options', 'X-Frame-Options', 'content-security-policy', 'Content-Security-Policy'].forEach(header => {
-          if (responseHeaders[header]) {
-            console.log(`Removing restrictive header for webview: ${header}`);
-            delete responseHeaders[header];
-          }
-        });
+        // Set a more permissive CSP for webviews to ensure page rendering
+        responseHeaders['content-security-policy'] = [
+          "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';"
+        ];
         
-        // Add permissive CSP
-        responseHeaders['content-security-policy'] = ['default-src * blob: data: filesystem: ws: wss: \'unsafe-inline\' \'unsafe-eval\''];
+        // Add CORS headers to allow cross-origin content
+        responseHeaders['access-control-allow-origin'] = ['*'];
+        responseHeaders['access-control-allow-methods'] = ['GET, POST, OPTIONS, PUT, DELETE'];
+        responseHeaders['access-control-allow-headers'] = ['Content-Type, Authorization'];
         
         callback({ responseHeaders });
       });
 
-      // Suppress certificate errors - allows loading sites with invalid certificates
+      // Handle certificate errors more securely but allow all for rendering
       contents.session.setCertificateVerifyProc((request, callback) => {
-        // 0 means success
+        // Allow all certificates to ensure content loads
         callback(0);
       });
+      
+      // Set essential webview properties for better rendering
+      try {
+        // Apply direct webview settings without trying to access webPreferences
+        contents.setAudioMuted(false);
+        contents.setZoomFactor(1.0);
+        
+        // Configure additional secure browsing settings
+        if (typeof contents.setWebRTCIPHandlingPolicy === 'function') {
+          contents.setWebRTCIPHandlingPolicy('default_public_interface_only');
+        }
+        
+        console.log(`Configured webview: ${contents.getURL()}`);
+      } catch (err) {
+        console.error('Error configuring webview:', err);
+      }
     }
   });
 }

@@ -13,6 +13,12 @@ class VoyagerTabManager {
     this.tabManager = new TabManager();
     this.initialized = false;
     
+    // Create a callbacks object to store event handlers instead of modifying props
+    this.callbacks = {
+      onPageLoad: null,
+      onContentCapture: null
+    };
+    
     // Initialize the tab manager
     this.init();
   }
@@ -48,44 +54,113 @@ class VoyagerTabManager {
    * Set up event listeners for Voyager browser events
    */
   setupEvents() {
-    // Handle page load
-    if (this.voyager.props && typeof this.voyager.props.onPageLoad === 'function') {
-      const originalOnPageLoad = this.voyager.props.onPageLoad;
+    // Check if props exist and are extensible before trying to modify them
+    const propsExist = this.voyager.props && typeof this.voyager.props === 'object';
+    const propsExtensible = propsExist ? Object.isExtensible(this.voyager.props) : false;
+    
+    // Handle page load - use callbacks object instead of modifying props
+    if (propsExist && typeof this.voyager.props.onPageLoad === 'function') {
+      // Store reference to original handler
+      this.callbacks.onPageLoad = this.voyager.props.onPageLoad;
       
-      // Wrap the original onPageLoad to also track tabs
-      this.voyager.props.onPageLoad = (historyRecord) => {
-        // Call original handler
-        originalOnPageLoad(historyRecord);
-        
-        // Update or add tab in tab manager
-        this.handlePageNavigation(historyRecord);
-      };
+      // If props are extensible, we can wrap the original handler
+      if (propsExtensible) {
+        const originalOnPageLoad = this.voyager.props.onPageLoad;
+        this.voyager.props.onPageLoad = (historyRecord) => {
+          // Call original handler
+          originalOnPageLoad(historyRecord);
+          
+          // Update or add tab in tab manager
+          this.handlePageNavigation(historyRecord);
+        };
+      } else {
+        // If props are not extensible, we'll handle this through the Voyager component directly
+        console.log('Props are not extensible, setting up alternative event handling');
+        this.setupAlternativeEventHandling();
+      }
     } else {
-      // If no onPageLoad handler exists, create one
-      this.voyager.props = this.voyager.props || {};
-      this.voyager.props.onPageLoad = (historyRecord) => {
+      // Set up our own page load handler
+      this.callbacks.onPageLoad = (historyRecord) => {
         this.handlePageNavigation(historyRecord);
       };
+      
+      // Try to add to props only if they're extensible
+      if (propsExtensible) {
+        this.voyager.props.onPageLoad = this.callbacks.onPageLoad;
+      } else {
+        // Use alternative method when props aren't extensible
+        this.setupAlternativeEventHandling();
+      }
     }
     
-    // Handle content capture
-    if (this.voyager.props && typeof this.voyager.props.onContentCapture === 'function') {
-      const originalOnContentCapture = this.voyager.props.onContentCapture;
+    // Handle content capture - use same approach
+    if (propsExist && typeof this.voyager.props.onContentCapture === 'function') {
+      this.callbacks.onContentCapture = this.voyager.props.onContentCapture;
       
-      // Wrap the original onContentCapture to also update tab content
-      this.voyager.props.onContentCapture = (content) => {
-        // Call original handler
-        originalOnContentCapture(content);
-        
-        // Update tab content
-        this.handleContentCapture(content);
-      };
+      if (propsExtensible) {
+        const originalOnContentCapture = this.voyager.props.onContentCapture;
+        this.voyager.props.onContentCapture = (content) => {
+          // Call original handler
+          originalOnContentCapture(content);
+          
+          // Update tab content
+          this.handleContentCapture(content);
+        };
+      }
     } else {
-      // If no onContentCapture handler exists, create one
-      this.voyager.props = this.voyager.props || {};
-      this.voyager.props.onContentCapture = (content) => {
+      // Set up our own content capture handler
+      this.callbacks.onContentCapture = (content) => {
         this.handleContentCapture(content);
       };
+      
+      if (propsExtensible) {
+        this.voyager.props.onContentCapture = this.callbacks.onContentCapture;
+      }
+    }
+  }
+  
+  /**
+   * Set up alternative event handling when props cannot be modified
+   */
+  setupAlternativeEventHandling() {
+    // Instead of modifying props, we'll hook into the Voyager component's methods directly
+    if (this.voyager && typeof this.voyager.setState === 'function') {
+      // Store original methods if they exist
+      const originalNavigate = this.voyager.navigate;
+      const originalHandleWebviewLoad = this.voyager.handleWebviewLoad;
+      
+      // Wrap the navigate method to track page loads
+      if (typeof originalNavigate === 'function') {
+        this.voyager.navigate = (url, ...args) => {
+          // Call original navigate
+          const result = originalNavigate.call(this.voyager, url, ...args);
+          
+          // Track navigation in tab manager
+          this.handlePageNavigation({ url, title: url });
+          
+          return result;
+        };
+      }
+      
+      // Wrap webview load handler to track content
+      if (typeof originalHandleWebviewLoad === 'function') {
+        this.voyager.handleWebviewLoad = (event, ...args) => {
+          // Call original handler
+          const result = originalHandleWebviewLoad.call(this.voyager, event, ...args);
+          
+          // Extract content if possible
+          if (event && event.target && event.target.src) {
+            this.handlePageNavigation({ 
+              url: event.target.src, 
+              title: this.voyager.state?.title || event.target.src 
+            });
+          }
+          
+          return result;
+        };
+      }
+      
+      console.log('Alternative event handling set up successfully');
     }
   }
   

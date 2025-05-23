@@ -115,17 +115,13 @@ const logger = createLogger({
     fileRotateTransport,
     errorFileRotateTransport
   ],
-  exceptionHandlers: [
-    new transports.File({ 
-      filename: path.join(logsDir, 'exceptions.log'),
-      format: combine(
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
-        logFormat
-      )
-    })
-  ],
   exitOnError: false
 });
+
+// Configure error handling on transports instead of using exceptionHandlers array
+// This prevents "write after end" errors when multiple processes are running
+fileRotateTransport.handleExceptions = true;
+errorFileRotateTransport.handleExceptions = true;
 
 // Stream for Morgan HTTP logger middleware
 logger.stream = {

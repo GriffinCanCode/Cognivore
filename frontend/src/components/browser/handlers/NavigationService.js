@@ -18,117 +18,106 @@ import { renderErrorPage } from './ErrorHandler';
 export function navigate(browser, url, forceNavigate = false) {
   if (!url) return;
   
+  let formattedUrl = url;
+  try {
+    // Add protocol if missing
+    if (!url.match(/^[a-zA-Z]+:\/\//)) {
+      // If it looks like a domain, add https://
+      if (url.match(/^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}/) || url.includes('.')) {
+        formattedUrl = 'https://' + url;
+      } else {
+        // Otherwise, treat as search
+        formattedUrl = 'https://www.google.com/search?q=' + encodeURIComponent(url);
+      }
+    }
+    
+    // Standard URL validation and formatting
+    formattedUrl = formatUrl(formattedUrl);
+    
+    console.log(`Navigation request: ${url} -> ${formattedUrl}`);
+  } catch (err) {
+    console.error('Error formatting URL:', err);
+    
+    // Use direct URL as fallback
+    formattedUrl = url;
+  }
+  
+  // Don't navigate if already at this URL
+  if (!forceNavigate && browser.state && browser.state.currentUrl === formattedUrl) {
+    console.log('Already at URL:', formattedUrl);
+    return;
+  }
+  
+  // Start loading process
+  if (browser.setState) {
+    browser.setState({ isLoading: true, loadError: false, currentUrl: formattedUrl });
+  }
+  
+  // Update address bar immediately
+  if (browser.searchInput) {
+    browser.searchInput.value = formattedUrl;
+  }
+  
+  // Show loading indicator
+  updateLoadingIndicator(browser, true);
+  
+  // Update browser state
+  browser.isLoading = true;
+  
   // Clear any existing navigation timeouts
   if (browser._navigationTimeout) {
     clearTimeout(browser._navigationTimeout);
     browser._navigationTimeout = null;
   }
   
-  // Format the URL (add protocol if needed)
-  const formattedUrl = formatUrl(url);
+  // Set a timeout to show error page if navigation takes too long
+  const navigationTimeoutPeriod = 10000; // Increased to 10 seconds for better reliability
   
-  // Check if we're already on this URL to avoid partition errors
-  if (!forceNavigate && browser.state?.url === formattedUrl) {
-    console.log(`Already on URL: "${formattedUrl}", skipping navigation to prevent partition errors`);
-    
-    // Instead of skipping completely, we should still update our UI state
-    // This helps when switching between tabs with the same URL
-    updateAddressBar(browser, formattedUrl);
-    
-    return;
-  }
-  
-  // Store the original URL for logging
-  const originalUrl = url;
-  
-  console.log(`Navigating from "${originalUrl}" to formatted URL: "${formattedUrl}"`);
-  
-  // Apply site-specific settings
-  applySiteSpecificSettings.call(browser, formattedUrl);
-  
-  // Update state
-  browser.setState({ 
-    url: formattedUrl,
-    isLoading: true,
-    errorState: null
-  });
-  
-  // Update address bar display
-  updateAddressBar(browser, formattedUrl);
-  
-  // Update loading indicator
-  updateLoadingIndicator(browser, true);
-  
-  // Set current URL for tracking
-  browser.currentUrl = formattedUrl;
-  
-  // Create a more reliable navigation timeout with progressive fallbacks
-  // Start with a longer timeout period (8 seconds instead of 5)
-  const navigationTimeoutPeriod = 8000;
-  
+  // Store timeout reference for clearing
   browser._navigationTimeout = setTimeout(() => {
     console.log('Navigation timeout reached, hiding loading content');
     
-    // Set a flag that we're handling a timeout
-    browser._handlingNavigationTimeout = true;
-    
-    // Check if we need to handle the timeout (if page is not already loaded)
-    if (browser.state.isLoading) {
-      // First, try to see if the page actually loaded despite not triggering load events
-      checkIfPageIsLoaded(browser, () => {
+    // Check if still in loading state
+    if (browser.isLoading && !browser.navigationCancelled) {
+      console.log('Navigation timed out, showing error message');
+      
+      // Stop loading indicator
+      updateLoadingIndicator(browser, false);
+      
+      // Update state
+      if (browser.setState) {
+        browser.setState({ isLoading: false, loadError: true });
+      }
+      
+      // Provide feedback that navigation timed out
+      browser.isLoading = false;
+      browser.loadError = true;
+      
+      // Check if page loaded despite timeout
+      browser.checkIfPageIsLoaded(() => {
         // If checking loaded state didn't resolve the issue, show a message
-        if (browser.state.isLoading && browser._handlingNavigationTimeout) {
-          // Update loading state to help UI recover
-          browser.setState({ isLoading: false });
-          updateLoadingIndicator(browser, false);
-          
-          // Try a fallback approach - sometimes the load event doesn't fire
-          if (browser.webview) {
-            try {
-              // For webview implementations, try to force completion
-              if (browser.webview.tagName.toLowerCase() === 'webview') {
-                // Apply full styles to ensure visibility
-                if (typeof browser.webview.applyAllCriticalStyles === 'function') {
-                  browser.webview.applyAllCriticalStyles(true);
-                }
-                
-                // Make sure webview is visible
-                browser.webview.style.visibility = 'visible';
-                browser.webview.style.opacity = '1';
-                browser.webview.readyToShow = true;
-                
-                // Update UI to reflect completion
-                updateLoadingIndicator(browser, false);
-                
-                // Try to gracefully extract information from the page
-                if (typeof browser.webview.executeJavaScript === 'function') {
-                  browser.webview.executeJavaScript(`
-                    {
-                      title: document.title || 'Unknown Page',
-                      url: window.location.href,
-                      loaded: true
-                    }
-                  `).then(result => {
-                    if (result) {
-                      console.log('Retrieved page info despite timeout:', result);
-                      
-                      // Update title if available
-                      if (result.title) {
-                        browser.setState({ title: result.title });
-                        browser.updatePageTitle(result.title);
-                      }
-                      
-                      // Capture content if possible
-                      browser.capturePageContent();
-                    }
-                  }).catch(err => {
-                    console.warn('Failed to get page info after timeout:', err);
-                  });
-                }
-              }
-            } catch (err) {
-              console.warn('Error recovering from navigation timeout:', err);
+        if (browser.isLoading) {
+          // Try to recover by explicitly stopping loading
+          try {
+            if (browser.webview && typeof browser.webview.stop === 'function') {
+              browser.webview.stop();
             }
+          } catch (err) {
+            console.warn('Error stopping webview:', err);
+          }
+          
+          // Show error UI if still loading
+          renderErrorPage(browser, {
+            code: 'TIMEOUT',
+            url: formattedUrl,
+            message: 'Navigation timed out. The website might be unavailable or loading slowly.'
+          });
+          
+          // Try to recover navigation with alternative approach
+          try {
+            recoverFromNavigationFailure(browser, formattedUrl);
+          } catch (err) {
+            console.warn('Error recovering from navigation timeout:', err);
           }
         }
       });
@@ -140,68 +129,30 @@ export function navigate(browser, url, forceNavigate = false) {
     try {
       console.log(`🌐 Navigating webview to: ${formattedUrl}`);
       
-      // Handle the partition error case more gracefully
-      try {
-        browser.webview.src = formattedUrl;
-      } catch (partitionErr) {
-        // Check for partition error specifically
-        if (partitionErr.message && partitionErr.message.includes("partition cannot be changed")) {
-          console.warn('Partition error detected. Attempting alternative navigation...');
-          
-          // Alternative approach: try to reload the current page first, then navigate
-          setTimeout(() => {
-            try {
-              // Try to reload first to clear any state
-              if (typeof browser.webview.reload === 'function') {
-                browser.webview.reload();
-                
-                // After a short delay, attempt to set src again
-                setTimeout(() => {
-                  try {
-                    browser.webview.src = formattedUrl;
-                  } catch (finalErr) {
-                    console.error('Final navigation attempt failed:', finalErr);
-                    // Reset loading state if all attempts fail
-                    browser.setState({ isLoading: false });
-                    updateLoadingIndicator(browser, false);
-                  }
-                }, 100);
-              } else {
-                // If reload isn't available, try navigation directly
-                console.warn('Reload not available, trying direct navigation...');
-                browser.webview.src = formattedUrl;
-              }
-            } catch (recoveryErr) {
-              console.error('Recovery navigation error:', recoveryErr);
-              // Reset loading state if recovery fails
-              browser.setState({ isLoading: false });
-              updateLoadingIndicator(browser, false);
-            }
-          }, 50);
-        } else {
-          // Not a partition error, rethrow
-          throw partitionErr;
-        }
-      }
-      
-      // Set up redundant load detection for better reliability
-      setupRedundantLoadDetection(browser, formattedUrl);
-    } catch (err) {
-      // Check for partition error and handle gracefully
-      if (err.message && err.message.includes("partition cannot be changed")) {
-        console.warn('Partition error detected during navigation. This tab is already navigated.');
-        // Reset loading state
-        browser.setState({ isLoading: false });
-        updateLoadingIndicator(browser, false);
+      // Ensure webview is fully ready before navigation
+      if (!browser.webviewReady) {
+        console.log('Webview not fully ready. Setting up delayed navigation.');
         
-        // Clear navigation timeout
-        if (browser._navigationTimeout) {
-          clearTimeout(browser._navigationTimeout);
-          browser._navigationTimeout = null;
-        }
+        // Set up a delayed navigation attempt that checks for readiness
+        const checkAndNavigate = () => {
+          if (browser.webviewReady) {
+            // Safe to navigate
+            performWebviewNavigation(browser, formattedUrl);
+          } else {
+            // Check again after a short delay
+            setTimeout(checkAndNavigate, 50);
+          }
+        };
+        
+        // Start the check cycle
+        setTimeout(checkAndNavigate, 50);
         return;
       }
       
+      // Webview is ready, perform navigation
+      performWebviewNavigation(browser, formattedUrl);
+      
+    } catch (err) {
       console.error('WebView navigation error:', err);
       renderErrorPage(browser, {
         code: 'NAV_ERROR',
@@ -209,21 +160,12 @@ export function navigate(browser, url, forceNavigate = false) {
         message: 'Failed to navigate: ' + err.message
       });
     }
-  } else if (browser.iframe) {
+  } else if (browser.contentFrame) {
+    // Navigate via iframe
     try {
-      console.log(`🌐 Navigating iframe to: ${formattedUrl}`);
-      // Handle navigation errors for iframes
-      browser.iframe.onload = browser.handleWebviewLoad;
-      browser.iframe.onerror = (event) => {
-        renderErrorPage(browser, {
-          code: 'IFRAME_LOAD_ERROR',
-          url: formattedUrl,
-          message: 'Failed to load content in iframe'
-        });
-      };
-      browser.iframe.src = formattedUrl;
+      browser.contentFrame.src = formattedUrl;
     } catch (err) {
-      console.error('iframe navigation error:', err);
+      console.error('Content frame navigation error:', err);
       renderErrorPage(browser, {
         code: 'NAV_ERROR',
         url: formattedUrl,
@@ -231,15 +173,207 @@ export function navigate(browser, url, forceNavigate = false) {
       });
     }
   } else {
-    // Fallback renderer for when neither webview nor iframe is available
-    renderHtml(browser, `
-      <div style="font-family: system-ui; padding: 20px; text-align: center;">
-        <h2>Navigation Not Supported</h2>
-        <p>This browser view cannot navigate directly to: ${formattedUrl}</p>
-        <p>Please use an external browser or enable the internal browser view.</p>
-        <a href="${formattedUrl}" target="_blank" rel="noopener noreferrer">Open in new window</a>
-      </div>
-    `);
+    console.error('No webview or contentFrame available for navigation');
+    
+    // Clear timeout to prevent error page from displaying twice
+    if (browser._navigationTimeout) {
+      clearTimeout(browser._navigationTimeout);
+      browser._navigationTimeout = null;
+    }
+    
+    // Show error page
+    renderErrorPage(browser, {
+      code: 'NO_RENDERER',
+      url: formattedUrl,
+      message: 'Browser view is not available'
+    });
+  }
+}
+
+/**
+ * Perform the actual webview navigation with proper error handling
+ * @param {Object} browser - Browser instance
+ * @param {string} url - URL to navigate to
+ */
+function performWebviewNavigation(browser, url) {
+  // Handle the partition error case more gracefully
+  try {
+    // First try to load the URL using loadURL if available (preferred method)
+    if (typeof browser.webview.loadURL === 'function') {
+      browser.webview.loadURL(url)
+        .catch(err => {
+          console.warn('loadURL failed, falling back to src attribute:', err);
+          safeSetSrc(browser.webview, url);
+        });
+    } else {
+      // Fall back to src attribute
+      safeSetSrc(browser.webview, url);
+    }
+    
+    // Set up redundant load detection for better reliability
+    setupRedundantLoadDetection(browser, url);
+  } catch (partitionErr) {
+    handleNavigationError(browser, partitionErr, url);
+  }
+}
+
+/**
+ * Safely set the src attribute of a webview with error handling
+ * @param {HTMLElement} webview - The webview element
+ * @param {string} url - URL to navigate to
+ */
+function safeSetSrc(webview, url) {
+  try {
+    webview.src = url;
+  } catch (err) {
+    console.error('Error setting webview src:', err);
+    
+    // Try one more time with about:blank first to reset state
+    try {
+      webview.src = 'about:blank';
+      setTimeout(() => {
+        try {
+          webview.src = url;
+        } catch (finalErr) {
+          console.error('Final attempt to set src failed:', finalErr);
+        }
+      }, 100);
+    } catch (resetErr) {
+      console.error('Failed to reset webview src to about:blank:', resetErr);
+    }
+  }
+}
+
+/**
+ * Handle navigation errors with appropriate recovery strategies
+ * @param {Object} browser - Browser instance
+ * @param {Error} err - The error that occurred
+ * @param {string} url - URL that was being navigated to
+ */
+function handleNavigationError(browser, err, url) {
+  // Check for partition error specifically
+  if (err.message && err.message.includes("partition cannot be changed")) {
+    console.warn('Partition error detected. Attempting alternative navigation...');
+    
+    // Alternative approach: try to reload the current page first, then navigate
+    setTimeout(() => {
+      try {
+        // Try to reload first to clear any state
+        if (typeof browser.webview.reload === 'function') {
+          browser.webview.reload();
+          
+          // After a short delay, attempt to set src again
+          setTimeout(() => {
+            try {
+              browser.webview.src = url;
+            } catch (finalErr) {
+              console.error('Final navigation attempt failed:', finalErr);
+              // Reset loading state if all attempts fail
+              browser.setState({ isLoading: false });
+              updateLoadingIndicator(browser, false);
+              
+              // Show error page
+              renderErrorPage(browser, {
+                code: 'PARTITION_ERROR',
+                url: url,
+                message: 'Failed to navigate: ' + finalErr.message
+              });
+            }
+          }, 100);
+        } else {
+          // If reload isn't available, try navigation directly
+          console.warn('Reload not available, trying direct navigation...');
+          browser.webview.src = url;
+        }
+      } catch (recoveryErr) {
+        console.error('Recovery navigation error:', recoveryErr);
+        // Reset loading state if recovery fails
+        browser.setState({ isLoading: false });
+        updateLoadingIndicator(browser, false);
+        
+        // Show error page
+        renderErrorPage(browser, {
+          code: 'RECOVERY_ERROR',
+          url: url,
+          message: 'Failed to recover from navigation error: ' + recoveryErr.message
+        });
+      }
+    }, 50);
+  } else if (err.message && err.message.includes("GUEST_VIEW_MANAGER_CALL")) {
+    // Handle the specific GUEST_VIEW_MANAGER_CALL error
+    console.warn('GUEST_VIEW_MANAGER_CALL error detected. Attempting to recreate webview...');
+    
+    // Try to recover by recreating the webview
+    try {
+      // First stop loading and clear any state
+      if (typeof browser.webview.stop === 'function') {
+        browser.webview.stop();
+      }
+      
+      // Remove and recreate the webview
+      const container = browser.webview.parentElement;
+      if (container) {
+        // Keep a reference to the old webview to remove event listeners
+        const oldWebview = browser.webview;
+        
+        // Create a new webview
+        if (typeof browser.createWebview === 'function') {
+          // Use browser's create method if available
+          browser.createWebview();
+          
+          // Update loading state
+          browser.setState({ isLoading: true });
+          updateLoadingIndicator(browser, true);
+          
+          // Try navigation again after a delay
+          setTimeout(() => {
+            try {
+              browser.navigate(url, true);
+            } catch (finalErr) {
+              console.error('Final navigation attempt after recreation failed:', finalErr);
+            }
+          }, 500);
+        } else {
+          // Reset loading state if recovery fails
+          browser.setState({ isLoading: false });
+          updateLoadingIndicator(browser, false);
+          
+          // Show error page in the current webview
+          renderErrorPage(browser, {
+            code: 'GUEST_VIEW_ERROR',
+            url: url,
+            message: 'Browser view encountered an error and needs to be restarted.'
+          });
+        }
+      }
+    } catch (recreateErr) {
+      console.error('Error recreating webview:', recreateErr);
+      
+      // Reset loading state if recovery fails
+      browser.setState({ isLoading: false });
+      updateLoadingIndicator(browser, false);
+      
+      // Show error page
+      renderErrorPage(browser, {
+        code: 'RECREATION_ERROR',
+        url: url,
+        message: 'Failed to recover from navigation error: ' + recreateErr.message
+      });
+    }
+  } else {
+    // Not a specific recognized error, handle generically
+    console.error('WebView navigation error:', err);
+    
+    // Reset loading state
+    browser.setState({ isLoading: false });
+    updateLoadingIndicator(browser, false);
+    
+    // Show error page
+    renderErrorPage(browser, {
+      code: 'NAV_ERROR',
+      url: url,
+      message: 'Failed to navigate: ' + err.message
+    });
   }
 }
 

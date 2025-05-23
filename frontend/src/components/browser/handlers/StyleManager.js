@@ -20,6 +20,143 @@ const styleState = {
 };
 
 /**
+ * Safe wrapper for applying styles to a webview
+ * Handles null checks and error handling
+ * @param {HTMLElement} webview - The webview element
+ * @param {boolean} show - Whether to show or hide the webview
+ * @returns {boolean} Success state
+ */
+function safeApplyStyles(webview, show = true) {
+  if (!webview) {
+    styleLogger.error('Cannot apply styles - webview is null');
+    return false;
+  }
+  
+  try {
+    // First ensure the method exists
+    if (typeof webview.applyAllCriticalStyles !== 'function') {
+      // Try to add the method via StyleManager
+      if (typeof ensureApplyAllCriticalStylesMethod === 'function') {
+        ensureApplyAllCriticalStylesMethod(webview);
+      } else {
+        // Fallback implementation if method couldn't be added
+        webview.applyAllCriticalStyles = function(show) {
+          if (show) {
+            this.style.visibility = 'visible';
+            this.style.opacity = '1';
+            this.style.display = 'flex';
+          } else {
+            this.style.visibility = 'hidden';
+            this.style.opacity = '0';
+          }
+          return true;
+        };
+      }
+    }
+    
+    // Now call the method if it exists
+    if (typeof webview.applyAllCriticalStyles === 'function') {
+      return webview.applyAllCriticalStyles(show);
+    } else {
+      // Manual fallback if method couldn't be added
+      if (show) {
+        webview.style.visibility = 'visible';
+        webview.style.opacity = '1';
+        webview.style.display = 'flex';
+      } else {
+        webview.style.visibility = 'hidden';
+        webview.style.opacity = '0';
+      }
+      return true;
+    }
+  } catch (err) {
+    styleLogger.error('Error applying styles:', err);
+    
+    // Final fallback - direct style setting
+    try {
+      if (show) {
+        webview.style.visibility = 'visible';
+        webview.style.opacity = '1';
+      } else {
+        webview.style.visibility = 'hidden';
+        webview.style.opacity = '0';
+      }
+      return true;
+    } catch (finalErr) {
+      styleLogger.error('Final fallback for styles failed:', finalErr);
+      return false;
+    }
+  }
+}
+
+/**
+ * Ensure the webview has the applyAllCriticalStyles method
+ * @param {HTMLElement} webview - Webview element to enhance
+ * @returns {boolean} - Whether the method was added
+ */
+function ensureApplyAllCriticalStylesMethod(webview) {
+  if (!webview) {
+    styleLogger.error('Cannot add applyAllCriticalStyles - webview is null');
+    return false;
+  }
+
+  // Already has the method
+  if (typeof webview.applyAllCriticalStyles === 'function') {
+    return true;
+  }
+
+  try {
+    // Add the method directly to the webview instance
+    webview.applyAllCriticalStyles = function(show = true) {
+      styleLogger.debug(`applyAllCriticalStyles called with show=${show}`);
+      
+      // Check if the webview is still valid
+      if (!this || !this.isConnected) {
+        styleLogger.warn('applyAllCriticalStyles called on disconnected webview');
+        return false;
+      }
+      
+      try {
+        if (show) {
+          // Apply comprehensive styling using StyleManager
+          applyWebviewStyles(null, this, true);
+        } else {
+          // Hide the webview
+          this.style.visibility = 'hidden';
+          this.style.opacity = '0';
+        }
+        
+        return show;
+      } catch (error) {
+        styleLogger.error('Error in applyAllCriticalStyles execution:', error);
+        
+        // Direct fallback for critical properties
+        try {
+          if (show) {
+            this.style.visibility = 'visible';
+            this.style.opacity = '1';
+            this.style.display = 'flex';
+          } else {
+            this.style.visibility = 'hidden';
+            this.style.opacity = '0';
+          }
+          return show;
+        } catch (finalError) {
+          styleLogger.error('Final fallback failed in applyAllCriticalStyles:', finalError);
+          return false;
+        }
+      }
+    };
+    
+    styleLogger.info(`Added applyAllCriticalStyles method to webview (${webview.id || 'unknown'})`);
+    return true;
+  } catch (error) {
+    styleLogger.error('Error adding applyAllCriticalStyles method:', error);
+    return false;
+  }
+}
+
+/**
  * Apply core webview styling immediately after creation
  * @param {HTMLElement} webview - Webview element to style
  */
@@ -28,6 +165,9 @@ function applyInitialStyles(webview) {
     styleLogger.error('Cannot apply initial styles - webview is null');
     return;
   }
+
+  // Ensure the webview has the applyAllCriticalStyles method
+  ensureApplyAllCriticalStylesMethod(webview);
 
   const webviewId = webview.id || 'unknown-webview';
   styleLogger.info(`Applying initial styles to webview (${webviewId})`);
@@ -471,5 +611,7 @@ export default {
   applyWebviewStyles,
   scheduleStyleChecks,
   startStyleMonitoring,
-  stopStyleMonitoring
+  stopStyleMonitoring,
+  ensureApplyAllCriticalStylesMethod,
+  safeApplyStyles
 }; 

@@ -34,6 +34,9 @@ import {
   initBrowserHandlers 
 } from './handlers/index.js';
 
+// Import StyleManager for consistent style handling
+import StyleManager from './handlers/StyleManager';
+
 import {
   handleBookmarkCreation,
 } from './utils/BookmarkManager';
@@ -53,6 +56,8 @@ import {
 
 import { toggleReaderMode, setReaderMode, getReaderMode, isReaderModeActive as checkReaderModeActive } from './handlers/ReaderModeManager';
 import ExtractorManager from './extraction/ExtractorManager';
+import WorkerManager from './utils/WorkerManager';
+import cssLoader from '../../utils/cssLoader';
 
 // Import specific event handlers
 const { 
@@ -63,6 +68,355 @@ const {
   handleWebviewError,
   updateNavigationButtons
 } = EventHandlers;
+
+// Initialize the worker system as early as possible
+const initWorkerSystem = () => {
+  // Set initial state while we attempt initialization
+  if (!WorkerManager.isInitializing) {
+    WorkerManager.isInitializing = true;
+    WorkerManager.initAttempts = 0;
+    WorkerManager.isAvailable = false;
+    WorkerManager.isInitialized = false;
+    
+    // Initialize storage for webview references
+    if (!WorkerManager.webviewRef) {
+      WorkerManager.webviewRef = null;
+      WorkerManager.hasWebview = false;
+    }
+    
+    // Add utility method to update webview references
+    if (typeof WorkerManager.updateWebviewReference !== 'function') {
+      WorkerManager.updateWebviewReference = function(webview) {
+        if (webview) {
+          this.webviewRef = webview;
+          this.hasWebview = true;
+          console.log('Worker system webview reference updated');
+          return true;
+        }
+        return false;
+      };
+    }
+  }
+  
+  // Find all webviews in the document and use the first valid one for worker system
+  try {
+    if (!WorkerManager.webviewRef) {
+      const allWebviews = document.querySelectorAll('webview');
+      if (allWebviews.length > 0) {
+        for (let i = 0; i < allWebviews.length; i++) {
+          if (allWebviews[i].isConnected || document.contains(allWebviews[i])) {
+            console.log('Found connected webview in document, storing reference');
+            WorkerManager.webviewRef = allWebviews[i];
+            WorkerManager.hasWebview = true;
+            break;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error finding webview references:', err);
+  }
+  
+  // Prevent excessive init attempts
+  WorkerManager.initAttempts = (WorkerManager.initAttempts || 0) + 1;
+  if (WorkerManager.initAttempts > 3) {
+    console.warn(`Worker system initialization failed after ${WorkerManager.initAttempts} attempts, using fallback extraction`);
+    WorkerManager.isInitializing = false;
+    WorkerManager.isAvailable = false;
+    WorkerManager.isInitialized = false;
+    return;
+  }
+
+  console.log(`Attempting worker system initialization (attempt #${WorkerManager.initAttempts})`);
+  
+  // First check if WorkerManager already has initialize method
+  if (!WorkerManager || typeof WorkerManager.initialize !== 'function') {
+    console.error('WorkerManager not available or missing initialize method - checking for global version');
+    
+    // Try to find WorkerManager in global scope
+    if (window.WorkerManager && typeof window.WorkerManager.initialize === 'function') {
+      console.log('Found WorkerManager in global scope, using window.WorkerManager');
+      // Use the global WorkerManager and make it available in the current scope
+      window.WorkerManager = window.WorkerManager;
+    } else {
+      console.error('No WorkerManager available in any scope, worker system unavailable');
+      WorkerManager.isInitializing = false;
+      WorkerManager.isAvailable = false;
+      WorkerManager.isInitialized = false;
+      return;
+    }
+  }
+  
+  // Track initialization time for debugging
+  const startTime = Date.now();
+  
+  // Initialize with enhanced error handling
+  try {
+    const initPromise = WorkerManager.initialize();
+    
+    // Ensure we have a valid promise
+    if (!initPromise || typeof initPromise.then !== 'function') {
+      console.error('WorkerManager.initialize did not return a valid promise');
+      WorkerManager.isInitializing = false;
+      WorkerManager.isAvailable = false;
+      WorkerManager.isInitialized = false;
+      return;
+    }
+    
+    initPromise.then(success => {
+      const initTime = Date.now() - startTime;
+      console.log(`Worker system initialization ${success ? 'succeeded' : 'failed'} in ${initTime}ms`);
+      
+      // Set global flags for worker availability
+      WorkerManager.isAvailable = success;
+      WorkerManager.isInitialized = success;
+      WorkerManager.initialized = success;
+      WorkerManager.available = success;
+      WorkerManager.isInitializing = false;
+      
+      // Log initialization details
+      console.log('Worker system status:', {
+        isAvailable: WorkerManager.isAvailable,
+        isInitialized: WorkerManager.isInitialized,
+        hasExecuteTask: typeof WorkerManager.executeTask === 'function',
+        hasWebviewRef: Boolean(WorkerManager.webviewRef)
+      });
+      
+      // If initialization succeeded, try to register content extraction handler
+      if (success && typeof WorkerManager.registerHandler === 'function') {
+        try {
+          WorkerManager.registerHandler('extract-content', (url, options) => {
+            console.log('Worker handling content extraction for', url);
+            
+            // Use the stored webview reference if possible
+            if (WorkerManager.webviewRef && typeof WorkerManager.webviewRef.executeJavaScript === 'function') {
+              return WorkerManager.webviewRef.executeJavaScript(`
+                (function() {
+                  try {
+                    return {
+                      title: document.title || 'Unknown Page',
+                      url: window.location.href,
+                      html: document.documentElement.outerHTML || '',
+                      text: document.body ? document.body.innerText : '',
+                      success: true
+                    };
+                  } catch (e) {
+                    return { error: e.message, success: false };
+                  }
+                })()
+              `);
+            }
+            
+            // Implementation would go here
+            return { success: true, url, content: 'Content extracted by worker' };
+          });
+          console.log('Successfully registered extract-content handler');
+        } catch (regError) {
+          console.warn('Failed to register extract-content handler:', regError);
+        }
+      }
+      
+      // If initialization failed, try again with a delay
+      if (!success && WorkerManager.initAttempts < 3) {
+        console.log(`Scheduling worker system retry in ${WorkerManager.initAttempts * 1000}ms`);
+        setTimeout(initWorkerSystem, WorkerManager.initAttempts * 1000);
+      }
+    }).catch(err => {
+      console.error('Worker system initialization error:', err);
+      
+      // Ensure the availability flag is set to false on error
+      WorkerManager.isAvailable = false;
+      WorkerManager.isInitialized = false;
+      WorkerManager.initialized = false;
+      WorkerManager.available = false;
+      WorkerManager.isInitializing = false;
+      
+      // Try again with a delay if we haven't exceeded retry attempts
+      if (WorkerManager.initAttempts < 3) {
+        console.log(`Scheduling worker system retry after error in ${WorkerManager.initAttempts * 1000}ms`);
+        setTimeout(initWorkerSystem, WorkerManager.initAttempts * 1000);
+      } else {
+        console.error('Worker system initialization failed after all retry attempts');
+      }
+    });
+  } catch (initError) {
+    console.error('Critical error during worker system initialization:', initError);
+    WorkerManager.isInitializing = false;
+    WorkerManager.isAvailable = false;
+    WorkerManager.isInitialized = false;
+  }
+};
+
+// Call initialization with a timeout to ensure it completes
+setTimeout(initWorkerSystem, 500);
+
+// Setting up a cache for content extraction
+const extractionCache = new Map();
+
+// Add a helper function to check if workers are available
+const isWorkerSystemAvailable = (instance) => {
+  // First check if WorkerManager is available and initialized
+  const workerAvailable = WorkerManager && 
+         typeof WorkerManager === 'object' &&
+         (WorkerManager.isInitialized === true || WorkerManager.initialized === true) && 
+         (WorkerManager.isAvailable === true || WorkerManager.available === true) && 
+         typeof WorkerManager.executeTask === 'function';
+  
+  // If instance is provided, check if webview and URL are available
+  if (instance && workerAvailable) {
+    // Check for the webview in multiple places to improve reliability
+    const instanceWebview = instance.webview || 
+                          (instance.webviewContainer && instance.webviewContainer.querySelector('webview')) ||
+                          WorkerManager.webviewRef;
+    
+    // Mark the existence of webview directly in the WorkerManager object for future checks
+    if (instanceWebview && !WorkerManager.webviewRef) {
+      WorkerManager.webviewRef = instanceWebview;
+      WorkerManager.hasWebview = true;
+    }
+    
+    const webviewAvailable = instanceWebview && 
+           (instanceWebview.isConnected || instanceWebview._isAttached || document.contains(instanceWebview)) && 
+           instance.state && 
+           instance.state.url;
+           
+    if (!webviewAvailable) {
+      console.log('Webview not available for worker-based extraction:', {
+        hasWebview: Boolean(instanceWebview),
+        isConnected: instanceWebview?.isConnected,
+        isAttached: instanceWebview?._isAttached,
+        isInDOM: instanceWebview ? document.contains(instanceWebview) : false,
+        hasState: Boolean(instance.state),
+        hasURL: Boolean(instance.state?.url),
+        managerHasWebview: Boolean(WorkerManager.webviewRef)
+      });
+    }
+    
+    return webviewAvailable;
+  }
+  
+  // Debug log to help troubleshoot worker availability issues
+  if (!workerAvailable && instance) {
+    console.log('Worker system not available:', {
+      hasWorkerManager: Boolean(WorkerManager),
+      isObject: typeof WorkerManager === 'object',
+      isInitialized: WorkerManager?.isInitialized || WorkerManager?.initialized,
+      isAvailable: WorkerManager?.isAvailable || WorkerManager?.available,
+      hasExecuteTask: typeof WorkerManager?.executeTask === 'function'
+    });
+  }
+  
+  return workerAvailable;
+};
+
+/**
+ * Safe wrapper for calling applyAllCriticalStyles on webview
+ * @param {HTMLElement} webview - The webview element
+ * @param {boolean} show - Whether to show or hide the webview
+ * @returns {boolean} Success state
+ */
+function safeApplyCriticalStyles(webview, show = true) {
+  if (!webview) return false;
+  
+  try {
+    // First try to use StyleManager's safeApplyStyles method
+    try {
+      const StyleManager = require('./handlers/StyleManager').default;
+      if (StyleManager && typeof StyleManager.safeApplyStyles === 'function') {
+        return StyleManager.safeApplyStyles(webview, show);
+      }
+    } catch (styleManagerError) {
+      console.warn('StyleManager not available:', styleManagerError);
+    }
+    
+    // If StyleManager fails, ensure the method exists via direct approach
+    if (typeof webview.applyAllCriticalStyles !== 'function') {
+      // Try to add the method for better resilience
+      webview.applyAllCriticalStyles = function(showParam) {
+        if (showParam) {
+          // Apply comprehensive styling directly 
+          this.style.cssText = `
+            visibility: visible !important;
+            opacity: 1 !important;
+            display: flex !important;
+            position: absolute !important;
+            z-index: 10 !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: white !important;
+            overflow: hidden !important; 
+            pointer-events: auto !important;
+          `;
+          
+          // Force a DOM reflow to ensure styles are applied
+          void this.offsetHeight;
+        } else {
+          this.style.visibility = 'hidden';
+          this.style.opacity = '0';
+        }
+        return true;
+      };
+    }
+    
+    // Now call the method if it exists
+    if (typeof webview.applyAllCriticalStyles === 'function') {
+      return webview.applyAllCriticalStyles(show);
+    } else {
+      // Manual fallback if method couldn't be added
+      if (show) {
+        webview.style.cssText = `
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: flex !important;
+          position: absolute !important;
+          z-index: 10 !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          border: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background-color: white !important;
+          overflow: hidden !important;
+          pointer-events: auto !important;
+        `;
+        
+        // Force a DOM reflow to ensure styles are applied
+        void webview.offsetHeight;
+      } else {
+        webview.style.visibility = 'hidden';
+        webview.style.opacity = '0';
+      }
+      return true;
+    }
+  } catch (err) {
+    console.error('Error applying critical styles:', err);
+    
+    // Final fallback - direct style setting
+    try {
+      if (show) {
+        // Apply minimum needed styles to ensure visibility
+        webview.style.visibility = 'visible';
+        webview.style.opacity = '1';
+        webview.style.display = 'flex';
+        webview.style.zIndex = '10';
+      } else {
+        webview.style.visibility = 'hidden';
+        webview.style.opacity = '0';
+      }
+      return true;
+    } catch (finalErr) {
+      console.error('Final fallback for critical styles failed:', finalErr);
+      return false;
+    }
+  }
+}
 
 class Voyager extends Component {
   constructor(props) {
@@ -129,6 +483,10 @@ class Voyager extends Component {
     this.initialize = this.initialize.bind(this);
     this.initializeResearcher = this.initializeResearcher.bind(this);
     this.cleanup = this.cleanup.bind(this);
+    this.extractPageContentWithWorker = this.extractPageContentWithWorker.bind(this);
+    this.preloadPageResources = this.preloadPageResources.bind(this);
+    this.processPageInParallel = this.processPageInParallel.bind(this);
+    this.enhanceExtractedContent = this.enhanceExtractedContent.bind(this);
   }
   
   componentDidMount() {
@@ -138,8 +496,10 @@ class Voyager extends Component {
     this.setState({
       isMounted: true
     }, () => {
-      // Initialize the browser once state is updated
-      this.initialize();
+      // Small delay to ensure DOM is fully ready before initialization
+      setTimeout(async () => {
+        await this.initialize();
+      }, 50);
     });
     
     // Ensure we have the correct initial view mode
@@ -383,7 +743,7 @@ class Voyager extends Component {
       }
       
       // Skip checks if we're not loading anymore
-      if (!this.state.isLoading) {
+      if (!this.state?.isLoading) {
         clearInterval(this._loadDetectionInterval);
         return;
       }
@@ -407,7 +767,7 @@ class Voyager extends Component {
     
     try {
       // For webview, we'll use executeJavaScript to check current URL
-      if (this.webview.tagName?.toLowerCase() === 'webview' && 
+      if (this.webview && this.webview.tagName?.toLowerCase() === 'webview' && 
           typeof this.webview.executeJavaScript === 'function') {
         
         this.webview.executeJavaScript(`
@@ -440,8 +800,8 @@ class Voyager extends Component {
             updateLoadingIndicator(this, false);
             
             // Make webview fully visible
-            if (typeof this.webview.applyAllCriticalStyles === 'function') {
-              this.webview.applyAllCriticalStyles(true);
+            if (this.webview) {
+              safeApplyCriticalStyles(this.webview, true);
             }
             
             // Capture content
@@ -552,6 +912,77 @@ class Voyager extends Component {
   }
   
   /**
+   * Apply webview styles safely without using return statements
+   * @param {HTMLElement} webview - The webview element to style
+   * @param {boolean} skipJavaScript - Skip JavaScript execution (for initial styling)
+   */
+  applyWebviewStyles(webview, skipJavaScript = false) {
+    if (!webview) return false;
+    
+    try {
+      // Apply direct CSS styles first - this is always safe
+      webview.style.cssText = 'width:100%;height:100%;display:flex;flex:1;position:relative;overflow:hidden;visibility:visible;';
+      webview.autosize = false;
+      
+      // Apply additional styles with a delay
+      setTimeout(() => {
+        try {
+          if (webview && webview.isConnected) {
+            webview.style.minHeight = '100%';
+            webview.style.minWidth = '100%';
+            
+            // Force a layout recalculation
+            void webview.offsetHeight;
+            console.log('Successfully applied additional webview styles');
+          }
+        } catch (err) {
+          console.error('Error applying additional styles:', err);
+        }
+      }, 200);
+      
+      // Skip JavaScript execution if requested or if webview isn't ready
+      if (skipJavaScript) {
+        return true;
+      }
+      
+      // Check if webview is actually ready for JavaScript execution
+      const isReady = webview.hasAttribute('data-dom-ready') || 
+                      webview.dataset.domReady === 'true' ||
+                      webview._domReady === true;
+      
+      // Apply content styling via executeJavaScript, but only if webview is fully ready
+      if (isReady && typeof webview.executeJavaScript === 'function') {
+        try {
+          webview.executeJavaScript(`
+            (function() {
+              try {
+                if (document && document.body) {
+                  document.body.style.visibility = 'visible';
+                  document.body.style.opacity = '1';
+                  document.body.style.display = 'block';
+                  console.log('Content styles applied successfully');
+                }
+              } catch (e) {
+                console.error('Error applying content styles:', e);
+              }
+            })();
+          `).catch(err => console.warn('Content style script error:', err));
+        } catch (err) {
+          // Handle errors without breaking the style application
+          console.warn('Skipping JavaScript execution - webview not ready:', err.message);
+        }
+      } else if (typeof webview.executeJavaScript === 'function') {
+        console.log('Skipping JavaScript execution - waiting for dom-ready event');
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('Error applying webview styles:', err);
+      return false;
+    }
+  }
+
+  /**
    * Handle webview/iframe load completion
    * @param {Event} event - Load event
    */
@@ -585,6 +1016,42 @@ class Voyager extends Component {
       console.warn('Error updating address bar with actual URL:', error);
     }
     
+    // Ensure webview is fully visible
+    if (this.webview) {
+      try {
+        // Apply all webview styles using our new method
+        this.applyWebviewStyles(this.webview);
+        
+        // Alternative style application for reliability
+        if (typeof this.webview.applyAllCriticalStyles === 'function') {
+          this.webview.applyAllCriticalStyles(true);
+        } else {
+          safeApplyCriticalStyles(this.webview, true);
+        }
+        
+        // Double-check visibility with direct styling
+        this.webview.style.visibility = 'visible';
+        this.webview.style.opacity = '1';
+        this.webview.style.display = 'flex';
+        this.webview.style.zIndex = '10';
+        
+        // Force browser to recalculate webview layout
+        void this.webview.offsetHeight;
+        
+        // Mark as ready to show for other components
+        this.webview.readyToShow = true;
+        
+        console.log("Webview styles applied, content should be visible now");
+      } catch (err) {
+        console.warn('Error ensuring webview visibility:', err);
+      }
+    }
+    
+    // Preload page resources for better performance
+    this.preloadPageResources().catch(err => {
+      console.warn('Error preloading page resources:', err);
+    });
+    
     // Capture page content and title for memory
     this.capturePageContent().catch(err => {
       console.warn('Error in capturePageContent during load:', err);
@@ -597,7 +1064,7 @@ class Voyager extends Component {
       new Date().toISOString()
     );
     
-    // Notify parent component if callback provided - fix the null check
+    // Notify parent component if callback provided
     if (this.props && typeof this.props.onPageLoad === 'function') {
       this.props.onPageLoad(historyRecord);
     }
@@ -916,32 +1383,412 @@ class Voyager extends Component {
   }
   
   /**
-   * Captures and processes the content of the current page
+   * Capture page content using optimized worker-based extraction
    * @returns {Promise<Object>} Promise resolving to the captured content
    */
   capturePageContent() {
-    // Use ExtractorManager directly to extract content
-    return ExtractorManager.extract(this, this.state?.url || '')
-      .then(result => {
-        // Format the result to match the expected API
-        return {
-          title: result.title || this.state?.title || 'Untitled Page',
-          url: result.url || this.state?.url || '',
-          text: result.text || '',
-          processedContent: result.html || result.text || '',
-          timestamp: result.timestamp || new Date().toISOString()
-        };
-      })
-      .catch(error => {
-        console.error('Content extraction error:', error);
-        // Return minimal content in case of error
-        return {
-          title: this.state?.title || 'Untitled Page',
-          url: this.state?.url || '',
-          text: 'Content extraction failed. The page might be too complex or require authentication.',
-          processedContent: '<p>Content extraction failed. The page might be too complex or require authentication.</p>'
-        };
-      });
+    // Check if we have this URL cached and it's recent (last 5 minutes)
+    const cacheKey = this.state?.url || '';
+    const cachedResult = extractionCache.get(cacheKey);
+    
+    if (cachedResult && 
+        (Date.now() - cachedResult.timestamp) < 5 * 60 * 1000) {
+      console.log('Using cached extraction result for:', cacheKey);
+      return Promise.resolve(cachedResult.data);
+    }
+    
+    // Get webview reference from multiple sources
+    const webview = this.webview || 
+                  (this.webviewContainer && this.webviewContainer.querySelector('webview')) ||
+                  WorkerManager.webviewRef;
+    
+    // Store webview reference in WorkerManager if available
+    if (webview && !WorkerManager.webviewRef) {
+      console.log('Storing webview reference in WorkerManager during capturePageContent');
+      WorkerManager.webviewRef = webview;
+      WorkerManager.hasWebview = true;
+    }
+    
+    // Log webview status for debugging
+    const isWebviewAvailable = webview && 
+      (webview.isConnected || webview._isAttached || document.contains(webview));
+      
+    // Check worker system availability
+    const workerSystemAvailable = WorkerManager && 
+      (WorkerManager.isInitialized === true || WorkerManager.initialized === true) && 
+      (WorkerManager.isAvailable === true || WorkerManager.available === true) && 
+      typeof WorkerManager.executeTask === 'function';
+      
+    // Log combined status
+    console.log('Extraction status:', {
+      webviewAvailable: isWebviewAvailable,
+      workerSystemAvailable: workerSystemAvailable,
+      url: this.state?.url || 'unknown'
+    });
+    
+    // First try to use enhanced worker extraction if worker system is available
+    if (isWorkerSystemAvailable(this)) {
+      return this.extractPageContentWithWorker()
+        .then(result => {
+          // Cache successful results
+          if (result && !result.error && cacheKey) {
+            extractionCache.set(cacheKey, {
+              data: result,
+              timestamp: Date.now()
+            });
+            
+            // Cleanup old cache entries if cache gets too large
+            if (extractionCache.size > 50) {
+              const oldestUrl = [...extractionCache.entries()]
+                .sort((a, b) => a[1].timestamp - b[1].timestamp)[0][0];
+              extractionCache.delete(oldestUrl);
+            }
+          }
+          return result;
+        })
+        .catch(error => {
+          console.error('Worker extraction error:', error);
+          
+          // Fall back to ExtractorManager
+          return this.fallbackExtraction();
+        });
+    } else {
+      // Try direct DOM extraction before falling back to ExtractorManager
+      if (isWebviewAvailable && webview && typeof webview.executeJavaScript === 'function') {
+        console.log('Attempting direct DOM extraction before falling back');
+        
+        return new Promise((resolve, reject) => {
+          webview.executeJavaScript(`
+            (function() {
+              try {
+                return {
+                  title: document.title || 'Unknown Page',
+                  url: window.location.href,
+                  html: document.documentElement.outerHTML || '',
+                  text: document.body ? document.body.innerText : '',
+                  extracted: true,
+                  method: 'direct-dom'
+                };
+              } catch (e) {
+                return { error: e.message || 'Error extracting content' };
+              }
+            })()
+          `)
+            .then(result => {
+              if (result && !result.error) {
+                console.log('Direct DOM extraction successful');
+                resolve({
+                  title: result.title,
+                  url: result.url || this.state?.url,
+                  text: result.text || '',
+                  processedContent: result.html || '',
+                  timestamp: new Date().toISOString(),
+                  extractionMethod: 'direct-dom'
+                });
+              } else {
+                console.warn('Direct DOM extraction failed:', result.error);
+                reject(new Error(result.error || 'Direct extraction failed'));
+              }
+            })
+            .catch(err => {
+              console.warn('Error in direct DOM extraction:', err);
+              reject(err);
+            });
+        })
+          .catch(error => {
+            console.warn('Direct extraction failed, falling back to ExtractorManager:', error);
+            return this.fallbackExtraction();
+          });
+      }
+      
+      // Skip worker extraction attempt if worker system is not available
+      console.log('Worker system not available, using fallback extraction directly');
+      return this.fallbackExtraction();
+    }
+  }
+  
+  /**
+   * Enhanced worker-based content extraction 
+   * @returns {Promise<Object>} Promise resolving to extracted content
+   */
+  extractPageContentWithWorker() {
+    return new Promise((resolve, reject) => {
+      // First check if worker system is actually available with this instance
+      if (!isWorkerSystemAvailable(this)) {
+        // Immediately reject so we can fall back to alternative methods
+        return reject(new Error('Worker system not available or initialization failed'));
+      }
+
+      // Get the webview reference from multiple places to improve reliability
+      const webview = this.webview || 
+                    (this.webviewContainer && this.webviewContainer.querySelector('webview')) ||
+                    WorkerManager.webviewRef;
+                    
+      // Store the webview reference in WorkerManager for future use
+      if (webview && !WorkerManager.webviewRef) {
+        WorkerManager.webviewRef = webview;
+        WorkerManager.hasWebview = true;
+        console.log('Stored webview reference in WorkerManager');
+      }
+                    
+      // Check webview availability with more thorough validation
+      if (!webview || !(webview.isConnected || webview._isAttached || document.contains(webview)) || !this.state?.url) {
+        console.log('Webview validation failed:', {
+          hasWebview: Boolean(webview),
+          isConnected: webview?.isConnected,
+          isAttached: webview?._isAttached,
+          isInDOM: webview ? document.contains(webview) : false,
+          hasState: Boolean(this.state),
+          hasURL: Boolean(this.state?.url)
+        });
+        return reject(new Error('No webview or URL available for extraction'));
+      }
+      
+      // Log successful webview detection
+      console.log('Using webview for content extraction from:', this.state.url);
+      
+      // Get HTML content from the webview
+      try {
+        // Double check the webview is still connected and ready
+        if (webview && (webview.isConnected || webview._isAttached || document.contains(webview)) && 
+            typeof webview.executeJavaScript === 'function') {
+          // First try to get document content using a more robust approach that catches potential DOM errors
+          webview.executeJavaScript(`
+            (function() {
+              try {
+                // Check if document is actually accessible
+                if (!document || !document.documentElement) {
+                  return { error: "Document not accessible" };
+                }
+                
+                // Try to get the HTML content
+                return document.documentElement.outerHTML || document.documentElement.innerHTML;
+              } catch (e) {
+                return { error: "Error accessing document: " + (e.message || "Unknown error") };
+              }
+            })()
+          `)
+            .then(html => {
+              // Check if we got an error object instead of HTML
+              if (typeof html === 'object' && html && html.error) {
+                throw new Error(html.error);
+              }
+              
+              // Check if we have valid HTML content
+              if (!html || typeof html !== 'string' || html.length < 100) {
+                throw new Error('Failed to get valid HTML content from webview');
+              }
+              
+              console.log('Executing worker-based DOM processing');
+              
+              // Use the worker to process the HTML content
+              return WorkerManager.executeTask('process-dom', {
+                html,
+                url: this.state.url,
+                options: {
+                  clean: true,
+                  extractMain: true,
+                  extractHeadings: true,
+                  extractLinks: true,
+                  extractMetadata: true
+                }
+              });
+            })
+            .then(result => {
+              if (!result || result.error) {
+                throw new Error(result?.error || 'Failed to process content in worker');
+              }
+              
+              // Enhance the content with additional processing
+              return this.enhanceExtractedContent(result);
+            })
+            .then(enhancedResult => {
+              // Process the content in parallel for further enhancements
+              this.processPageInParallel(enhancedResult)
+                .catch(err => console.warn('Parallel processing error (non-blocking):', err));
+              
+              // Return the enhanced result
+              resolve(enhancedResult);
+            })
+            .catch(error => {
+              console.warn('Worker-based extraction failed:', error);
+              reject(error);
+            });
+        } else {
+          reject(new Error('Webview not ready for content extraction'));
+        }
+      } catch (err) {
+        console.warn('Error in extractPageContentWithWorker:', err);
+        reject(err);
+      }
+    });
+  }
+  
+  /**
+   * Enhance extracted content with additional metadata and formatting
+   * @param {Object} content - Raw extracted content
+   * @returns {Promise<Object>} Enhanced content
+   */
+  enhanceExtractedContent(content) {
+    return new Promise((resolve, reject) => {
+      // Use the worker to enhance the content if possible
+      if (isWorkerSystemAvailable(this)) {
+        WorkerManager.executeTask('enhance-content', { content })
+          .then(enhancedContent => {
+            resolve({
+              title: enhancedContent.title || content.title || this.state?.title || 'Untitled Page',
+              url: enhancedContent.url || content.url || this.state?.url || '',
+              text: enhancedContent.text || content.text || '',
+              processedContent: enhancedContent.html || content.html || content.text || '',
+              timestamp: enhancedContent.timestamp || new Date().toISOString(),
+              extractionMethod: 'worker-enhanced',
+              extractionTime: enhancedContent.extractionTime || content.extractionTime || 0,
+              estimatedReadingTime: enhancedContent.estimatedReadingTime || 0,
+              headings: enhancedContent.headings || content.headings || [],
+              links: enhancedContent.links || content.links || [],
+              metadata: enhancedContent.metadata || content.metadata || {}
+            });
+          })
+          .catch(error => {
+            console.warn('Worker-based enhancement failed:', error);
+            // Fall back to basic formatting
+            resolve({
+              title: content.title || this.state?.title || 'Untitled Page',
+              url: content.url || this.state?.url || '',
+              text: content.text || '',
+              processedContent: content.html || content.text || '',
+              timestamp: content.timestamp || new Date().toISOString(),
+              extractionMethod: content.extractionMethod || 'worker',
+              extractionTime: content.extractionTime || 0
+            });
+          });
+      } else {
+        // Without worker, just format the content
+        resolve({
+          title: content.title || this.state?.title || 'Untitled Page',
+          url: content.url || this.state?.url || '',
+          text: content.text || '',
+          processedContent: content.html || content.text || '',
+          timestamp: content.timestamp || new Date().toISOString(),
+          extractionMethod: content.extractionMethod || 'direct',
+          extractionTime: content.extractionTime || 0
+        });
+      }
+    });
+  }
+  
+  /**
+   * Process page content in parallel for additional analysis
+   * This happens in the background and doesn't block the main extraction
+   * @param {Object} content - Initially extracted content
+   * @returns {Promise<Object>} Promise resolving to processed content
+   */
+  processPageInParallel(content) {
+    // Skip if no worker system or no content
+    if (!isWorkerSystemAvailable(this) || !content) {
+      return Promise.resolve(content);
+    }
+    
+    return new Promise((resolve, reject) => {
+      // Create an array of worker tasks to execute in parallel
+      const tasks = [
+        // Process text for readability metrics
+        WorkerManager.executeTask('process-text', { 
+          text: content.text,
+          options: { calculateReadability: true } 
+        }),
+        
+        // Extract links with additional metadata
+        WorkerManager.executeTask('extract-links', { 
+          html: content.processedContent,
+          url: content.url 
+        }),
+        
+        // Process metadata for better article understanding
+        WorkerManager.executeTask('process-metadata', { 
+          metadata: content.metadata || {} 
+        })
+      ];
+      
+      // Execute all tasks in parallel
+      Promise.allSettled(tasks)
+        .then(results => {
+          // Extract successful results
+          const processedText = results[0].status === 'fulfilled' ? results[0].value : null;
+          const processedLinks = results[1].status === 'fulfilled' ? results[1].value : null;
+          const processedMetadata = results[2].status === 'fulfilled' ? results[2].value : null;
+          
+          // Log results for debugging
+          console.log('Parallel processing completed:', {
+            textSuccess: Boolean(processedText),
+            linksSuccess: Boolean(processedLinks),
+            metadataSuccess: Boolean(processedMetadata)
+          });
+          
+          // Enhance the content with the processed data
+          if (processedText) {
+            content.readabilityScore = processedText.readabilityScore;
+            content.wordCount = processedText.wordCount;
+            content.sentenceCount = processedText.sentenceCount;
+          }
+          
+          if (processedLinks) {
+            content.enhancedLinks = processedLinks;
+          }
+          
+          if (processedMetadata) {
+            content.enhancedMetadata = processedMetadata.standardized;
+          }
+          
+          // Update research panel if available and active
+          if (this.researcher && this.isResearchModeActive()) {
+            this.researcher.updateContentInsights(content);
+          }
+          
+          resolve(content);
+        })
+        .catch(error => {
+          console.warn('Parallel processing error:', error);
+          reject(error);
+        });
+    });
+  }
+  
+  /**
+   * Preload page resources for smoother browsing experience
+   * Called when a page starts loading to prepare extraction system
+   * @returns {Promise<void>}
+   */
+  preloadPageResources() {
+    // Skip if no worker system
+    if (!isWorkerSystemAvailable(this)) {
+      return Promise.resolve();
+    }
+    
+    return new Promise((resolve) => {
+      // Ensure the worker is ready by executing a lightweight task
+      WorkerManager.executeTask('process-url', { url: this.state?.url || '' })
+        .then(result => {
+          console.log('Worker system preloaded for page:', this.state?.url);
+          
+          // Check if the URL is likely an article
+          if (result && result.isArticle) {
+            console.log('Preloading article extraction capabilities');
+            
+            // Warm up the readability extractor by sending a dummy task
+            WorkerManager.executeTask('sanitize-html', { 
+              html: '<div><p>Test content</p></div>',
+              allowedTags: ['div', 'p'] 
+            }).catch(() => {/* Ignore errors in preloading */});
+          }
+          
+          resolve();
+        })
+        .catch(() => {
+          // Silently resolve on error, this is just a preload
+          resolve();
+        });
+    });
   }
   
   /**
@@ -963,8 +1810,10 @@ class Voyager extends Component {
       // Create a new instance with proper configuration
       this.researcher = new Researcher({
         browser: this,
+        containerRef: this.researchPanel,
         currentUrl: this.state?.url,
         currentTitle: this.state?.title,
+        autoAnalyze: this.props?.autoAnalyzeContent || false,
         onToggle: (isActive) => {
           console.log(`Researcher component ${isActive ? 'activated' : 'deactivated'}`);
           this.setState({ researchMode: isActive });
@@ -975,6 +1824,11 @@ class Voyager extends Component {
           }
         }
       });
+      
+      // If research mode is already active in state, activate the researcher
+      if (this.state.researchMode) {
+        this.researcher.toggleActive();
+      }
       
       return true;
     } catch (error) {
@@ -987,7 +1841,7 @@ class Voyager extends Component {
    * Initialize the browser component
    * Called by the parent App component when navigating to browser view
    */
-  initialize() {
+  async initialize() {
     console.log('Initializing Voyager browser component');
     
     // Check if component is already initialized
@@ -996,9 +1850,43 @@ class Voyager extends Component {
       return;
     }
     
-    // Make sure component is mounted
-    if (!this.containerRef?.current || !this.containerRef.current.isConnected) {
-      console.warn('Cannot initialize Voyager - container not mounted');
+    // Check if we're already in the process of initializing
+    if (this._isInitializing) {
+      console.log('Voyager browser initialization already in progress, skipping');
+      return;
+    }
+    
+    // Mark as initializing to prevent concurrent initialization attempts
+    this._isInitializing = true;
+    
+    // Ensure CSS is loaded before proceeding with layout
+    try {
+      console.log('Loading browser CSS files...');
+      await cssLoader.initializeBrowserStyles();
+      console.log('Browser CSS loaded successfully');
+    } catch (error) {
+      console.error('Failed to load browser CSS, proceeding with emergency styles:', error);
+      cssLoader.applyEmergencyStyles();
+    }
+    
+    // Make sure component is mounted with more thorough checking
+    const hasContainer = this.containerRef?.current;
+    const isContainerConnected = hasContainer && (
+      this.containerRef.current.isConnected || 
+      document.contains(this.containerRef.current) ||
+      this.containerRef.current.parentNode
+    );
+    
+    if (!hasContainer || !isContainerConnected) {
+      console.warn('Cannot initialize Voyager - container not mounted', {
+        hasContainer: !!hasContainer,
+        isConnected: hasContainer ? this.containerRef.current.isConnected : false,
+        inDocument: hasContainer ? document.contains(this.containerRef.current) : false,
+        hasParent: hasContainer ? !!this.containerRef.current.parentNode : false
+      });
+      
+      // Reset initializing flag
+      this._isInitializing = false;
       
       // Try to initialize again after a short delay with increasing backoff
       if (!this._initAttempts) {
@@ -1006,13 +1894,13 @@ class Voyager extends Component {
       }
       
       this._initAttempts++;
-      const delay = Math.min(this._initAttempts * 200, 2000); // Increasing delay with cap at 2000ms (up from 1000ms)
+      const delay = Math.min(this._initAttempts * 200, 2000); // Shorter delays and cap
       
-      if (this._initAttempts < 20) { // Limit retries to prevent infinite loop
+      if (this._initAttempts < 10) { // Reduced retry limit to prevent excessive attempts
         console.log(`Retry #${this._initAttempts} scheduled in ${delay}ms`);
         setTimeout(() => {
           // Double-check if component wasn't cleaned up in the meantime
-          if (!this._isUnloading) {
+          if (!this._isUnloading && this.state.isMounted) {
             this.initialize();
           }
         }, delay);
@@ -1027,6 +1915,7 @@ class Voyager extends Component {
     
     // Mark as initialized to prevent duplicate setup
     this._isInitialized = true;
+    this._isInitializing = false;
     
     // Log container details for debugging
     console.log('Container ready for setup:', {
@@ -1043,6 +1932,25 @@ class Voyager extends Component {
     
     // Set up webview container
     setupWebViewContainer(this);
+    
+    // Ensure the webview has all required methods
+    if (this.webview) {
+      // Try to use StyleManager for method setup
+      try {
+        const StyleManager = require('./handlers/StyleManager').default;
+        if (StyleManager && typeof StyleManager.ensureApplyAllCriticalStylesMethod === 'function') {
+          StyleManager.ensureApplyAllCriticalStylesMethod(this.webview);
+        } else {
+          // Fallback to local helper function if StyleManager is not available
+          console.warn('StyleManager not available for method setup, using local fallback');
+          safeApplyCriticalStyles(this.webview, true);
+        }
+      } catch (error) {
+        console.warn('Error ensuring applyAllCriticalStyles method:', error);
+        // Use local helper as fallback
+        safeApplyCriticalStyles(this.webview, true);
+      }
+    }
     
     // Initialize centralized browser handlers
     initBrowserHandlers(this);
@@ -1066,13 +1974,16 @@ class Voyager extends Component {
         
         // Render tab manager button into the new container
         try {
-          const ReactDOM = require('react-dom');
-          ReactDOM.render(
+          const ReactDOM = require('react-dom/client');
+          // Check if we already have a root for this container
+          if (!this._tabManagerRoot) {
+            this._tabManagerRoot = ReactDOM.createRoot(tabManagerContainer);
+          }
+          this._tabManagerRoot.render(
             <TabManagerButton 
               voyager={this} 
               tabManager={this.tabManager.getTabManager()} 
-            />,
-            tabManagerContainer
+            />
           );
           console.log('Tab manager button rendered successfully in action buttons container');
         } catch (err) {
@@ -1159,25 +2070,425 @@ class Voyager extends Component {
     if (refreshButton) refreshButton.addEventListener('click', this.refreshPage);
     if (stopButton) stopButton.addEventListener('click', this.stopLoading);
     
-    // Always load Google.com on startup, regardless of initialUrl
-    setTimeout(() => {
-      // Double-check that webview still exists and is connected to DOM
-      if (this.webview && this.webview.isConnected) {
-        this.navigate('https://www.google.com');
-      } else {
-        console.warn('Webview not connected to DOM, delaying navigation');
-        // Try one more time with longer delay
-        setTimeout(() => {
-          if (this.webview && this.webview.isConnected) {
-            this.navigate('https://www.google.com');
-          }
-        }, 500);
-      }
-    }, 800); // Increased from 500ms to 800ms for better reliability
+    // Only schedule initial navigation if we haven't navigated yet and webview exists
+    if (!this.hasNavigatedInitially && this.webview) {
+      this._initialNavigationAttempts = 0;
+      this._scheduleInitialNavigation();
+    } else if (this.webview && !this.hasNavigatedInitially) {
+      // If webview exists but we haven't navigated, navigate immediately
+      console.log('Webview ready, navigating immediately to Google');
+      this.navigate('https://www.google.com');
+      this.hasNavigatedInitially = true;
+    }
     
     // Initialize researcher component if needed
     if (!this.researcher && this.props && this.props.enableResearch !== false) {
       this.initializeResearcher();
+    }
+  }
+  
+  /**
+   * Schedule the initial navigation with immediate reliability
+   */
+  _scheduleInitialNavigation() {
+    // Clear any existing scheduled navigation
+    if (this._initialNavigationTimeout) {
+      clearTimeout(this._initialNavigationTimeout);
+    }
+    
+    // Track attempts for debugging and emergency fallback
+    this._initialNavigationAttempts++;
+    
+    // Check if we've already navigated successfully
+    if (this.hasNavigatedInitially) {
+      console.log('Already navigated initially, skipping navigation scheduling');
+      return;
+    }
+    
+    // Start with very short delays, and immediately create emergency webview on 3rd attempt
+    const delay = this._initialNavigationAttempts === 1 ? 50 : 150;
+    
+    console.log(`Scheduling initial navigation attempt #${this._initialNavigationAttempts} in ${delay}ms`);
+    
+    this._initialNavigationTimeout = setTimeout(() => {
+      // Check again if we've already navigated
+      if (this.hasNavigatedInitially) {
+        console.log('Navigation already completed, cancelling scheduled attempt');
+        return;
+      }
+      
+      // Fast-track to emergency webview on 3rd attempt
+      if (this._initialNavigationAttempts >= 3) {
+        console.log('Fast-tracking to emergency webview creation');
+        this._createEmergencyWebview();
+        return;
+      }
+      
+      // More reliable webview connection check
+      const webviewExists = this.webview && typeof this.webview === 'object';
+      const webviewFunctional = webviewExists && 
+        typeof this.webview.src !== 'undefined' &&
+        (this.webview.src === '' || this.webview.src === 'about:blank' || this.webview.src.startsWith('http'));
+      const webviewConnected = webviewExists && 
+        (this.webview.isConnected || this.webview._isAttached || document.contains(this.webview));
+      
+      // Check if webview appears to be working (has loaded content)
+      const webviewWorking = webviewExists && webviewConnected && 
+        (this.webview.src !== '' && this.webview.src !== 'about:blank');
+      
+      // If webview is working and has content, don't recreate it
+      if (webviewWorking) {
+        console.log('Webview appears to be working with content, skipping recreation');
+        this.hasNavigatedInitially = true;
+        return;
+      }
+      
+      // Detailed diagnostic logging for better debugging
+      if (webviewExists && !webviewConnected) {
+        console.log('Webview exists but connection checks failed:', {
+          hasParent: Boolean(this.webview.parentNode),
+          isConnected: this.webview.isConnected,
+          _isAttached: this.webview._isAttached,
+          inDocument: document.contains(this.webview),
+          src: this.webview.src,
+          functional: webviewFunctional
+        });
+      }
+      
+      if (webviewConnected && webviewFunctional) {
+        console.log('Webview is connected to DOM, proceeding with navigation');
+        
+        // Force webview to be visible before navigation using direct style properties for safety
+        if (this.webview) {
+          try {
+            // Apply styles with direct property assignments first (safer than cssText)
+            this.webview.style.visibility = 'visible';
+            this.webview.style.opacity = '1';
+            this.webview.style.display = 'flex';
+            this.webview.style.position = 'absolute';
+            this.webview.style.top = '0';
+            this.webview.style.left = '0';
+            this.webview.style.width = '100%';
+            this.webview.style.height = '100%';
+            this.webview.style.minWidth = '100%';
+            this.webview.style.minHeight = '100%';
+            this.webview.style.zIndex = '10';
+            this.webview.style.border = 'none';
+            this.webview.style.margin = '0';
+            this.webview.style.padding = '0';
+            this.webview.style.backgroundColor = 'white';
+            this.webview.style.pointerEvents = 'auto';
+            
+            // Mark webview as ready and attached with multiple flags for redundancy
+            this.webview.readyToShow = true;
+            this.webview._isAttached = true;
+            this.webview.dataset.attached = "true";
+            
+            // Force a DOM reflow to ensure styles are applied
+            void this.webview.offsetHeight;
+            
+            // Apply styles with our method, skipping JavaScript execution until DOM is ready
+            this.applyWebviewStyles(this.webview, true);
+            
+            // Set a listener to track dom-ready state for proper JavaScript execution
+            if (!this._domReadyListener && this.webview) {
+              this._domReadyListener = () => {
+                console.log('Webview dom-ready event received - enabling JavaScript execution');
+                this.webview.dataset.domReady = 'true';
+                this.webview._domReady = true;
+                this.applyWebviewStyles(this.webview, false);
+              };
+              
+              try {
+                this.webview.addEventListener('dom-ready', this._domReadyListener);
+              } catch (e) {
+                console.warn('Could not add dom-ready listener:', e);
+              }
+            }
+            
+            // Set a listener to prevent destruction
+            if (!this._destructionListener && this.webview) {
+              this._destructionListener = () => {
+                console.log('Webview destruction prevented - reapplying styles');
+                setTimeout(() => this.applyWebviewStyles(this.webview, true), 0);
+                return true;
+              };
+              
+              try {
+                this.webview.addEventListener('destroyed', this._destructionListener);
+              } catch (e) {
+                console.warn('Could not add destruction listener:', e);
+              }
+            }
+          } catch (styleError) {
+            console.warn('Error applying webview styles:', styleError);
+            // Continue with navigation even if styling fails
+          }
+        }
+        
+        // Only navigate once we're sure the webview is ready
+        this.navigate('https://www.google.com');
+        this.hasNavigatedInitially = true;
+      } else {
+        console.warn('Webview not connected to DOM, retrying...');
+        
+        // Immediately try to recreate the webview container on first failure
+        if (this._initialNavigationAttempts === 1) {
+          console.log('First attempt failed, immediately recreating webview container');
+          
+          // Clear any existing webview elements
+          if (this.webviewContainer) {
+            while (this.webviewContainer.firstChild) {
+              this.webviewContainer.removeChild(this.webviewContainer.firstChild);
+            }
+          }
+          
+          try {
+            // Recreate the webview container and element
+            if (typeof setupWebViewContainer === 'function') {
+              setupWebViewContainer(this);
+              
+              // Verify webview creation and apply styling/flags
+              if (this.webview) {
+                this.webview.readyToShow = true;
+                this.webview._isAttached = true;
+                this.webview.dataset.attached = "true";
+                
+                // Apply styling immediately, but skip JavaScript
+                this.applyWebviewStyles(this.webview, true);
+                
+                // Force visibility
+                this.webview.style.visibility = 'visible';
+                this.webview.style.opacity = '1';
+                
+                // Force a reflow
+                void this.webview.offsetHeight;
+                
+                console.log('Applied critical styles after recreation');
+              }
+            }
+          } catch (error) {
+            console.error('Error recreating webview:', error);
+          }
+          
+          // Update worker system with new webview reference
+          if (this.webview && WorkerManager) {
+            try {
+              if (typeof WorkerManager.updateWebviewReference === 'function') {
+                WorkerManager.updateWebviewReference(this.webview);
+              }
+            } catch (err) {
+              console.warn('Error updating worker reference:', err);
+            }
+          }
+        }
+        
+        // Try once more and then go to emergency creation
+        this._scheduleInitialNavigation();
+      }
+    }, delay);
+  }
+  
+  /**
+   * Optimized emergency webview creation method with instant layout calculation
+   * @private
+   */
+  _createEmergencyWebview() {
+    console.log('Creating optimized emergency webview');
+    
+    try {
+      // First, clear any existing emergency webview containers
+      const existingEmergencyContainers = document.querySelectorAll('.emergency-browser-container');
+      existingEmergencyContainers.forEach(container => {
+        try {
+          container.remove();
+        } catch (e) {
+          console.warn('Error removing existing emergency container:', e);
+        }
+      });
+      
+      // Create a new container directly attached to document.body for maximum reliability
+      const container = document.createElement('div');
+      container.className = 'emergency-browser-container';
+      container.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2000;
+        background-color: white;
+        display: flex;
+        overflow: hidden;
+      `;
+      document.body.appendChild(container);
+      
+      // Store the container for later cleanup
+      this._emergencyContainer = container;
+      
+      // Create a high-performance webview with all necessary attributes
+      const webview = document.createElement('webview');
+      webview.className = 'emergency-webview';
+      webview.id = 'emergency-webview-' + Date.now();
+      
+      // Set optimized inline styling for immediate rendering
+      webview.style.cssText = `
+        width: 100% !important;
+        height: 100% !important;
+        display: flex !important;
+        flex: 1 !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        border: none !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: 100 !important;
+        background-color: white !important;
+        min-width: 100% !important;
+        min-height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      `;
+      
+      // Add essential attributes for proper rendering
+      webview.setAttribute('src', 'https://www.google.com');
+      webview.setAttribute('partition', 'persist:voyager-emergency-' + Date.now());
+      webview.setAttribute('allowtransparency', 'false');
+      webview.setAttribute('webpreferences', 'contextIsolation=yes, sandbox=yes');
+      
+      // Mark webview as ready before DOM insertion to avoid timing issues
+      webview.readyToShow = true;
+      webview._isAttached = true;
+      webview.dataset.emergency = "true";
+      
+      // Set up listeners BEFORE DOM insertion to catch all events
+      // 1. dom-ready listener
+      webview.addEventListener('dom-ready', () => {
+        console.log('Emergency webview dom-ready event fired');
+        // Mark the webview as ready for JavaScript execution
+        webview.dataset.domReady = 'true';
+        webview._domReady = true;
+        // Now apply styles including JavaScript
+        this.applyWebviewStyles(webview, false);
+      });
+      
+      // 2. did-finish-load listener
+      webview.addEventListener('did-finish-load', () => {
+        console.log('Emergency webview finished loading');
+        // Apply styling again after load completes
+        this.applyWebviewStyles(webview, false);
+      });
+      
+      // 3. Add error listener
+      webview.addEventListener('did-fail-load', (e) => {
+        if (e.errorCode !== -3) { // Ignore aborted navigation
+          console.error('Emergency webview failed to load:', e);
+        }
+      });
+      
+      // 4. Add destroyed listener to monitor and prevent destruction
+      webview.addEventListener('destroyed', () => {
+        console.warn('Emergency webview was destroyed, reapplying styles');
+        setTimeout(() => {
+          if (webview && webview.isConnected) {
+            this.applyWebviewStyles(webview, true);
+          }
+        }, 0);
+      });
+      
+      // Add the webview to the container
+      container.appendChild(webview);
+      
+      // Update reference in this component
+      this.webview = webview;
+      
+      // Force DOM layout calculation for immediate rendering
+      void container.offsetHeight;
+      void webview.offsetHeight;
+      
+      // Apply all styling immediately
+      this.applyWebviewStyles(webview, true);
+      
+      // Update worker system with new webview reference
+      if (WorkerManager && typeof WorkerManager.updateWebviewReference === 'function') {
+        WorkerManager.updateWebviewReference(webview);
+        console.log('Worker system webview reference updated');
+      }
+      
+      console.log('Emergency webview created and attached to DOM successfully');
+      
+      // Add brief double-check after layout calculation
+      setTimeout(() => {
+        if (webview && webview.isConnected) {
+          // Check if any safety measures are needed
+          const computedStyle = window.getComputedStyle(webview);
+          const needsAdjustment = 
+            computedStyle.visibility !== 'visible' || 
+            computedStyle.display === 'none' ||
+            parseInt(computedStyle.width) < 10 ||
+            parseInt(computedStyle.height) < 10;
+            
+          if (needsAdjustment) {
+            console.log('Safety check: Webview dimensions need adjustment');
+            webview.style.cssText = `
+              width: 100% !important;
+              height: 100% !important;
+              display: flex !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+              position: absolute !important;
+              top: 0 !important;
+              left: 0 !important;
+              z-index: 100 !important;
+            `;
+            void webview.offsetHeight;
+          }
+        }
+      }, 200);
+      
+      return true;
+    } catch (err) {
+      console.error('Emergency webview creation failed:', err);
+      // Try a final fallback method
+      this._createMinimalFallbackWebview();
+      return false;
+    }
+  }
+  
+  /**
+   * Ultra-minimal fallback webview creation as final resort
+   * @private
+   */
+  _createMinimalFallbackWebview() {
+    try {
+      // Create most basic container possible
+      const container = document.createElement('div');
+      container.id = 'minimal-emergency-container';
+      container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:3000;background:white;';
+      
+      // Create minimal webview
+      const webview = document.createElement('webview');
+      webview.id = 'minimal-emergency-webview';
+      webview.src = 'https://www.google.com';
+      webview.style.cssText = 'width:100%;height:100%;border:none;';
+      
+      // Add to DOM
+      container.appendChild(webview);
+      document.body.appendChild(container);
+      
+      // Update reference
+      this.webview = webview;
+      this._emergencyContainer = container;
+      
+      console.log('Created minimal fallback webview as last resort');
+      return true;
+    } catch (err) {
+      console.error('Even minimal fallback webview creation failed:', err);
+      return false;
     }
   }
   
@@ -1190,47 +2501,15 @@ class Voyager extends Component {
     
     // Reset initialization flags
     this._isInitialized = false;
+    this._isInitializing = false;
     this.hasNavigatedInitially = false;
     
-    // Remove any event listeners
-    if (this.webview) {
-      this.webview.removeEventListener('did-start-loading', this.handleLoadStart);
-      this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
-      this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
-      this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
-      this.webview.removeEventListener('did-fail-load', this.handleDidFailLoad);
-      this.webview.removeEventListener('certificate-error', this.handleCertificateError);
+    // Clear any active intervals first to prevent them from running during cleanup
+    if (this._emergencyStyleInterval) {
+      clearInterval(this._emergencyStyleInterval);
+      this._emergencyStyleInterval = null;
     }
     
-    // Clean up sidebar observer if it exists
-    if (this._sidebarObserver) {
-      this._sidebarObserver.disconnect();
-      this._sidebarObserver = null;
-    }
-    
-    // Remove sidebar state change listener
-    if (this._sidebarStateHandler) {
-      document.removeEventListener('click', this._sidebarStateHandler);
-      this._sidebarStateHandler = null;
-    }
-    
-    // Clean up tab manager button if it exists
-    const actionButtonsContainer = document.querySelector('.browser-action-buttons');
-    if (actionButtonsContainer) {
-      try {
-        const ReactDOM = require('react-dom');
-        // Find the tab-manager-container inside the action buttons container
-        const tabManagerContainer = actionButtonsContainer.querySelector('.tab-manager-container');
-        if (tabManagerContainer) {
-          ReactDOM.unmountComponentAtNode(tabManagerContainer);
-          console.log('Tab manager button unmounted successfully');
-        }
-      } catch (err) {
-        console.warn('Error cleaning up tab manager button:', err);
-      }
-    }
-    
-    // Clear any active timers and intervals
     if (this._navigationTimeout) {
       clearTimeout(this._navigationTimeout);
       this._navigationTimeout = null;
@@ -1241,44 +2520,192 @@ class Voyager extends Component {
       this._loadDetectionInterval = null;
     }
     
-    // Hide browser elements
-    if (this.webview) {
-      this.webview.style.visibility = 'hidden';
-      this.webview.style.opacity = '0';
+    if (this._initialNavigationTimeout) {
+      clearTimeout(this._initialNavigationTimeout);
+      this._initialNavigationTimeout = null;
     }
     
+    // Reset navigation attempts
+    this._initialNavigationAttempts = 0;
+    
+    // Remove destruction prevention listener if it exists
+    if (this._destructionListener && this.webview) {
+      try {
+        this.webview.removeEventListener('destroyed', this._destructionListener);
+        this._destructionListener = null;
+      } catch (err) {
+        console.warn('Error removing destruction listener:', err);
+      }
+    }
+    
+    // Remove any event listeners from webview
+    if (this.webview) {
+      try {
+        // Standard events
+        this.webview.removeEventListener('did-start-loading', this.handleLoadStart);
+        this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
+        this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
+        this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
+        this.webview.removeEventListener('did-fail-load', this.handleDidFailLoad);
+        this.webview.removeEventListener('certificate-error', this.handleCertificateError);
+        
+        // Additional events that might have been added
+        this.webview.removeEventListener('dom-ready', this.handleDomReady);
+        this.webview.removeEventListener('destroyed', this.handleDestroyed);
+      } catch (err) {
+        console.warn('Error removing event listeners from webview:', err);
+      }
+    }
+    
+    // Clean up emergency webview container if it exists
+    if (this._emergencyContainer && this._emergencyContainer.isConnected) {
+      try {
+        if (this._emergencyContainer.parentNode) {
+          this._emergencyContainer.parentNode.removeChild(this._emergencyContainer);
+        }
+        this._emergencyContainer = null;
+      } catch (err) {
+        console.warn('Error cleaning up emergency container:', err);
+      }
+    }
+    
+    // Find and remove any emergency containers that might have been created
+    const emergencyContainers = document.querySelectorAll('.emergency-browser-container');
+    emergencyContainers.forEach(container => {
+      try {
+        if (container.parentNode) {
+          container.parentNode.removeChild(container);
+        }
+      } catch (err) {
+        console.warn('Error removing emergency container:', err);
+      }
+    });
+    
+    // Clean up sidebar observer if it exists
+    if (this._sidebarObserver) {
+      this._sidebarObserver.disconnect();
+      this._sidebarObserver = null;
+    }
+    
+    // Clean up tab manager button if it exists
+    const actionButtonsContainer = document.querySelector('.browser-action-buttons');
+    if (actionButtonsContainer) {
+      try {
+        const tabManagerContainer = actionButtonsContainer.querySelector('.tab-manager-container');
+        if (tabManagerContainer && tabManagerContainer.parentNode) {
+          tabManagerContainer.parentNode.removeChild(tabManagerContainer);
+          console.log('Tab manager container removed successfully');
+        }
+      } catch (err) {
+        console.warn('Error cleaning up tab manager button:', err);
+      }
+    }
+    
+    // Hide and clean up webview if it exists
+    if (this.webview) {
+      try {
+        // Hide webview first
+        this.webview.style.visibility = 'hidden';
+        this.webview.style.opacity = '0';
+        this.webview.style.display = 'none';
+        
+        // Use applyWebviewStyles for hiding
+        if (this.applyWebviewStyles) {
+          try {
+            // Custom method to apply "hidden" styles
+            this.webview.style.visibility = 'hidden';
+            this.webview.style.opacity = '0';
+            this.webview.style.display = 'none';
+          } catch (styleErr) {
+            console.warn('Error applying hidden styles to webview:', styleErr);
+          }
+        }
+        
+        // Remove webview from DOM if possible
+        if (this.webview.parentNode) {
+          try {
+            this.webview.parentNode.removeChild(this.webview);
+          } catch (removeErr) {
+            console.warn('Error removing webview from DOM:', removeErr);
+          }
+        }
+      } catch (err) {
+        console.warn('Error cleaning up webview element:', err);
+      }
+    }
+    
+    // Handle iframe cleanup if used
     if (this.iframe) {
-      this.iframe.style.visibility = 'hidden';
-      this.iframe.style.opacity = '0';
+      try {
+        this.iframe.style.visibility = 'hidden';
+        this.iframe.style.opacity = '0';
+        this.iframe.style.display = 'none';
+        
+        if (this.iframe.parentNode) {
+          this.iframe.parentNode.removeChild(this.iframe);
+        }
+      } catch (err) {
+        console.warn('Error cleaning up iframe element:', err);
+      }
     }
     
     // Clean up container contents if available
     if (this.containerRef && this.containerRef.current) {
-      // Clear container contents
-      while (this.containerRef.current.firstChild) {
-        this.containerRef.current.removeChild(this.containerRef.current.firstChild);
+      try {
+        // Clear container contents
+        while (this.containerRef.current.firstChild) {
+          this.containerRef.current.removeChild(this.containerRef.current.firstChild);
+        }
+      } catch (err) {
+        console.warn('Error cleaning up container contents:', err);
       }
     }
     
     // Clean up research panel if it exists
     if (this.researchPanel && this.researchPanel.isConnected) {
-      this.researchPanel.remove();
-      this.researchPanel = null;
+      try {
+        this.researchPanel.remove();
+        this.researchPanel = null;
+      } catch (err) {
+        console.warn('Error removing research panel:', err);
+      }
     }
     
     // Remove any stand-alone research panels that might be in the body
     const researchPanels = document.querySelectorAll('body > .browser-research-panel');
     researchPanels.forEach(panel => {
-      if (panel.parentNode) {
-        panel.parentNode.removeChild(panel);
+      try {
+        if (panel.parentNode) {
+          panel.parentNode.removeChild(panel);
+        }
+      } catch (err) {
+        console.warn('Error removing research panel:', err);
       }
     });
     
     // Reset loading state if needed
     if (this.state?.isLoading) {
       this.setState({ isLoading: false });
-      updateLoadingIndicator(this, false);
+      if (typeof updateLoadingIndicator === 'function') {
+        updateLoadingIndicator(this, false);
+      }
     }
+    
+    // Clean up worker system if we're the last browser component
+    const otherInstances = document.querySelectorAll('.voyager-browser');
+    if (otherInstances.length <= 1) {
+      console.log('Last browser instance closing, cleaning up worker system');
+      if (WorkerManager && typeof WorkerManager.cleanup === 'function') {
+        WorkerManager.cleanup();
+      }
+    }
+    
+    // Final nullification of critical references
+    this.webview = null;
+    this.iframe = null;
+    this.webviewContainer = null;
+    
+    console.log('Voyager browser component cleanup completed');
   }
   
   handleDidFailLoad = (e) => {
@@ -1358,6 +2785,57 @@ class Voyager extends Component {
     }
   }
   
+  /**
+   * Fallback extraction method when worker-based extraction fails
+   * @returns {Promise<Object>} Promise resolving to extracted content
+   */
+  fallbackExtraction() {
+    console.log('Using ExtractorManager for content extraction');
+    
+    // Ensure we log the fallback attempt
+    try {
+      // Check if we're using the fallback extraction because of worker availability
+      if (!isWorkerSystemAvailable(this)) {
+        console.log('Fallback extraction reason: Worker system not available');
+      }
+    } catch (err) {
+      // Don't block extraction due to logging error
+      console.warn('Error checking worker availability:', err);
+    }
+    
+    return ExtractorManager.extract(this, this.state?.url || '', { preferWorker: false })
+      .then(result => {
+        // Log successful extraction
+        console.log(`ExtractorManager extraction succeeded via ${result.extractionMethod || 'unknown'} method`);
+        
+        // Format the result to match the expected API
+        return {
+          title: result.title || this.state?.title || 'Untitled Page',
+          url: result.url || this.state?.url || '',
+          text: result.text || '',
+          processedContent: result.html || result.text || '',
+          timestamp: result.timestamp || new Date().toISOString(),
+          extractionMethod: result.extractionMethod || 'fallback',
+          extractionTime: result.extractionTime || 0
+        };
+      })
+      .catch(error => {
+        console.error('Fallback extraction failed:', error);
+        
+        // Return minimal data if all extraction methods fail
+        console.log('Returning minimal data for page');
+        return {
+          title: this.state?.title || 'Untitled Page',
+          url: this.state?.url || '',
+          text: '',
+          processedContent: '',
+          timestamp: new Date().toISOString(),
+          extractionMethod: 'minimal-fallback',
+          extractionTime: 0
+        };
+      });
+  }
+  
   render() {
     // Destructure props for easier access and defaults
     const { 
@@ -1405,8 +2883,8 @@ class Voyager extends Component {
             borderBottom: '1px solid #ddd'
           }}>
             {/* Navigation buttons */}
-            <button onClick={() => handleBackAction(this)} style={{ marginRight: '4px' }}>◀</button>
-            <button onClick={() => handleForwardAction(this)} style={{ marginRight: '8px' }}>▶</button>
+            <button onClick={this.handleBackAction} style={{ marginRight: '4px' }}>◀</button>
+            <button onClick={this.handleForwardAction} style={{ marginRight: '8px' }}>▶</button>
             <button onClick={this.refreshPage} style={{ marginRight: '8px' }}>↻</button>
             <button onClick={this.stopLoading} style={{ marginRight: '8px' }}>✕</button>
             
@@ -1418,7 +2896,7 @@ class Voyager extends Component {
             </button>
             
             {/* Bookmark button */}
-            <button onClick={() => handleBookmarkCreation(this)} style={{ marginLeft: '8px' }}>
+            <button onClick={this.addBookmark} style={{ marginLeft: '8px' }}>
               🔖
             </button>
           </div>
@@ -1528,26 +3006,9 @@ class Voyager extends Component {
           </div>
         )}
 
-        {/* Research component (renderless) */}
-        {this.state.isMounted && enableResearch && (
-          <Researcher 
-            ref={(ref) => this.researcher = ref}
-            browser={this}
-            containerRef={this.researchPanel}
-            currentUrl={this.state.url}
-            currentTitle={this.state.title}
-            autoAnalyze={autoAnalyzeContent}
-            onToggle={(isActive) => {
-              console.log(`Research panel ${isActive ? 'activated' : 'deactivated'}`);
-              this.setState({ researchMode: isActive });
-            }}
-            onResearchItemClick={(item) => {
-              if (item && item.url) {
-                this.navigate(item.url);
-              }
-            }}
-          />
-        )}
+        {/* Research component initialization */}
+        {/* Note: Researcher is initialized programmatically in initializeResearcher() method */}
+        {/* It manages its own DOM and doesn't need to be rendered through React */}
       </div>
     );
   }

@@ -217,26 +217,42 @@ async function initSettingsService() {
         window.backend = {};
       }
       
-      if (!window.backend.settingsService) {
-        const serviceAPI = {
-          getSettings,
-          saveSettings,
-          clearSettings,
-          getApiKey,
-          setApiKey,
-          testApiKey
-        };
-        
-        // Use Object.defineProperty to avoid issues with non-extensible objects
-        Object.defineProperty(window.backend, 'settingsService', {
-          value: serviceAPI,
-          writable: true,
-          configurable: true
-        });
+      const serviceAPI = {
+        getSettings,
+        saveSettings,
+        clearSettings,
+        getApiKey,
+        setApiKey,
+        testApiKey
+      };
+      
+      // Check if window.backend is extensible and if settingsService can be defined
+      try {
+        if (Object.isExtensible(window.backend)) {
+          // Use Object.defineProperty to set the property
+          Object.defineProperty(window.backend, 'settingsService', {
+            value: serviceAPI,
+            writable: true,
+            configurable: true
+          });
+        } else {
+          // If window.backend is not extensible, use the "backdoor" method - attach directly to window
+          // This creates a parallel API access pattern: window.settingsService that works alongside window.backend
+          window.settingsService = serviceAPI;
+          
+          // Log that we're using the alternate access pattern
+          settingsLogger.info('SettingsService registered as window.settingsService (backend not extensible)');
+          console.log('SettingsService registered as window.settingsService (backend not extensible)');
+        }
+      } catch (defPropError) {
+        // If Object.defineProperty fails or window.backend can't be modified, use alternate method
+        window.settingsService = serviceAPI;
+        settingsLogger.info('SettingsService registered as window.settingsService (defineProperty failed)');
+        console.log('SettingsService registered as window.settingsService (defineProperty failed)');
       }
       
-      settingsLogger.info('SettingsService registered with window.backend');
-      console.log('SettingsService registered with window.backend');
+      settingsLogger.info('SettingsService registered successfully');
+      console.log('SettingsService registered successfully');
     } catch (error) {
       settingsLogger.error('Failed to register SettingsService:', error);
       console.error('Failed to register SettingsService:', error);
@@ -257,15 +273,33 @@ async function initSettingsService() {
         testApiKey
       };
       
-      // Use Object.defineProperty to avoid issues with non-extensible objects
-      Object.defineProperty(window.backend, 'settingsService', {
-        value: serviceAPI,
-        writable: true,
-        configurable: true
-      });
+      // Check if window.backend is extensible and if settingsService can be defined
+      try {
+        if (Object.isExtensible(window.backend)) {
+          // Use Object.defineProperty to set the property
+          Object.defineProperty(window.backend, 'settingsService', {
+            value: serviceAPI,
+            writable: true,
+            configurable: true
+          });
+        } else {
+          // If window.backend is not extensible, use the "backdoor" method - attach directly to window
+          // This creates a parallel API access pattern: window.settingsService that works alongside window.backend
+          window.settingsService = serviceAPI;
+          
+          // Log that we're using the alternate access pattern
+          settingsLogger.info('SettingsService registered as window.settingsService (browser, backend not extensible)');
+          console.log('SettingsService registered as window.settingsService (browser, backend not extensible)');
+        }
+      } catch (defPropError) {
+        // If Object.defineProperty fails or window.backend can't be modified, use alternate method
+        window.settingsService = serviceAPI;
+        settingsLogger.info('SettingsService registered as window.settingsService (browser, defineProperty failed)');
+        console.log('SettingsService registered as window.settingsService (browser, defineProperty failed)');
+      }
       
-      settingsLogger.info('SettingsService registered with window.backend (browser)');
-      console.log('SettingsService registered with window.backend (browser)');
+      settingsLogger.info('SettingsService registered successfully (browser)');
+      console.log('SettingsService registered successfully (browser)');
     } catch (error) {
       settingsLogger.error('Failed to register SettingsService (browser):', error);
       console.error('Failed to register SettingsService (browser):', error);

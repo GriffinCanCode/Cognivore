@@ -61,7 +61,7 @@ module.exports = {
       meta: {
         'Content-Security-Policy': {
           'http-equiv': 'Content-Security-Policy',
-          'content': "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com"
+          'content': "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://*.googleapis.com"
         }
       }
     }),
