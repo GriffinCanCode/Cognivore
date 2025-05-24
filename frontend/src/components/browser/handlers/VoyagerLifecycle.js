@@ -11,6 +11,67 @@ import ExtractorManager from '../extraction/ExtractorManager';
 // Create a dedicated logger for this module
 const lifecycleLogger = logger.scope('VoyagerLifecycle');
 
+// Global state tracking to prevent race conditions
+const browserStateTracker = new Map();
+
+/**
+ * Check if browser DOM is properly ready for initialization
+ * @param {Object} browser - Voyager browser instance
+ * @returns {boolean} True if DOM is ready
+ */
+function isDomReadyForBrowser(browser) {
+  if (!browser || !browser.containerRef || !browser.containerRef.current) {
+    return false;
+  }
+  
+  const container = browser.containerRef.current;
+  
+  // Enhanced DOM readiness check - more resilient than before
+  const isContainerReady = container && (
+    // Standard connected check
+    container.isConnected || 
+    // Document contains check (more reliable)
+    document.contains(container) ||
+    // Has parent node (fallback)
+    container.parentNode ||
+    // Additional check: is the container actually in the DOM tree
+    (container.parentElement && document.contains(container.parentElement))
+  );
+  
+  // Additional safety check: ensure container has some basic properties
+  const hasBasicDomProperties = container && 
+    typeof container.tagName === 'string' &&
+    typeof container.appendChild === 'function';
+  
+  const isReady = isContainerReady && hasBasicDomProperties;
+  
+  if (!isReady) {
+    console.log('🔍 DOM readiness check failed:', {
+      hasContainer: !!container,
+      isConnected: container?.isConnected,
+      inDocument: container ? document.contains(container) : false,
+      hasParent: !!container?.parentNode,
+      hasParentElement: !!container?.parentElement,
+      parentInDocument: container?.parentElement ? document.contains(container.parentElement) : false,
+      hasTagName: container ? typeof container.tagName === 'string' : false,
+      hasAppendChild: container ? typeof container.appendChild === 'function' : false
+    });
+  }
+  
+  return isReady;
+}
+
+/**
+ * Reset browser initialization state - called when component unmounts
+ * @param {Object} browser - Voyager browser instance
+ */
+function resetBrowserState(browser) {
+  if (browser && browser.browserId) {
+    browserStateTracker.delete(browser.browserId);
+    lifecycleLogger.debug(`Reset browser state for ID: ${browser.browserId}`);
+  }
+}
+
 /**
  * Initialize the Voyager browser component
  * 
@@ -32,30 +93,93 @@ export function initialize(browser, options = {}) {
     return;
   }
   
-  console.error('🚨 EXTREME DEBUG: Browser state check');
+  console.error('🚨 EXTREME DEBUG: Browser state and DOM readiness check');
   
-  // Initialize state if not already initialized
-  if (!browser.state) {
-    console.error('🚨 EXTREME DEBUG: Browser state not found, initializing state');
-    console.log('🔍 VOYAGER LIFECYCLE: Browser state not found, initializing state');
-    lifecycleLogger.debug('Browser state not found, initializing state');
-    browser.setState({
-      isLoading: false,
-      url: '',
-      displayUrl: '',
-      title: '',
-      favicon: null,
-      error: null,
-      history: [],
-      currentHistoryIndex: -1,
-      isSearchMode: false,
-      showSettings: false,
-      scrollPosition: 0
+  // CRITICAL FIX: Check DOM readiness regardless of state existence
+  const isDomReady = isDomReadyForBrowser(browser);
+  const hasTrackedState = browserStateTracker.has(browser.browserId);
+  
+  console.log('🔍 VOYAGER LIFECYCLE: DOM and state status:', {
+    browserId: browser.browserId,
+    isDomReady,
+    hasTrackedState,
+    hasReactState: !!browser.state,
+    isComponentMounted: browser.state?.isMounted
+  });
+  
+  // If DOM is not ready, we must wait regardless of state
+  if (!isDomReady) {
+    console.error('🚨 EXTREME DEBUG: DOM NOT READY - scheduling retry');
+    console.log('🔍 VOYAGER LIFECYCLE: DOM not ready, scheduling retry');
+    lifecycleLogger.warn('DOM not ready for initialization, will retry');
+    
+    // Schedule a retry with exponential backoff
+    const retryCount = (browser._lifecycleRetryCount || 0) + 1;
+    browser._lifecycleRetryCount = retryCount;
+    
+    if (retryCount <= 10) {
+      const delay = Math.min(100 * Math.pow(1.2, retryCount), 2000);
+      console.log(`🔄 VOYAGER LIFECYCLE: Scheduling retry #${retryCount} in ${delay}ms`);
+      
+      setTimeout(() => {
+        // Double-check component is still mounted before retry
+        if (!browser._isUnloading && browser.state?.isMounted) {
+          initialize(browser, options);
+        } else {
+          console.log('🔍 VOYAGER LIFECYCLE: Component unmounted during retry, aborting');
+        }
+      }, delay);
+    } else {
+      console.error('🔍 VOYAGER LIFECYCLE: Max retries exceeded for DOM readiness');
+      lifecycleLogger.error('Max retries exceeded waiting for DOM readiness');
+    }
+    return;
+  }
+  
+  // Reset retry count on successful DOM check
+  browser._lifecycleRetryCount = 0;
+  
+  // Initialize state if not already initialized OR if this is a fresh mount
+  const needsStateInit = !browser.state || !hasTrackedState || options.forceStateReset;
+  
+  if (needsStateInit) {
+    console.error('🚨 EXTREME DEBUG: Initializing browser state');
+    console.log('🔍 VOYAGER LIFECYCLE: Initializing browser state (fresh or forced)');
+    lifecycleLogger.debug('Initializing browser state');
+    
+    // Mark this browser as tracked
+    browserStateTracker.set(browser.browserId, {
+      initialized: true,
+      timestamp: Date.now()
     });
+    
+    // Only set state if browser doesn't have state or if forcing reset
+    if (!browser.state || options.forceStateReset) {
+      browser.setState({
+        isLoading: false,
+        url: browser.state?.url || '',
+        displayUrl: browser.state?.displayUrl || '',
+        title: browser.state?.title || '',
+        favicon: browser.state?.favicon || null,
+        error: browser.state?.error || null,
+        history: browser.state?.history || [],
+        currentHistoryIndex: browser.state?.currentHistoryIndex || -1,
+        isSearchMode: browser.state?.isSearchMode || false,
+        showSettings: browser.state?.showSettings || false,
+        scrollPosition: browser.state?.scrollPosition || 0,
+        isMounted: true // Ensure mounted state is set
+      });
+    }
   } else {
-    console.error('🚨 EXTREME DEBUG: Browser state exists, skipping initialization');
-    console.log('🔍 VOYAGER LIFECYCLE: Browser state exists, skipping state initialization');
-    lifecycleLogger.debug('Browser state already exists, skipping state initialization');
+    console.error('🚨 EXTREME DEBUG: Browser state exists and DOM is ready - proceeding with initialization');
+    console.log('🔍 VOYAGER LIFECYCLE: Browser state exists and DOM ready, proceeding');
+    lifecycleLogger.debug('Browser state exists and DOM ready, proceeding with initialization');
+    
+    // Update tracking timestamp
+    browserStateTracker.set(browser.browserId, {
+      initialized: true,
+      timestamp: Date.now()
+    });
   }
   
   // Initialize sub-components and managers
@@ -95,6 +219,13 @@ export function initialize(browser, options = {}) {
     const attemptNumber = ++browser._webviewCreationAttempts;
     console.log(`🔥 VOYAGER LIFECYCLE: Attempting webview creation - attempt ${attemptNumber}/${browser._maxWebviewCreationAttempts}`);
     lifecycleLogger.info(`Attempting webview creation - attempt ${attemptNumber}/${browser._maxWebviewCreationAttempts}`);
+    
+    // CRITICAL: Double-check DOM is still ready before each attempt
+    if (!isDomReadyForBrowser(browser)) {
+      console.log('🔥 VOYAGER LIFECYCLE: DOM no longer ready during webview creation attempt');
+      lifecycleLogger.warn('DOM no longer ready during webview creation attempt');
+      return false;
+    }
     
     // Check if we have direct vs. initBrowserContent method of creation
     if (typeof browser.createWebviewElement === 'function') {
@@ -200,11 +331,17 @@ export function initialize(browser, options = {}) {
     
     // Schedule next attempt with a delay
     setTimeout(() => {
-      const result = attemptWebviewCreation();
-      
-      // If failed, schedule next attempt
-      if (!result) {
-        scheduleNextAttempt();
+      // Check if component is still mounted before next attempt
+      if (!browser._isUnloading && browser.state?.isMounted) {
+        const result = attemptWebviewCreation();
+        
+        // If failed, schedule next attempt
+        if (!result) {
+          scheduleNextAttempt();
+        }
+      } else {
+        console.log('🔄 VOYAGER LIFECYCLE: Component unmounted during webview creation retry, aborting');
+        lifecycleLogger.info('Component unmounted during webview creation retry, aborting');
       }
     }, delay);
   };
@@ -221,7 +358,7 @@ export function initialize(browser, options = {}) {
       console.log('🔄 VOYAGER LIFECYCLE: First attempt failed, scheduling retry sequence');
       scheduleNextAttempt();
     }
-  }, 100);
+  }, 50); // Reduced initial delay for faster startup
   
   console.log('🏁 VOYAGER LIFECYCLE: Voyager browser initialization sequence started');
   lifecycleLogger.info('Voyager browser initialization complete');
@@ -413,6 +550,9 @@ function saveState(browser) {
 export function cleanup(browser) {
   lifecycleLogger.info('Cleaning up Voyager browser component', browser.browserId);
   
+  // CRITICAL FIX: Reset browser state tracking first
+  resetBrowserState(browser);
+  
   // Clean up window event listeners
   if (browser._boundWindowHandlers) {
     lifecycleLogger.debug('Removing window event listeners');
@@ -455,6 +595,11 @@ export function cleanup(browser) {
     clearInterval(browser._loadDetectionInterval);
     browser._loadDetectionInterval = null;
   }
+  
+  // Reset initialization flags
+  browser._isWebviewInitialized = false;
+  browser._webviewCreationAttempts = 0;
+  browser._lifecycleRetryCount = 0;
   
   // Clean up webview
   lifecycleLogger.debug('Cleaning up webview');
@@ -604,8 +749,9 @@ function cleanupWebview(browser) {
 
 export default {
   initialize,
-  cleanup
-}; 
+  cleanup,
+  resetBrowserState
+};
 
 // Also add CommonJS style exports for compatibility
 if (typeof module !== 'undefined' && module.exports) {
@@ -614,9 +760,11 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
       initialize,
       cleanup,
+      resetBrowserState,
       default: {
         initialize,
-        cleanup
+        cleanup,
+        resetBrowserState
       }
     };
     console.error('🚨 EXTREME DEBUG: CommonJS exports complete for VoyagerLifecycle');

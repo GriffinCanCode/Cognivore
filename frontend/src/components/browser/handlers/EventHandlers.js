@@ -43,6 +43,148 @@ export function handleWebviewLoad(browser, e) {
   
   // First apply critical styles before hiding loading content
   enforceFullscreenStyles(browser);
+
+  // Apply specialized fixes for Google with enhanced reliability
+  if (browser.webview && 
+      browser.state && 
+      browser.state.url && 
+      browser.state.url.includes('google.com') && 
+      typeof browser.webview.executeJavaScript === 'function') {
+    try {
+      // First ensure webview is fully visible regardless of load state
+      browser.webview.style.visibility = 'visible';
+      browser.webview.style.opacity = '1';
+      browser.webview.style.display = 'flex';
+      browser.webview.style.zIndex = '10';
+      
+      // Force a layout recalculation to ensure styles are applied
+      void browser.webview.offsetHeight;
+      
+      // Apply critical visibility styles as a backup method
+      if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+        browser.webview.applyAllCriticalStyles(true);
+      }
+      
+      browser.webview.executeJavaScript(`
+        (function() {
+          // Apply more comprehensive Google-specific fixes with stronger selectors
+          const style = document.createElement('style');
+          style.id = 'cognivore-google-fixes';
+          style.textContent = \`
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100% !important;
+              height: 100% !important;
+              overflow-x: hidden !important;
+              position: absolute !important;
+              top: 0 !important;
+              left: 0 !important;
+              right: 0 !important;
+              bottom: 0 !important;
+            }
+            
+            /* Enhanced Google Search containers with !important declarations */
+            #main, #cnt, #rcnt, #center_col, #rso, [role="main"],
+            .g, .yuRUbf, .MjjYud, #search, #searchform, .minidiv, .sfbg,
+            .s6JM6d, .T4LgNb, .SDkEP, .RNNXgb, .a4bIc, .UUbT9, .aajZCb,
+            .lJ9FBc, .FPdoLc, .OUZ5W {
+              width: 100% !important;
+              max-width: 100% !important;
+              margin-left: 0 !important;
+              margin-right: 0 !important;
+              padding-left: 0 !important;
+              padding-right: 0 !important;
+              box-sizing: border-box !important;
+            }
+            
+            /* Fix search bar and results layout */
+            .g, .yuRUbf, .MjjYud {
+              width: 100% !important;
+              max-width: 100% !important;
+              display: block !important;
+            }
+            
+            /* Make sure critical containers have proper width */
+            .s6JM6d, .T4LgNb, .SDkEP, .RNNXgb {
+              width: 100% !important;
+              max-width: 100% !important;
+              box-sizing: border-box !important;
+              display: block !important;
+            }
+            
+            /* Ensure content visibility */
+            * {
+              visibility: visible !important;
+              max-width: 100vw !important;
+              overflow-x: hidden !important;
+            }
+          \`;
+
+          // Use try/catch to prevent any possible errors from breaking rendering
+          try {
+            // Add to document if not already present
+            if (!document.getElementById('cognivore-google-fixes')) {
+              document.head.appendChild(style);
+              console.log("Applied enhanced Google-specific fixes");
+            }
+
+            // Direct style application to critical elements
+            document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; overflow-x: hidden !important; margin: 0 !important; padding: 0 !important;";
+            document.body.style.cssText += "width: 100% !important; height: 100% !important; overflow-x: hidden !important; margin: 0 !important; padding: 0 !important; position: absolute !important; top: 0 !important; left: 0 !important;";
+            
+            // Apply styles directly to Google's main container elements
+            const mainContainers = [
+              document.getElementById('main'),
+              document.getElementById('cnt'),
+              document.getElementById('rcnt'),
+              document.getElementById('center_col'),
+              document.getElementById('rso'),
+              document.querySelector('[role="main"]'),
+              document.querySelector('#search'),
+              document.querySelector('.minidiv'),
+              document.querySelector('.sfbg')
+            ];
+            
+            mainContainers.forEach(el => {
+              if (el) {
+                el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important;";
+              }
+            });
+            
+            // Fix search results layout
+            const resultContainers = document.querySelectorAll('.g, .MjjYud, .yuRUbf');
+            resultContainers.forEach(el => {
+              if (el) {
+                el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; padding: 8px !important; box-sizing: border-box !important;";
+              }
+            });
+          } catch (err) {
+            console.error("Error in Google style application:", err);
+          }
+          
+          return true;
+        })()
+      `).catch(err => console.warn('Could not apply Google-specific fixes:', err));
+      
+      // Set up a delayed style application as a safety measure
+      setTimeout(() => {
+        if (browser.webview && browser.webview.isConnected && 
+            typeof browser.webview.executeJavaScript === 'function') {
+          try {
+            // Apply minimal critical styling after delay
+            browser.webview.executeJavaScript(`
+              document.documentElement.style.cssText += "width: 100% !important; height: 100% !important;";
+              document.body.style.cssText += "width: 100% !important; height: 100% !important;";
+            `).catch(() => {});
+          } catch (e) {}
+        }
+      }, 1000);
+      
+    } catch (err) {
+      console.warn('Error applying Google-specific fixes:', err);
+    }
+  }
   
   // Then hide loading content with a delay to ensure webview is ready
   setTimeout(() => {
@@ -53,6 +195,46 @@ export function handleWebviewLoad(browser, e) {
     
     // Apply styles again after hiding loading content
     enforceFullscreenStyles(browser);
+    
+    // Ensure webview is visible with direct style enforcement
+    if (browser.webview) {
+      try {
+        browser.webview.style.visibility = 'visible';
+        browser.webview.style.opacity = '1';
+        browser.webview.style.display = 'flex';
+        
+        // Double check by applying critical styles
+        if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+          browser.webview.applyAllCriticalStyles(true);
+        } else {
+          // Apply critical styles directly
+          browser.webview.style.cssText = `
+            visibility: visible !important; 
+            opacity: 1 !important;
+            display: flex !important;
+            position: absolute !important;
+            z-index: 10 !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: white !important;
+            overflow: hidden !important; 
+            pointer-events: auto !important;
+          `;
+        }
+        
+        // Force a reflow to ensure styles are applied
+        void browser.webview.offsetHeight;
+        
+        console.log("Applied critical visibility styles to webview");
+      } catch (err) {
+        console.warn('Error applying critical visibility styles:', err);
+      }
+    }
     
     // Set up periodic style enforcement
     const styleInterval = setInterval(() => {
@@ -214,10 +396,10 @@ export function handleWebviewLoad(browser, e) {
 }
 
 /**
- * Helper function to enforce fullscreen styles
+ * Apply fullscreen styles to ensure the browser takes up the full viewport
  * @param {Object} browser - Browser instance 
  */
-function enforceFullscreenStyles(browser) {
+export function enforceFullscreenStyles(browser) {
   if (!browser || !browser.container) return;
   
   // Apply critical styles to container with more aggressive enforcement
@@ -849,7 +1031,7 @@ export function checkIfPageIsLoaded(browser) {
             
             // Update state and hide loading immediately
             browser.isLoading = false;
-            updateLoadingState(browser, false);
+            updateLoadingState(browser);
             
             // Mark webview as ready to show
             if (typeof browser.webview.readyToShow === 'undefined') {

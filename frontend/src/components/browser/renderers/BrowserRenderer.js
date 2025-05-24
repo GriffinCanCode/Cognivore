@@ -11,13 +11,12 @@
  * - Layout coordination -> BrowserLayoutManager.js
  * - Progress bars should be handled by NavigationControlsRenderer or a dedicated component
  */
-import { applySandboxSettings } from '../utils/BrowserEnv.js';
 import { createBrowserPlaceholder } from './ContentRenderer.js';
 import { updateAddressBar as updateAddressBarRenderer } from './AddressBarRenderer.js';
 import { updateLoadingControls } from './NavigationControlsRenderer.js';
 
 /**
- * Create a webview element for browser content
+ * Create webview element with proper configuration
  * @param {Object} browser - Browser instance
  * @param {string} implementation - Implementation type ('webview' or 'iframe')
  * @param {string} sandboxLevel - Sandbox level for the webview
@@ -80,13 +79,13 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
       webview.setAttribute('nodeintegration', 'no');
       webview.setAttribute('plugins', 'true');
       
-      // STEP 6: Set initial src to a safe blank page to avoid navigation issues
-      webview.setAttribute('src', 'about:blank'); 
-
+      // STEP 6: Set initial src to avoid navigation issues
+      // Don't set src to about:blank to prevent navigation conflicts
+      
       // Set up webview ready flag to track initialization state
       webview.isReady = false;
       
-      // Add event listeners for critical events
+      // Add MINIMAL event listeners to prevent IPC serialization issues
       webview.addEventListener('did-finish-load', () => {
         console.log('Webview did-finish-load event fired', webview.id);
         webview.isReady = true;
@@ -96,47 +95,35 @@ export function createWebviewElement(browser, implementation = 'webview', sandbo
         console.log('Webview dom-ready event fired', webview.id);
         webview.isReady = true;
         
-        // Apply CSP bypass once DOM is ready
+        // Apply CSP bypass once DOM is ready - simplified version
         if (typeof webview.executeJavaScript === 'function') {
           try {
-            // Use a broad CSP bypass script for maximum compatibility
             webview.executeJavaScript(`
-              (function() {
+              try {
                 if (document.head) {
-                  // Remove existing CSP meta tags
                   document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]').forEach(tag => tag.remove());
-                  
-                  // Add permissive CSP meta tag
                   const meta = document.createElement('meta');
                   meta.httpEquiv = 'Content-Security-Policy';
-                  meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * 'unsafe-inline'; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline';";
+                  meta.content = "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;";
                   document.head.appendChild(meta);
                   console.log('Added permissive CSP via meta tag');
                 }
-              })();
-            `).catch(e => console.warn('CSP bypass script error:', e));
+              } catch(e) {
+                console.warn('CSP setup error:', e.message);
+              }
+            `).catch(() => {
+              // Silently ignore CSP bypass errors to prevent IPC issues
+            });
           } catch (err) {
-            console.warn('Error executing CSP bypass:', err);
+            // Silently ignore to prevent IPC serialization errors
           }
         }
       });
       
-      // Monitor crash and error events
-      webview.addEventListener('crashed', (e) => {
-        console.error('Webview crashed:', e);
-        browser.handleCrash && browser.handleCrash(e);
-      });
-      
-      webview.addEventListener('gpu-crashed', (e) => {
-        console.error('Webview GPU process crashed:', e);
-      });
-      
-      webview.addEventListener('plugin-crashed', (e) => {
-        console.error('Webview plugin crashed:', e);
-      });
-      
-      webview.addEventListener('destroyed', () => {
-        console.log('Webview was destroyed');
+      // CRITICAL FIX: Remove complex event handlers that cause IPC serialization errors
+      // Only keep essential error logging without complex object handling
+      webview.addEventListener('crashed', () => {
+        console.error('Webview crashed');
       });
       
       console.log('Webview element created successfully with enhanced security settings');
@@ -246,169 +233,6 @@ function executeSafelyInWebview(webview, executeFunction, maxAttempts = 5, delay
 }
 
 /**
- * Set up safe IPC messaging for the webview to prevent object clone errors
- * @param {HTMLElement} webview - The webview element 
- */
-function setupSafeIpcMessaging(webview) {
-  if (!webview || webview.safeMessagingEnabled) return;
-  
-  try {
-    // Patch the standard send method to prevent non-serializable objects
-    if (typeof webview._send === 'undefined' && typeof webview.send === 'function') {
-      // Store the original send method
-      webview._send = webview.send;
-      
-      // Replace with our safe version
-      webview.send = function(channel, ...args) {
-        try {
-          // Make safe copies of the args
-          const safeChannel = String(channel);
-          const safeArgs = args.map(arg => makeSafeForIpc(arg));
-          
-          // Call the original send with safe arguments
-          return webview._send.call(this, safeChannel, ...safeArgs);
-        } catch (error) {
-          console.warn('Error in safe webview.send:', error);
-          // Return a benign result to prevent crashes
-          return null;
-        }
-      };
-      
-      console.log('Patched webview.send for safe IPC messaging');
-    }
-    
-    // Set up custom event handlers that sanitize all incoming data
-    webview.addEventListener('ipc-message', handleSafeIpcMessage);
-    webview.addEventListener('console-message', handleSafeConsoleMessage);
-    
-    // Handle all guest-related events by intercepting and sanitizing
-    // This is where GUEST_VIEW_MANAGER_CALL errors commonly occur
-    const originalAddEventListener = webview.addEventListener;
-    webview.addEventListener = function(event, handler, options) {
-      if (event.startsWith('guest-') || 
-          event === 'did-attach' || 
-          event === 'did-attach-guest-view' || 
-          event === 'guest-ready' ||
-          event === 'guest-view-ready') {
-        
-        // Replace with safe handler
-        const safeHandler = function(e) {
-          try {
-            // Create a clean event object with only what we need
-            const safeEvent = {
-              type: e.type,
-              bubbles: e.bubbles,
-              cancelable: e.cancelable,
-              // Only add simple properties, omit complex objects
-              timestamp: Date.now()
-            };
-            
-            // Call original handler with safe event
-            return handler(safeEvent);
-          } catch (error) {
-            console.warn(`Error in safe handler for ${event}:`, error);
-          }
-        };
-        
-        // Call original addEventListener with safe handler
-        return originalAddEventListener.call(this, event, safeHandler, options);
-      }
-      
-      // For other events, use original behavior
-      return originalAddEventListener.call(this, event, handler, options);
-    };
-    
-    webview.safeMessagingEnabled = true;
-    console.log('Safe IPC messaging set up for webview');
-  } catch (error) {
-    console.error('Error setting up safe IPC messaging:', error);
-  }
-}
-
-/**
- * Handle IPC messages safely
- * @param {Event} event - The IPC message event
- */
-function handleSafeIpcMessage(event) {
-  try {
-    // Ensure we're only passing serializable data
-    const safeChannel = event.channel ? String(event.channel) : 'unknown-channel';
-    let safeArgs = [];
-    
-    if (Array.isArray(event.args)) {
-      // Sanitize arguments to ensure they're safe to serialize
-      safeArgs = event.args.map(arg => makeSafeForIpc(arg));
-    }
-    
-    // Log clean version
-    console.log(`Received IPC message: ${safeChannel}`, safeArgs);
-  } catch (err) {
-    console.warn('Error handling ipc-message event:', err);
-  }
-}
-
-/**
- * Handle console messages safely
- * @param {Event} event - The console message event
- */
-function handleSafeConsoleMessage(event) {
-  try {
-    // Create a safe copy of the event data
-    const safeEvent = {
-      message: event.message ? String(event.message) : '',
-      line: typeof event.line === 'number' ? event.line : 0,
-      sourceId: event.sourceId ? String(event.sourceId) : ''
-    };
-    
-    if (safeEvent.message.includes('error') || safeEvent.message.includes('Exception')) {
-      console.warn('[Webview Console Error]:', safeEvent.message);
-    }
-  } catch (err) {
-    console.warn('Error handling console-message event:', err);
-  }
-}
-
-/**
- * Make an object safe for IPC by removing non-serializable content
- * @param {*} obj - Object to make safe
- * @returns {*} - Serialization-safe version of the object
- */
-function makeSafeForIpc(obj) {
-  if (obj === null || obj === undefined) return obj;
-  
-  // Handle simple types directly
-  if (typeof obj === 'string' || 
-      typeof obj === 'number' || 
-      typeof obj === 'boolean') {
-    return obj;
-  }
-  
-  // Dates become ISO strings
-  if (obj instanceof Date) {
-    return obj.toISOString();
-  }
-  
-  // For arrays, recursively process each element
-  if (Array.isArray(obj)) {
-    return obj.map(item => makeSafeForIpc(item));
-  }
-  
-  // For objects, use JSON to strip non-serializable content
-  if (typeof obj === 'object') {
-    try {
-      // Try JSON serialization/deserialization to strip non-serializable content
-      return JSON.parse(JSON.stringify(obj));
-    } catch(e) {
-      // If it fails, return a simplified representation
-      return String(obj);
-    }
-  }
-  
-  // Default fallback - convert to string
-  return String(obj);
-}
-
-/**
  * Create webview container for browser content
  * @param {Object} browser - Browser instance
  * @param {string} implementation - Webview implementation ('webview', 'iframe-proxy', 'iframe-fallback')
@@ -486,36 +310,54 @@ export function createWebview(browser, implementation, sandboxLevel) {
     return { container, webview: null };
   }
   
-  // Apply simple, effective styling to webview
+  // Apply comprehensive styles for immediate visibility
   webview.style.cssText = `
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     width: 100% !important;
     height: 100% !important;
+    min-height: 500px !important;
     border: none !important;
     margin: 0 !important;
     padding: 0 !important;
-    background-color: white !important;
+    display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
     z-index: 1 !important;
-    display: block !important;
+    background-color: white !important;
+    flex: 1 !important;
     pointer-events: auto !important;
   `;
+  
+  // Ensure autosize is set correctly
+  webview.autosize = false;
+  
+  // Set immediate visibility flag
+  webview.readyToShow = true;
+  
+  // Force layout recalculation
+  void webview.offsetHeight;
   
   // Force attachment to DOM
   try {
     container.appendChild(webview);
     
-    // Set up safe IPC messaging
-    setupSafeIpcMessaging(webview);
+    // CRITICAL FIX: Do NOT set up problematic IPC messaging that causes serialization errors
+    // Remove the setupSafeIpcMessaging call that was causing 'An object could not be cloned' errors
     
-    // Store webview reference on browser
-    browser.webview = webview;
-    browser.webviewContainer = container;
-    
-    console.log('Webview attached to container successfully');
+    // Verify DOM attachment
+    if (webview.parentNode) {
+      webview.isAttached = true;
+      webview._isAttached = true;
+      
+      console.log('✅ Webview successfully attached to DOM and ready for navigation');
+      
+      // Set readyToShow to enable immediate visibility
+      webview.readyToShow = true;
+    } else {
+      console.warn('⚠️ Webview attachment verification failed');
+    }
   } catch (error) {
     console.error('Error attaching webview to container:', error);
     return { container, webview: null };
@@ -612,8 +454,229 @@ export function enforceWebviewStyles(browser, forcedApply = false) {
     
     // Mark webview as ready to show
     browser.webview.readyToShow = true;
+    
+    // Apply enhanced site-specific fix for Google with better reliability
+    if (browser.state && browser.state.url && 
+        browser.state.url.includes('google.com') && 
+        typeof browser.webview.executeJavaScript === 'function') {
+      try {
+        // First ensure webview is fully visible regardless of load state
+        browser.webview.style.visibility = 'visible';
+        browser.webview.style.opacity = '1';
+        browser.webview.style.display = 'block';
+        browser.webview.style.zIndex = '10';
+        
+        // Force a layout recalculation to ensure styles are applied immediately
+        void browser.webview.offsetHeight;
+        
+        // Execute script with comprehensive Google-specific fixes
+        browser.webview.executeJavaScript(`
+          (function() {
+            try {
+              // Ensure style element exists with a unique ID
+              let styleEl = document.getElementById('cognivore-google-render-fix');
+              if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'cognivore-google-render-fix';
+                document.head.appendChild(styleEl);
+              }
+              
+              // Apply enhanced Google-specific CSS with stronger !important rules
+              styleEl.textContent = \`
+                /* Root element fixes */
+                html, body {
+                  width: 100% !important;
+                  height: 100% !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  overflow-x: hidden !important;
+                  position: absolute !important;
+                  top: 0 !important;
+                  left: 0 !important;
+                  right: 0 !important;
+                  bottom: 0 !important;
+                  display: block !important;
+                  visibility: visible !important;
+                }
+                
+                /* Enhanced target for all major Google search containers */
+                #main, #cnt, #rcnt, #center_col, #rso, [role="main"],
+                #search, #appbar, .SDkEP, .MjjYud, .g, .minidiv, .sfbg, 
+                .s6JM6d, .T4LgNb, .aajZCb, .WE0UJf, .appbar, .OUZ5W, 
+                .GyAeWb, .RNNXgb, .o3j99, .ikrT4e {
+                  width: 100% !important;
+                  max-width: 100% !important;
+                  margin-left: auto !important;
+                  margin-right: auto !important;
+                  padding-left: 0 !important;
+                  padding-right: 0 !important;
+                  box-sizing: border-box !important;
+                  min-width: auto !important;
+                  display: block !important;
+                }
+                
+                /* Fix Google search result containers with stronger selectors */
+                .g, .yuRUbf, .MjjYud, .v7W49e, .ULSxyf, .MUxGbd, .aLF0Z, 
+                .yXK7lf, .R0xfCb, .MjjYud, .g, .hlcw0c, .g-blk {
+                  width: 100% !important;
+                  margin: 0 auto !important;
+                  max-width: 100% !important;
+                  display: block !important;
+                  box-sizing: border-box !important;
+                  min-width: auto !important;
+                }
+                
+                /* Fix top search bar with more specificity */
+                .RNNXgb, .SDkEP, .a4bIc, .gLFyf, .search-box, .sbib_b, .tsf {
+                  width: 100% !important;
+                  max-width: 100% !important;
+                  min-width: auto !important;
+                  box-sizing: border-box !important;
+                }
+                
+                /* Universal fix for width issues */
+                * {
+                  max-width: 100vw !important;
+                  overflow-x: hidden !important;
+                  visibility: visible !important;
+                }
+              \`;
+              
+              // Add a second style element specifically for visibility fixes
+              let visibilityFixStyle = document.getElementById('cognivore-visibility-fixes');
+              if (!visibilityFixStyle) {
+                visibilityFixStyle = document.createElement('style');
+                visibilityFixStyle.id = 'cognivore-visibility-fixes';
+                document.head.appendChild(visibilityFixStyle);
+                
+                // Set the content with focus on visibility
+                visibilityFixStyle.textContent = \`
+                  * {
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                  }
+                  
+                  .g, .MjjYud, .yuRUbf, #search, #cnt {
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                  }
+                \`;
+              }
+              
+              // Apply direct styles to ensure visibility using !important flags
+              document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; overflow-x: hidden !important; margin: 0 !important; padding: 0 !important; visibility: visible !important;";
+              document.body.style.cssText += "width: 100% !important; height: 100% !important; overflow-x: hidden !important; margin: 0 !important; padding: 0 !important; visibility: visible !important; position: absolute !important; top: 0 !important; left: 0 !important;";
+              
+              // Apply to critical elements with stronger style enforcement
+              const containers = [
+                document.getElementById('main'),
+                document.getElementById('cnt'), 
+                document.getElementById('rcnt'),
+                document.getElementById('center_col'),
+                document.getElementById('rso'),
+                document.querySelector('[role="main"]'),
+                document.querySelector('#search'),
+                document.querySelector('.minidiv'),
+                document.querySelector('.sfbg')
+              ];
+              
+              containers.forEach(el => {
+                if (el) {
+                  // Use stronger style enforcement with !important
+                  el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; box-sizing: border-box !important; visibility: visible !important; display: block !important;";
+                  
+                  // Try a direct approach to modify computed style
+                  try {
+                    el.setAttribute('style', el.getAttribute('style') + "; width: 100% !important; max-width: 100% !important;");
+                  } catch(e) {}
+                }
+              });
+              
+              // Fix search results with stronger style application
+              const resultContainers = document.querySelectorAll('.g, .MjjYud, .yuRUbf, .v7W49e, .ULSxyf');
+              resultContainers.forEach(el => {
+                if (el) {
+                  el.style.cssText += "width: 100% !important; max-width: 100% !important; margin: 0 auto !important; padding: 8px !important; box-sizing: border-box !important; visibility: visible !important; display: block !important;";
+                }
+              });
+              
+              console.log("Applied enhanced Google-specific style fixes from enforceWebviewStyles");
+              return true;
+            } catch (e) {
+              console.error("Error applying Google styles:", e);
+              
+              // Attempt a minimal critical fix even if the full fix fails
+              try {
+                document.documentElement.style.visibility = 'visible';
+                document.documentElement.style.width = '100%';
+                document.body.style.visibility = 'visible';
+                document.body.style.width = '100%';
+              } catch(e2) {}
+              
+              return false;
+            }
+          })()
+        `).catch(err => console.warn('Error applying Google styles:', err));
+        
+        // Set up a delayed style application as a safety measure
+        setTimeout(() => {
+          if (browser.webview && browser.webview.isConnected) {
+            // Ensure webview remains visible
+            browser.webview.style.visibility = 'visible';
+            browser.webview.style.opacity = '1';
+            
+            // Try to apply minimal critical styling after delay
+            if (typeof browser.webview.executeJavaScript === 'function') {
+              try {
+                browser.webview.executeJavaScript(`
+                  document.documentElement.style.cssText += "width: 100% !important; height: 100% !important; visibility: visible !important;";
+                  document.body.style.cssText += "width: 100% !important; height: 100% !important; visibility: visible !important;";
+                  
+                  // Ensure main containers are visible
+                  const mainContainer = document.getElementById('main') || document.getElementById('cnt') || document.querySelector('[role="main"]');
+                  if (mainContainer) {
+                    mainContainer.style.cssText += "width: 100% !important; visibility: visible !important;";
+                  }
+                `).catch(() => {});
+              } catch (e) {}
+            }
+          }
+        }, 1000);
+        
+      } catch (err) {
+        console.warn('Error executing Google style script:', err);
+        
+        // Fallback to direct style application if script execution fails
+        if (browser.webview) {
+          browser.webview.style.visibility = 'visible';
+          browser.webview.style.opacity = '1';
+          browser.webview.style.display = 'block';
+        }
+      }
+    }
+    
+    // After a short delay, apply styles again as a safety measure
+    setTimeout(() => {
+      if (browser.webview && browser.webview.isConnected) {
+        browser.webview.style.visibility = 'visible';
+        browser.webview.style.opacity = '1';
+        
+        // Force reflow
+        void browser.webview.offsetHeight;
+      }
+    }, 100);
   } catch (err) {
     console.error('Error enforcing webview styles:', err);
+    
+    // Final fallback - apply minimum styles directly
+    try {
+      browser.webview.style.visibility = 'visible';
+      browser.webview.style.opacity = '1';
+      browser.webview.style.display = 'block';
+    } catch (finalErr) {
+      console.error('Final fallback style application failed:', finalErr);
+    }
   }
 }
 
@@ -685,11 +748,4 @@ export default {
   createWebviewElement,
   createWebview,
   enforceWebviewStyles,
-  // Deprecated functions - kept for backward compatibility but will be removed
-  createProgressBar,
-  showLoadingContent, 
-  hideLoadingContent,
-  updateAddressBar,
-  updateLoadingIndicator,
-  updatePageTitle
 }; 

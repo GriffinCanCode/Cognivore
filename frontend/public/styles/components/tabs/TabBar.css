@@ -6,16 +6,18 @@
 .voyager-tab-bar-container {
   display: flex !important;
   align-items: center !important;
-  background-color: var(--glass-bg, rgba(15, 23, 42, 0.85)) !important;
+  background-color: var(--browser-glass-bg, rgba(15, 23, 42, 0.85)) !important;
   backdrop-filter: blur(12px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
-  border-bottom: none !important;
+  border-bottom: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.12)) !important;
   height: 36px !important;
   min-height: 36px !important;
   max-height: 36px !important;
   width: 100% !important;
   position: relative !important;
-  z-index: 102 !important;
+  /* Fixed z-index to work with new ordering system */
+  order: 1 !important; /* First component */
+  flex-shrink: 0 !important;
   padding: 0 !important; /* Removed padding to allow tabs to align with edge */
   box-sizing: border-box !important;
   overflow: visible !important;
@@ -58,7 +60,7 @@
   position: relative !important;
   overflow: hidden !important;
   transition: all 0.25s ease !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.08)) !important;
   border-bottom: none !important;
   box-sizing: border-box !important;
   flex-shrink: 0 !important;
@@ -98,8 +100,8 @@
 }
 
 .tab-item.active {
-  background-color: rgba(37, 99, 235, 0.25) !important;
-  border-color: rgba(37, 99, 235, 0.4) !important;
+  background-color: var(--browser-active-bg, rgba(37, 99, 235, 0.25)) !important;
+  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.4)) !important;
   height: 35px !important;
   margin-top: 1px !important;
   z-index: 3 !important;
@@ -120,7 +122,7 @@
   left: 0 !important;
   right: 0 !important;
   height: 2px !important;
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0.8), rgba(37, 99, 235, 0.2)) !important;
+  background: linear-gradient(90deg, var(--browser-accent-primary, rgba(37, 99, 235, 0.2)), var(--browser-accent-primary, rgba(37, 99, 235, 0.8)), var(--browser-accent-primary, rgba(37, 99, 235, 0.2))) !important;
   border-radius: 2px !important;
 }
 
@@ -142,7 +144,7 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  color: var(--text-secondary, #9ca3af) !important;
+  color: var(--browser-text-secondary, #9ca3af) !important;
   flex-shrink: 0 !important;
   background-color: rgba(255, 255, 255, 0.08) !important;
   border-radius: 3px !important;
@@ -151,7 +153,7 @@
 .tab-title {
   font-size: 12px !important;
   font-weight: 500 !important;
-  color: var(--text-light, #f8fafc) !important;
+  color: var(--browser-text-light, #f8fafc) !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
@@ -167,7 +169,7 @@
   border-radius: 50% !important;
   background-color: transparent !important;
   border: none !important;
-  color: var(--text-secondary, #9ca3af) !important;
+  color: var(--browser-text-secondary, #9ca3af) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -182,7 +184,7 @@
 .tab-close-btn:hover {
   opacity: 1 !important;
   background-color: rgba(239, 68, 68, 0.3) !important;
-  color: var(--text-light, #f8fafc) !important;
+  color: var(--browser-text-light, #f8fafc) !important;
   transform: scale(1.1) !important;
 }
 

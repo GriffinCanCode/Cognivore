@@ -91,6 +91,13 @@ module.exports = {
           globOptions: {
             ignore: ['**/*.spec.js']
           }
+        },
+        {
+          from: 'public/@images',
+          to: '@images',
+          globOptions: {
+            ignore: ['**/*.spec.js']
+          }
         }
       ]
     }),

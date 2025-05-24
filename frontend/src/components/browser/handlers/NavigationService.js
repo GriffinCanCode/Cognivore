@@ -5,9 +5,10 @@
  * for the Voyager browser component.
  */
 
-import { formatUrl, applySiteSpecificSettings } from '../utils/BrowserUtilities';
-import { updateAddressBar, updateLoadingIndicator } from '../renderers/BrowserRenderer';
+import { formatUrl } from '../utils/BrowserUtilities';
 import { renderErrorPage } from './ErrorHandler';
+import { enforceFullscreenStyles } from './EventHandlers';
+import { updateLoadingControls } from '../renderers/NavigationControlsRenderer';
 
 /**
  * Navigate to a URL
@@ -18,152 +19,287 @@ import { renderErrorPage } from './ErrorHandler';
 export function navigate(browser, url, forceNavigate = false) {
   if (!url) return;
   
-  let formattedUrl = url;
-  try {
-    // Add protocol if missing
-    if (!url.match(/^[a-zA-Z]+:\/\//)) {
-      // If it looks like a domain, add https://
-      if (url.match(/^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}/) || url.includes('.')) {
-        formattedUrl = 'https://' + url;
-      } else {
-        // Otherwise, treat as search
-        formattedUrl = 'https://www.google.com/search?q=' + encodeURIComponent(url);
-      }
-    }
-    
-    // Standard URL validation and formatting
-    formattedUrl = formatUrl(formattedUrl);
-    
-    console.log(`Navigation request: ${url} -> ${formattedUrl}`);
-  } catch (err) {
-    console.error('Error formatting URL:', err);
-    
-    // Use direct URL as fallback
-    formattedUrl = url;
-  }
+  console.log('Navigation request:', browser?.state?.url, '->', url);
   
-  // Don't navigate if already at this URL
-  if (!forceNavigate && browser.state && browser.state.currentUrl === formattedUrl) {
-    console.log('Already at URL:', formattedUrl);
+  // Format URL for navigation
+  const formattedUrl = formatUrl(url);
+  
+  // If URL is the same and we're not forcing navigation, do nothing
+  if (!forceNavigate && browser.state && browser.state.url === formattedUrl) {
+    console.log('Already at requested URL, skipping navigation');
     return;
   }
   
-  // Start loading process
-  if (browser.setState) {
-    browser.setState({ isLoading: true, loadError: false, currentUrl: formattedUrl });
-  }
-  
-  // Update address bar immediately
-  if (browser.searchInput) {
-    browser.searchInput.value = formattedUrl;
-  }
-  
-  // Show loading indicator
-  updateLoadingIndicator(browser, true);
-  
   // Update browser state
-  browser.isLoading = true;
+  if (browser.setState) {
+    browser.setState({
+      url: formattedUrl,
+      isLoading: true,
+      error: null
+    });
+  } else {
+    browser.state = browser.state || {};
+    browser.state.url = formattedUrl;
+    browser.state.isLoading = true;
+    browser.state.error = null;
+  }
   
-  // Clear any existing navigation timeouts
+  // Update loading indicator
+  updateLoadingControls(browser, true);
+  
+  // Show loading content if available
+  if (typeof browser.showLoadingContent === 'function') {
+    browser.showLoadingContent(formattedUrl);
+  }
+  
+  // Set timeout for navigation
+  // Clear any existing navigation timeout
   if (browser._navigationTimeout) {
     clearTimeout(browser._navigationTimeout);
     browser._navigationTimeout = null;
   }
   
-  // Set a timeout to show error page if navigation takes too long
-  const navigationTimeoutPeriod = 10000; // Increased to 10 seconds for better reliability
-  
-  // Store timeout reference for clearing
+  // Set a new timeout for 10 seconds (was 8 seconds)
   browser._navigationTimeout = setTimeout(() => {
-    console.log('Navigation timeout reached, hiding loading content');
+    console.log('Navigation timeout reached for URL:', formattedUrl);
     
-    // Check if still in loading state
-    if (browser.isLoading && !browser.navigationCancelled) {
-      console.log('Navigation timed out, showing error message');
+    // Prevent duplicate timeout handling
+    if (browser._handlingNavigationTimeout) {
+      console.log('Already handling navigation timeout, skipping duplicate');
+      return;
+    }
+    
+    browser._handlingNavigationTimeout = true;
+    
+    // Special handling for Google to try to recover and make page visible
+    if (formattedUrl.includes('google.com')) {
+      console.log('Google page detected, applying special timeout handling');
       
-      // Stop loading indicator
-      updateLoadingIndicator(browser, false);
-      
-      // Update state
-      if (browser.setState) {
-        browser.setState({ isLoading: false, loadError: true });
-      }
-      
-      // Provide feedback that navigation timed out
-      browser.isLoading = false;
-      browser.loadError = true;
-      
-      // Check if page loaded despite timeout
-      browser.checkIfPageIsLoaded(() => {
-        // If checking loaded state didn't resolve the issue, show a message
-        if (browser.isLoading) {
-          // Try to recover by explicitly stopping loading
+      // Force visibility of webview if present
+      if (browser.webview) {
+        console.log('Applying aggressive visibility styles to Google webview');
+        
+        // Ensure webview is visible
+        browser.webview.style.visibility = 'visible';
+        browser.webview.style.opacity = '1';
+        browser.webview.style.display = 'block';
+        
+        // Try to apply critical styles if method exists
+        if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+          browser.webview.applyAllCriticalStyles();
+        }
+        
+        // Apply fullscreen styles as backup method
+        enforceFullscreenStyles(browser);
+        
+        // Try to execute JavaScript to fix Google directly
+        if (typeof browser.webview.executeJavaScript === 'function') {
           try {
-            if (browser.webview && typeof browser.webview.stop === 'function') {
-              browser.webview.stop();
-            }
+            browser.webview.executeJavaScript(`
+              (function() {
+                // Create or update style for critical elements
+                let styleEl = document.getElementById('cognivore-emergency-styles');
+                if (!styleEl) {
+                  styleEl = document.createElement('style');
+                  styleEl.id = 'cognivore-emergency-styles';
+                  document.head.appendChild(styleEl);
+                }
+                
+                // Apply visibility styles to all critical elements
+                styleEl.textContent = \`
+                  html, body {
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    display: block !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    overflow-x: hidden !important;
+                  }
+                  
+                  #main, #cnt, #rcnt, #center_col, #rso, [role="main"],
+                  .g, .yuRUbf, .MjjYud, #search, #searchform {
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                  }
+                \`;
+                
+                // Force layout recalculation
+                document.documentElement.scrollTop = 0;
+                
+                // Return the document title to check if page is loaded
+                return document.title;
+              })()
+            `).then(title => {
+              console.log('Page appears to be loaded with title:', title);
+              
+              if (title && title !== 'about:blank' && !title.includes('Error')) {
+                // Page is likely loaded but had a visibility issue
+                console.log('Page successfully recovered after timeout');
+                
+                // Update browser state
+                browser.setState({
+                  isLoading: false,
+                  error: null
+                });
+                
+                // Update loading indicator
+                updateLoadingControls(browser, false);
+                
+                // Set navigation timeout flag to false
+                browser._handlingNavigationTimeout = false;
+              } else {
+                // Title doesn't look good, probably still an issue
+                console.log('Google page not fully loaded after timeout, title:', title);
+                
+                // Continue with normal timeout handling
+                handleNavigationTimeout(browser, formattedUrl);
+              }
+            }).catch(err => {
+              console.error('Error applying emergency styles:', err);
+              
+              // Continue with normal timeout handling
+              handleNavigationTimeout(browser, formattedUrl);
+            });
+            
+            // Don't continue with the rest of the timeout handling yet
+            // It will be called in the error handler if needed
+            return;
           } catch (err) {
-            console.warn('Error stopping webview:', err);
-          }
-          
-          // Show error UI if still loading
-          renderErrorPage(browser, {
-            code: 'TIMEOUT',
-            url: formattedUrl,
-            message: 'Navigation timed out. The website might be unavailable or loading slowly.'
-          });
-          
-          // Try to recover navigation with alternative approach
-          try {
-            recoverFromNavigationFailure(browser, formattedUrl);
-          } catch (err) {
-            console.warn('Error recovering from navigation timeout:', err);
+            console.error('Failed to execute emergency script:', err);
+            // Continue with normal timeout handling
           }
         }
-      });
+      }
     }
-  }, navigationTimeoutPeriod);
+    
+    // If we reached here, handle timeout normally
+    handleNavigationTimeout(browser, formattedUrl);
+  }, 10000); // Increased timeout from 8000 to 10000 ms
   
-  // Navigate based on implementation type
-  if (browser.webview && browser.state.environment.webviewImplementation === 'webview') {
-    try {
-      console.log(`🌐 Navigating webview to: ${formattedUrl}`);
-      
-      // Ensure webview is fully ready before navigation
-      if (!browser.webviewReady) {
-        console.log('Webview not fully ready. Setting up delayed navigation.');
-        
-        // Set up a delayed navigation attempt that checks for readiness
-        const checkAndNavigate = () => {
-          if (browser.webviewReady) {
-            // Safe to navigate
-            performWebviewNavigation(browser, formattedUrl);
-          } else {
-            // Check again after a short delay
-            setTimeout(checkAndNavigate, 50);
-          }
-        };
-        
-        // Start the check cycle
-        setTimeout(checkAndNavigate, 50);
-        return;
+  // Check if webview exists before navigating
+  // This addresses the issue of missing webview
+  if (!browser.webview && !browser.contentFrame) {
+    console.log('No webview or contentFrame found - creating webview first');
+    
+    // Try to re-initialize webview if needed
+    if (typeof browser.initializeWebview === 'function') {
+      browser.initializeWebview(() => {
+        // Retry navigation after webview is initialized
+        setTimeout(() => {
+          executeNavigation(browser, formattedUrl);
+        }, 100);
+      });
+      return;
+    }
+    
+    // Wait a brief moment to see if webview gets created
+    setTimeout(() => {
+      if (browser.webview || browser.contentFrame) {
+        executeNavigation(browser, formattedUrl);
+      } else {
+        console.error('Could not create webview for navigation');
+        renderErrorPage(browser, {
+          code: 'NO_RENDERER',
+          url: formattedUrl,
+          message: 'Browser renderer is not available'
+        });
+      }
+    }, 100);
+    return;
+  }
+  
+  // Execute the navigation
+  executeNavigation(browser, formattedUrl);
+}
+
+/**
+ * Handle a navigation timeout
+ * @param {Object} browser - Browser instance
+ * @param {string} url - URL that timed out
+ */
+function handleNavigationTimeout(browser, url) {
+  console.log(`Navigation timeout for URL: ${url}`);
+  
+  // Reset the flag
+  browser._handlingNavigationTimeout = false;
+  
+  // Set timeout for Google-specific recovery
+  if (url.includes('google.com') && browser.webview) {
+    console.log('Page still appears to be loading after timeout, forcing visibility');
+    
+    // Force visibility of the webview
+    browser.webview.style.visibility = 'visible';
+    browser.webview.style.opacity = '1';
+    browser.webview.style.display = 'block';
+    
+    // Try to apply critical styles if method exists
+    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+      browser.webview.applyAllCriticalStyles();
+    }
+    
+    // Check if we want to still show a timeout error
+    const showTimeoutError = false; // Set to true to show error, false to try recovery
+    
+    if (!showTimeoutError) {
+      // Continue as if page loaded successfully
+      if (browser.setState) {
+        browser.setState({ isLoading: false });
       }
       
-      // Webview is ready, perform navigation
-      performWebviewNavigation(browser, formattedUrl);
+      // Update loading indicator
+      updateLoadingControls(browser, false);
       
+      return;
+    }
+  }
+  
+  // Render a timeout error page
+  renderErrorPage(browser, {
+    code: 'TIMEOUT',
+    description: 'The page took too long to load.',
+    url,
+    type: 'network',
+    onRetry: () => {
+      // Clear error and retry navigation
+      if (browser.setState) {
+        browser.setState({ error: null });
+      }
+      
+      navigate(browser, url, true);
+    }
+  });
+}
+
+/**
+ * Execute the actual navigation after checks
+ * @param {Object} browser - Browser instance
+ * @param {string} formattedUrl - Formatted URL to navigate to
+ */
+function executeNavigation(browser, formattedUrl) {
+  // Record navigation start time
+  browser.navigationStartTime = Date.now();
+  
+  // Check webview type and execute appropriate navigation
+  if (browser.webview && browser.webview.tagName.toLowerCase() === 'webview') {
+    try {
+      // Use the src attribute for navigation
+      browser.webview.src = formattedUrl;
+      console.log('Navigating webview to:', formattedUrl);
     } catch (err) {
-      console.error('WebView navigation error:', err);
+      console.error('Webview navigation error:', err);
       renderErrorPage(browser, {
         code: 'NAV_ERROR',
         url: formattedUrl,
         message: 'Failed to navigate: ' + err.message
       });
     }
-  } else if (browser.contentFrame) {
+  } 
+  else if (browser.contentFrame) {
     // Navigate via iframe
     try {
       browser.contentFrame.src = formattedUrl;
+      console.log('Navigating content frame to:', formattedUrl);
     } catch (err) {
       console.error('Content frame navigation error:', err);
       renderErrorPage(browser, {
@@ -191,307 +327,58 @@ export function navigate(browser, url, forceNavigate = false) {
 }
 
 /**
- * Perform the actual webview navigation with proper error handling
+ * Go back in browser history
  * @param {Object} browser - Browser instance
- * @param {string} url - URL to navigate to
  */
-function performWebviewNavigation(browser, url) {
-  // Handle the partition error case more gracefully
-  try {
-    // First try to load the URL using loadURL if available (preferred method)
-    if (typeof browser.webview.loadURL === 'function') {
-      browser.webview.loadURL(url)
-        .catch(err => {
-          console.warn('loadURL failed, falling back to src attribute:', err);
-          safeSetSrc(browser.webview, url);
-        });
-    } else {
-      // Fall back to src attribute
-      safeSetSrc(browser.webview, url);
-    }
-    
-    // Set up redundant load detection for better reliability
-    setupRedundantLoadDetection(browser, url);
-  } catch (partitionErr) {
-    handleNavigationError(browser, partitionErr, url);
+export function goBack(browser) {
+  // Clear any current navigation timeout
+  if (browser._navigationTimeout) {
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
   }
-}
-
-/**
- * Safely set the src attribute of a webview with error handling
- * @param {HTMLElement} webview - The webview element
- * @param {string} url - URL to navigate to
- */
-function safeSetSrc(webview, url) {
-  try {
-    webview.src = url;
-  } catch (err) {
-    console.error('Error setting webview src:', err);
-    
-    // Try one more time with about:blank first to reset state
-    try {
-      webview.src = 'about:blank';
-      setTimeout(() => {
-        try {
-          webview.src = url;
-        } catch (finalErr) {
-          console.error('Final attempt to set src failed:', finalErr);
-        }
-      }, 100);
-    } catch (resetErr) {
-      console.error('Failed to reset webview src to about:blank:', resetErr);
-    }
-  }
-}
-
-/**
- * Handle navigation errors with appropriate recovery strategies
- * @param {Object} browser - Browser instance
- * @param {Error} err - The error that occurred
- * @param {string} url - URL that was being navigated to
- */
-function handleNavigationError(browser, err, url) {
-  // Check for partition error specifically
-  if (err.message && err.message.includes("partition cannot be changed")) {
-    console.warn('Partition error detected. Attempting alternative navigation...');
-    
-    // Alternative approach: try to reload the current page first, then navigate
-    setTimeout(() => {
-      try {
-        // Try to reload first to clear any state
-        if (typeof browser.webview.reload === 'function') {
-          browser.webview.reload();
-          
-          // After a short delay, attempt to set src again
-          setTimeout(() => {
-            try {
-              browser.webview.src = url;
-            } catch (finalErr) {
-              console.error('Final navigation attempt failed:', finalErr);
-              // Reset loading state if all attempts fail
-              browser.setState({ isLoading: false });
-              updateLoadingIndicator(browser, false);
-              
-              // Show error page
-              renderErrorPage(browser, {
-                code: 'PARTITION_ERROR',
-                url: url,
-                message: 'Failed to navigate: ' + finalErr.message
-              });
-            }
-          }, 100);
-        } else {
-          // If reload isn't available, try navigation directly
-          console.warn('Reload not available, trying direct navigation...');
-          browser.webview.src = url;
-        }
-      } catch (recoveryErr) {
-        console.error('Recovery navigation error:', recoveryErr);
-        // Reset loading state if recovery fails
-        browser.setState({ isLoading: false });
-        updateLoadingIndicator(browser, false);
-        
-        // Show error page
-        renderErrorPage(browser, {
-          code: 'RECOVERY_ERROR',
-          url: url,
-          message: 'Failed to recover from navigation error: ' + recoveryErr.message
-        });
-      }
-    }, 50);
-  } else if (err.message && err.message.includes("GUEST_VIEW_MANAGER_CALL")) {
-    // Handle the specific GUEST_VIEW_MANAGER_CALL error
-    console.warn('GUEST_VIEW_MANAGER_CALL error detected. Attempting to recreate webview...');
-    
-    // Try to recover by recreating the webview
-    try {
-      // First stop loading and clear any state
-      if (typeof browser.webview.stop === 'function') {
-        browser.webview.stop();
+  
+  if (browser.webview && typeof browser.webview.goBack === 'function') {
+    if (browser.webview.canGoBack()) {
+      browser.webview.goBack();
+      
+      // Update browser state
+      if (browser.setState) {
+        browser.setState({ isLoading: true });
+      } else if (browser.state) {
+        browser.state.isLoading = true;
       }
       
-      // Remove and recreate the webview
-      const container = browser.webview.parentElement;
-      if (container) {
-        // Keep a reference to the old webview to remove event listeners
-        const oldWebview = browser.webview;
-        
-        // Create a new webview
-        if (typeof browser.createWebview === 'function') {
-          // Use browser's create method if available
-          browser.createWebview();
-          
-          // Update loading state
-          browser.setState({ isLoading: true });
-          updateLoadingIndicator(browser, true);
-          
-          // Try navigation again after a delay
-          setTimeout(() => {
-            try {
-              browser.navigate(url, true);
-            } catch (finalErr) {
-              console.error('Final navigation attempt after recreation failed:', finalErr);
-            }
-          }, 500);
-        } else {
-          // Reset loading state if recovery fails
-          browser.setState({ isLoading: false });
-          updateLoadingIndicator(browser, false);
-          
-          // Show error page in the current webview
-          renderErrorPage(browser, {
-            code: 'GUEST_VIEW_ERROR',
-            url: url,
-            message: 'Browser view encountered an error and needs to be restarted.'
-          });
-        }
+      // Update loading indicator - use the same function as navigate uses
+      updateLoadingControls(browser, true);
+    }
+  }
+}
+
+/**
+ * Go forward in browser history
+ * @param {Object} browser - Browser instance
+ */
+export function goForward(browser) {
+  // Clear any current navigation timeout
+  if (browser._navigationTimeout) {
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
+  }
+  
+  if (browser.webview && typeof browser.webview.goForward === 'function') {
+    if (browser.webview.canGoForward()) {
+      browser.webview.goForward();
+      
+      // Update browser state
+      if (browser.setState) {
+        browser.setState({ isLoading: true });
+      } else if (browser.state) {
+        browser.state.isLoading = true;
       }
-    } catch (recreateErr) {
-      console.error('Error recreating webview:', recreateErr);
       
-      // Reset loading state if recovery fails
-      browser.setState({ isLoading: false });
-      updateLoadingIndicator(browser, false);
-      
-      // Show error page
-      renderErrorPage(browser, {
-        code: 'RECREATION_ERROR',
-        url: url,
-        message: 'Failed to recover from navigation error: ' + recreateErr.message
-      });
+      // Update loading indicator - use the same function as navigate uses
+      updateLoadingControls(browser, true);
     }
-  } else {
-    // Not a specific recognized error, handle generically
-    console.error('WebView navigation error:', err);
-    
-    // Reset loading state
-    browser.setState({ isLoading: false });
-    updateLoadingIndicator(browser, false);
-    
-    // Show error page
-    renderErrorPage(browser, {
-      code: 'NAV_ERROR',
-      url: url,
-      message: 'Failed to navigate: ' + err.message
-    });
-  }
-}
-
-/**
- * Setup redundant load detection for more reliable navigation
- * @param {Object} browser - Browser instance
- * @param {string} targetUrl - The URL being loaded
- */
-export function setupRedundantLoadDetection(browser, targetUrl) {
-  // We'll poll periodically to check if the page has navigated successfully
-  // This works around cases where the load events don't fire properly
-  
-  // Clear any existing detection intervals
-  if (browser._loadDetectionInterval) {
-    clearInterval(browser._loadDetectionInterval);
-  }
-  
-  // Start time for tracking duration
-  const startTime = Date.now();
-  const maxDetectionTime = 8000; // Max 8 seconds of detection
-  
-  // Use a relatively fast polling interval (250ms)
-  browser._loadDetectionInterval = setInterval(() => {
-    // Check if we've been polling too long
-    if (Date.now() - startTime > maxDetectionTime) {
-      clearInterval(browser._loadDetectionInterval);
-      return;
-    }
-    
-    // Skip checks if we're not loading anymore
-    if (!browser.state.isLoading) {
-      clearInterval(browser._loadDetectionInterval);
-      return;
-    }
-    
-    // Call our check method
-    checkIfPageIsLoaded(browser);
-  }, 250);
-}
-
-/**
- * Check if the page is actually loaded based on URL changes or other signals
- * @param {Object} browser - Browser instance
- * @param {Function} callback - Optional callback after check completes
- */
-export function checkIfPageIsLoaded(browser, callback) {
-  if (!browser.webview || !browser.state?.isLoading) {
-    if (callback) callback();
-    return;
-  }
-  
-  console.log('Checking if page is actually loaded despite missing events');
-  
-  try {
-    // For webview, we'll use executeJavaScript to check current URL
-    if (browser.webview.tagName?.toLowerCase() === 'webview' && 
-        typeof browser.webview.executeJavaScript === 'function') {
-      
-      browser.webview.executeJavaScript(`
-        {
-          currentUrl: window.location.href,
-          readyState: document.readyState,
-          title: document.title
-        }
-      `).then(result => {
-        if (!result) {
-          if (callback) callback();
-          return;
-        }
-        
-        // Check if URL has changed, indicating successful navigation
-        if (result.currentUrl && result.currentUrl !== 'about:blank' && 
-            result.currentUrl !== browser.currentUrl &&
-            result.readyState === 'complete') {
-          
-          console.log(`Page appears to be loaded based on URL change: ${result.currentUrl}`);
-          
-          // Update title if available
-          if (result.title) {
-            browser.setState({ title: result.title });
-            browser.updatePageTitle(result.title);
-          }
-          
-          // Update loading state
-          browser.setState({ isLoading: false });
-          updateLoadingIndicator(browser, false);
-          
-          // Make webview fully visible
-          if (typeof browser.webview.applyAllCriticalStyles === 'function') {
-            browser.webview.applyAllCriticalStyles(true);
-          }
-          
-          // Capture content
-          browser.capturePageContent();
-          
-          // Clear navigation timeout
-          if (browser._navigationTimeout) {
-            clearTimeout(browser._navigationTimeout);
-            browser._navigationTimeout = null;
-          }
-          
-          // Clear detection interval
-          if (browser._loadDetectionInterval) {
-            clearInterval(browser._loadDetectionInterval);
-          }
-        }
-        
-        if (callback) callback();
-      }).catch(err => {
-        console.warn('Error checking if page is loaded:', err);
-        if (callback) callback();
-      });
-    } else if (callback) {
-      callback();
-    }
-  } catch (err) {
-    console.warn('Error in checkIfPageIsLoaded:', err);
-    if (callback) callback();
   }
 }
 
@@ -500,14 +387,35 @@ export function checkIfPageIsLoaded(browser, callback) {
  * @param {Object} browser - Browser instance
  */
 export function refreshPage(browser) {
+  // Clear any current navigation timeout
+  if (browser._navigationTimeout) {
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
+  }
+  
   if (browser.webview) {
-    browser.webview.reload();
+    if (typeof browser.webview.reload === 'function') {
+      browser.webview.reload();
+    } else {
+      // Fallback for when reload method is not available
+      const currentUrl = browser.webview.src || browser.state.url;
+      if (currentUrl) {
+        browser.webview.src = currentUrl;
+      }
+    }
   } else if (browser.iframe) {
     browser.iframe.src = browser.iframe.src;
   }
   
-  browser.setState({ isLoading: true });
-  updateLoadingIndicator(browser, true);
+  // Update browser state
+  if (browser.setState) {
+    browser.setState({ isLoading: true });
+  } else if (browser.state) {
+    browser.state.isLoading = true;
+  }
+  
+  // Update loading indicator
+  updateLoadingControls(browser, true);
 }
 
 /**
@@ -515,12 +423,34 @@ export function refreshPage(browser) {
  * @param {Object} browser - Browser instance
  */
 export function stopLoading(browser) {
-  if (browser.webview) {
+  // Clear any current navigation timeout
+  if (browser._navigationTimeout) {
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
+  }
+  
+  if (browser.webview && typeof browser.webview.stop === 'function') {
     browser.webview.stop();
-  } else if (browser.iframe) {
-    // For iframe, we just update the UI state since we can't actually stop it
+  }
+  
+  // Update browser state
+  if (browser.setState) {
     browser.setState({ isLoading: false });
-    updateLoadingIndicator(browser, false);
+  } else if (browser.state) {
+    browser.state.isLoading = false;
+  }
+  
+  updateLoadingControls(browser, false);
+  
+  // Force visibility of the webview in case it was stuck
+  if (browser.webview) {
+    browser.webview.style.visibility = 'visible';
+    browser.webview.style.opacity = '1';
+    
+    // Try to apply critical styles if method exists
+    if (typeof browser.webview.applyAllCriticalStyles === 'function') {
+      browser.webview.applyAllCriticalStyles();
+    }
   }
 }
 
@@ -530,6 +460,12 @@ export function stopLoading(browser) {
  * @param {string} html - HTML content to render
  */
 export function renderHtml(browser, html) {
+  // Clear any current navigation timeout
+  if (browser._navigationTimeout) {
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
+  }
+  
   // Implementation depends on browser implementation
   if (browser.webview && typeof browser.webview.executeJavaScript === 'function') {
     browser.webview.executeJavaScript(`
@@ -538,25 +474,70 @@ export function renderHtml(browser, html) {
       document.close();
     `).catch(err => {
       console.error('Error rendering HTML in webview:', err);
+      
+      // Fallback to data URI if executeJavaScript fails
+      try {
+        const dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+        browser.webview.src = dataUri;
+      } catch (dataUriErr) {
+        console.error('Data URI fallback also failed:', dataUriErr);
+      }
     });
-  } else if (browser.iframe) {
+  } else if (browser.contentFrame) {
     try {
-      const doc = browser.iframe.contentDocument;
+      const doc = browser.contentFrame.contentDocument;
       if (doc) {
         doc.open();
         doc.write(html);
         doc.close();
+      } else {
+        // Fallback to data URI if contentDocument not available
+        const dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+        browser.contentFrame.src = dataUri;
       }
     } catch (err) {
       console.error('Error rendering HTML in iframe:', err);
+      
+      // Ultimate fallback - create error container in DOM
+      try {
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        container.style.position = 'absolute';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '100%';
+        container.style.height = '100%';
+        container.style.backgroundColor = '#fff';
+        container.style.zIndex = '1000';
+        container.style.overflow = 'auto';
+        
+        // Append to browser container
+        if (browser.container) {
+          browser.container.appendChild(container);
+        } else if (document.body) {
+          document.body.appendChild(container);
+        }
+      } catch (fallbackErr) {
+        console.error('All HTML rendering methods failed:', fallbackErr);
+      }
     }
+  } else {
+    console.error('No suitable renderer available for HTML content');
   }
+  
+  // Update state
+  if (browser.setState) {
+    browser.setState({ isLoading: false });
+  }
+  
+  // Update loading indicator
+  updateLoadingControls(browser, false);
 }
 
 export default {
   navigate,
-  setupRedundantLoadDetection,
-  checkIfPageIsLoaded,
+  goBack,
+  goForward,
   refreshPage,
   stopLoading,
   renderHtml

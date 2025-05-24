@@ -161,12 +161,7 @@ class BrowserFixesValidator {
    * Initialize all tests
    */
   initializeTests() {
-    // Test 1: Check if browser fix CSS file exists
-    this.addTest('Browser Fix CSS file exists', async () => {
-      return await this.checkCSSFile('./styles/components/browser-fix.css');
-    });
-
-    // Test 2: Check if CSS loader utility exists
+    // Test 1: Check if CSS loader utility exists
     this.addTest('CSS Loader utility exists', () => {
       try {
         // Check if cssLoader is available globally
@@ -177,7 +172,7 @@ class BrowserFixesValidator {
       }
     });
 
-    // Test 3: Validate browser container styling
+    // Test 2: Validate browser container styling
     this.addTest('Browser container styling is correct', () => {
       const testContainer = this.createTestBrowserComponent();
       
@@ -192,7 +187,7 @@ class BrowserFixesValidator {
       return isCorrect;
     });
 
-    // Test 4: Validate tab bar styling
+    // Test 3: Validate tab bar styling
     this.addTest('Tab bar styling is correct', () => {
       const testContainer = this.createTestBrowserComponent();
       
@@ -206,7 +201,7 @@ class BrowserFixesValidator {
       return isCorrect;
     });
 
-    // Test 5: Validate webview container styling
+    // Test 4: Validate webview container styling
     this.addTest('Webview container styling is correct', () => {
       const testContainer = this.createTestBrowserComponent();
       
@@ -220,7 +215,7 @@ class BrowserFixesValidator {
       return isCorrect;
     });
 
-    // Test 6: Check for emergency styles in DOM
+    // Test 5: Check for emergency styles in DOM
     this.addTest('Emergency styles are available', () => {
       const emergencyStyle = document.getElementById('emergency-browser-styles');
       return emergencyStyle !== null || 
@@ -228,7 +223,7 @@ class BrowserFixesValidator {
              document.querySelector('link[href*="browser-fix"]') !== null;
     });
 
-    // Test 7: Validate fallback tab functionality
+    // Test 6: Validate fallback tab functionality
     this.addTest('Fallback tab elements are visible', () => {
       const testContainer = this.createTestBrowserComponent();
       

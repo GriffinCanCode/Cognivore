@@ -63,7 +63,7 @@ const winston = {
 };
 
 import { renderErrorPage as renderErrorPageOriginal, showNavigationErrorPage as showNavigationErrorPageOriginal } from '../renderers/ErrorPageRenderer';
-import { updateLoadingIndicator } from '../renderers/BrowserRenderer';
+import { updateLoadingControls } from '../renderers/NavigationControlsRenderer';
 
 // Configure specialized error logging that doesn't overlap with main logger
 const errorLog = winston.createLogger({
@@ -373,7 +373,7 @@ export function handlePageLoadError(browser, event, errorCode, errorDescription,
   }
   
   // Stop the loading indicator
-  updateLoadingIndicator(browser, false);
+  updateLoadingControls(browser, false);
   
   // Parse and handle different error types
   const errorType = getErrorType(errorCode);

@@ -4,7 +4,7 @@
 
 /**
  * Render an error page
- * @param {Document} doc - Document to render error page in
+ * @param {Document|Object} doc - Document or browser instance to render error page in
  * @param {string} errorType - Type of error ('network', 'ssl', 'notfound', 'generic')
  * @param {Object} data - Error data including URL and error message
  */
@@ -12,166 +12,316 @@ export function renderErrorPage(doc, errorType, data) {
   if (!doc) return;
   
   try {
-    // Clear any existing content
-    doc.open();
+    // Handle both document and browser object cases
+    let targetDoc = doc;
     
-    // Create appropriate error page content
-    let pageContent = '';
-    
-    switch (errorType) {
-      case 'network':
-        pageContent = createNetworkErrorPage(data);
-        break;
+    // Check if we got a browser instance instead of a document
+    if (doc.webview || doc.contentFrame || typeof doc.open !== 'function') {
+      // This is a browser instance, not a document
+      console.log('Received browser instance instead of document, finding appropriate target');
+      
+      if (doc.webview && typeof doc.webview.executeJavaScript === 'function') {
+        // Use webview's executeJavaScript to render the error page
+        const errorHTML = createErrorPageHTML(errorType, data);
+        doc.webview.executeJavaScript(`
+          document.open();
+          document.write(${JSON.stringify(errorHTML)});
+          document.close();
+        `).catch(err => {
+          console.error('Error rendering error page in webview:', err);
+        });
+        return;
+      } else if (doc.contentFrame && doc.contentFrame.contentDocument) {
+        // Use contentFrame's document
+        targetDoc = doc.contentFrame.contentDocument;
+      } else if (doc.errorContainer) {
+        // If there's a dedicated error container, use innerHTML
+        const errorHTML = createErrorPageHTML(errorType, data);
+        doc.errorContainer.innerHTML = errorHTML;
+        return;
+      } else {
+        // Create an error container if one doesn't exist
+        const container = document.createElement('div');
+        container.className = 'browser-error-container';
+        container.style.cssText = `
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #f5f5f5;
+          z-index: 1000;
+          padding: 20px;
+          overflow: auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        `;
         
-      case 'ssl':
-        pageContent = createSSLErrorPage(data);
-        break;
+        // Create an inner container for the error content
+        const innerContainer = document.createElement('div');
+        innerContainer.className = 'browser-error-content';
+        innerContainer.style.cssText = `
+          max-width: 600px;
+          padding: 30px;
+          background-color: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        `;
         
-      case 'notfound':
-        pageContent = createNotFoundErrorPage(data);
-        break;
+        // Get the appropriate error page content
+        let errorContent = '';
+        switch (errorType) {
+          case 'network':
+            errorContent = createNetworkErrorPage(data);
+            break;
+          case 'ssl':
+            errorContent = createSSLErrorPage(data);
+            break;
+          case 'notfound':
+            errorContent = createNotFoundErrorPage(data);
+            break;
+          case 'generic':
+          default:
+            errorContent = createGenericErrorPage(data);
+            break;
+        }
         
-      case 'generic':
-      default:
-        pageContent = createGenericErrorPage(data);
-        break;
+        // Set the inner HTML and append to the document
+        innerContainer.innerHTML = errorContent;
+        container.appendChild(innerContainer);
+        
+        // Append to the browser container if available
+        if (doc.container && doc.container.appendChild) {
+          doc.container.appendChild(container);
+        } else if (doc.contentFrame && doc.contentFrame.parentNode) {
+          doc.contentFrame.parentNode.appendChild(container);
+        } else {
+          // Last resort: append to body
+          document.body.appendChild(container);
+        }
+        
+        // Store a reference to the error container
+        doc.errorContainer = container;
+        return;
+      }
     }
     
-    // Write error page HTML
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Error</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-            color: #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-          }
-          .error-container {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            max-width: 600px;
-            text-align: center;
-            margin: 20px;
-          }
-          .error-icon {
-            color: #666;
-            margin-bottom: 20px;
-          }
-          .network-error-icon { color: #e67e22; }
-          .ssl-error-icon { color: #e74c3c; }
-          .notfound-error-icon { color: #3498db; }
-          .generic-error-icon { color: #7f8c8d; }
-          h1 {
-            margin: 0 0 20px 0;
-            font-weight: 600;
-            font-size: 24px;
-          }
-          p {
-            margin: 0 0 20px 0;
-            line-height: 1.5;
-            color: #666;
-          }
-          .error-details {
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: left;
-            font-family: monospace;
-            font-size: 14px;
-            overflow-wrap: break-word;
-          }
-          .error-details p {
-            margin: 5px 0;
-          }
-          .error-actions {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-          }
-          button {
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-weight: 500;
-            cursor: pointer;
-            font-size: 14px;
-            border: none;
-            transition: background-color 0.2s;
-          }
-          .primary-button {
-            background-color: #4c6ef5;
-            color: white;
-          }
-          .primary-button:hover {
-            background-color: #3b5de7;
-          }
-          .secondary-button {
-            background-color: #e9ecef;
-            color: #495057;
-          }
-          .secondary-button:hover {
-            background-color: #dee2e6;
-          }
-          .warning-button {
-            background-color: #e74c3c;
-            color: white;
-          }
-          .warning-button:hover {
-            background-color: #c0392b;
-          }
-        </style>
-      </head>
-      <body>
-        ${pageContent}
-        <script>
-          // Add event listeners for buttons
-          document.addEventListener('DOMContentLoaded', function() {
-            const refreshButton = document.getElementById('refresh-button');
-            if (refreshButton) {
-              refreshButton.addEventListener('click', function() {
-                window.parent.postMessage({ type: 'cognivore-refresh-page' }, '*');
-              });
-            }
-            
-            const backButton = document.getElementById('back-button');
-            if (backButton) {
-              backButton.addEventListener('click', function() {
-                window.parent.postMessage({ type: 'cognivore-go-back' }, '*');
-              });
-            }
-            
-            const proceedButton = document.getElementById('proceed-button');
-            if (proceedButton) {
-              proceedButton.addEventListener('click', function() {
-                window.parent.postMessage({ 
-                  type: 'cognivore-proceed-anyway',
-                  url: '${data.url}'
-                }, '*');
-              });
-            }
-          });
-        </script>
-      </body>
-      </html>
-    `);
-    
-    doc.close();
+    // If we have a valid document with open method, use it
+    if (targetDoc && typeof targetDoc.open === 'function') {
+      // Clear any existing content
+      targetDoc.open();
+      
+      // Create appropriate error page content
+      let pageContent = '';
+      
+      switch (errorType) {
+        case 'network':
+          pageContent = createNetworkErrorPage(data);
+          break;
+          
+        case 'ssl':
+          pageContent = createSSLErrorPage(data);
+          break;
+          
+        case 'notfound':
+          pageContent = createNotFoundErrorPage(data);
+          break;
+          
+        case 'generic':
+        default:
+          pageContent = createGenericErrorPage(data);
+          break;
+      }
+      
+      // Get complete HTML document with styles
+      const completeHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Error</title>
+          <style>
+            ${getErrorPageStyles()}
+          </style>
+        </head>
+        <body>
+          ${pageContent}
+          <script>
+            document.addEventListener('DOMContentLoaded', function() {
+              const refreshButton = document.getElementById('refresh-button');
+              if (refreshButton) {
+                refreshButton.addEventListener('click', function() {
+                  window.location.reload();
+                });
+              }
+              
+              const backButton = document.getElementById('back-button');
+              if (backButton) {
+                backButton.addEventListener('click', function() {
+                  window.history.back();
+                });
+              }
+            });
+          </script>
+        </body>
+        </html>
+      `;
+      
+      // Write the error page content
+      targetDoc.write(completeHTML);
+      targetDoc.close();
+    } else {
+      console.error('No valid document or container to render error page');
+    }
   } catch (error) {
     console.error('Error rendering error page:', error);
   }
+}
+
+/**
+ * Create a complete error page HTML
+ * @param {string} errorType - Type of error
+ * @param {Object} data - Error data
+ * @returns {string} Complete HTML document
+ */
+function createErrorPageHTML(errorType, data) {
+  // Get error content based on type
+  let pageContent = '';
+  switch (errorType) {
+    case 'network':
+      pageContent = createNetworkErrorPage(data);
+      break;
+    case 'ssl':
+      pageContent = createSSLErrorPage(data);
+      break;
+    case 'notfound':
+      pageContent = createNotFoundErrorPage(data);
+      break;
+    case 'generic':
+    default:
+      pageContent = createGenericErrorPage(data);
+      break;
+  }
+  
+  // Return complete HTML document
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Error</title>
+      <style>
+        ${getErrorPageStyles()}
+      </style>
+    </head>
+    <body>
+      ${pageContent}
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const refreshButton = document.getElementById('refresh-button');
+          if (refreshButton) {
+            refreshButton.addEventListener('click', function() {
+              window.location.reload();
+            });
+          }
+          
+          const backButton = document.getElementById('back-button');
+          if (backButton) {
+            backButton.addEventListener('click', function() {
+              window.history.back();
+            });
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Get common error page styles
+ * @returns {string} CSS styles
+ */
+function getErrorPageStyles() {
+  return `
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      background-color: #f7f7f7;
+      color: #333;
+    }
+    .error-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    .error-icon {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 24px;
+      color: #e74c3c;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 16px;
+      color: #e74c3c;
+    }
+    p {
+      font-size: 16px;
+      margin-bottom: 16px;
+      max-width: 600px;
+      line-height: 1.5;
+    }
+    .error-details {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 24px;
+      padding: 16px;
+      background-color: #eee;
+      border-radius: 4px;
+      width: 100%;
+      max-width: 600px;
+      text-align: left;
+    }
+    .error-actions {
+      display: flex;
+      gap: 16px;
+      margin-top: 24px;
+    }
+    button {
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+    .primary-button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+    }
+    .primary-button:hover {
+      background-color: #2980b9;
+    }
+    .secondary-button {
+      background-color: transparent;
+      color: #3498db;
+      border: 1px solid #3498db;
+    }
+    .secondary-button:hover {
+      background-color: rgba(52, 152, 219, 0.1);
+    }
+  `;
 }
 
 /**

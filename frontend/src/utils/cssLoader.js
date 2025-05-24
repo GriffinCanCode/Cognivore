@@ -98,7 +98,6 @@ class CSSLoader {
     try {
       // Load in order of priority (lower numbers first)
       await this.loadCSS('./styles/main.css', 1);
-      await this.loadCSS('./styles/components/browser-fix.css', 2);
       await this.loadCSS('./styles/components/browser.css', 10);
       await this.loadCSS('./styles/components/action-toolbar.css', 15);
       await this.loadCSS('./styles/components/tabs/TabBar.css', 20);

@@ -78,13 +78,18 @@ function setupTabBarRendering(browser, tabManager, container) {
     if (!reactRoot || !tabManager) return;
     
     try {
+      // Get the internal TabManager if we have a VoyagerTabManager
+      const internalTabManager = (typeof tabManager.getTabManager === 'function') 
+        ? tabManager.getTabManager() 
+        : tabManager;
+      
       // Create handlers that delegate to browser methods
       const handleTabClick = (tabId) => {
         try {
           if (typeof browser.setActiveTab === 'function') {
             browser.setActiveTab(tabId);
-          } else if (tabManager && typeof tabManager.setActiveTab === 'function') {
-            tabManager.setActiveTab(tabId);
+          } else if (internalTabManager && typeof internalTabManager.setActiveTab === 'function') {
+            internalTabManager.setActiveTab(tabId);
           }
         } catch (err) {
           console.warn('Error in tab click handler:', err);
@@ -95,8 +100,8 @@ function setupTabBarRendering(browser, tabManager, container) {
         try {
           if (typeof browser.closeTab === 'function') {
             browser.closeTab(tabId);
-          } else if (tabManager && typeof tabManager.closeTab === 'function') {
-            tabManager.closeTab(tabId);
+          } else if (internalTabManager && typeof internalTabManager.closeTab === 'function') {
+            internalTabManager.closeTab(tabId);
           }
         } catch (err) {
           console.warn('Error in tab close handler:', err);
@@ -107,8 +112,8 @@ function setupTabBarRendering(browser, tabManager, container) {
         try {
           if (typeof browser.addTab === 'function') {
             browser.addTab();
-          } else if (tabManager && typeof tabManager.createTab === 'function') {
-            tabManager.createTab({
+          } else if (internalTabManager && typeof internalTabManager.createTab === 'function') {
+            internalTabManager.createTab({
               url: 'https://www.google.com',
               title: 'New Tab',
               active: true
@@ -120,12 +125,12 @@ function setupTabBarRendering(browser, tabManager, container) {
       };
       
       // Get current active tab ID
-      const activeTabId = browser?.activeTabId || tabManager?.getActiveTabId() || null;
+      const activeTabId = browser?.activeTabId || internalTabManager?.getActiveTabId() || null;
       
       // Render TabBar component with proper delegation
       reactRoot.render(
         React.createElement(TabBar, {
-          tabManager: tabManager,
+          tabManager: internalTabManager,
           activeTabId: activeTabId,
           onTabClick: handleTabClick,
           onTabClose: handleTabClose,
@@ -142,8 +147,13 @@ function setupTabBarRendering(browser, tabManager, container) {
   };
   
   // Set up tab manager event listener for updates
-  if (tabManager && typeof tabManager.addListener === 'function') {
-    tabManager.addListener(() => {
+  // Support both VoyagerTabManager and direct TabManager
+  const internalTabManager = (typeof tabManager.getTabManager === 'function') 
+    ? tabManager.getTabManager() 
+    : tabManager;
+    
+  if (internalTabManager && typeof internalTabManager.addListener === 'function') {
+    internalTabManager.addListener(() => {
       renderTabBar();
     });
   }

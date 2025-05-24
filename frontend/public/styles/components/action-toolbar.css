@@ -5,15 +5,16 @@
   align-items: center !important;
   justify-content: space-between !important;
   padding: 6px 10px !important;
-  background-color: var(--glass-bg, rgba(15, 23, 42, 0.85)) !important;
+  background-color: var(--browser-glass-bg, rgba(15, 23, 42, 0.85)) !important;
   backdrop-filter: blur(12px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
-  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12)) !important;
+  border-bottom: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.12)) !important;
   height: 40px !important;
   width: 100% !important;
   box-sizing: border-box !important;
   position: relative !important;
-  z-index: 8 !important;
+  order: 3 !important; /* Ensures it comes after address bar which has order: 2 */
+  flex-shrink: 0 !important;
 }
 
 .browser-action-toolbar .toolbar-actions {
@@ -27,93 +28,187 @@
   align-items: center !important;
 }
 
-/* Toolbar button base styling */
-.browser-action-toolbar .toolbar-btn {
+.browser-action-buttons-container {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+/* Toolbar button base styling - using cohesive browser color scheme */
+.browser-action-toolbar .toolbar-btn,
+.browser-action-buttons-container .toolbar-btn,
+.browser-nav-controls button.toolbar-btn {
   display: flex !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 0px !important; /* Start with no gap - will expand on hover */
   padding: 6px 12px !important;
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background-color: var(--browser-hover-bg, rgba(255, 255, 255, 0.1)) !important;
+  border: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.2)) !important;
   border-radius: 6px !important;
-  color: #f8fafc !important;
+  color: var(--browser-text-light, #f8fafc) !important;
   font-size: 13px !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif !important;
   cursor: pointer !important;
-  transition: all 0.2s cubic-bezier(0.215, 0.61, 0.355, 1) !important;
+  transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, gap 1.2s cubic-bezier(0.4, 0.0, 0.2, 1) !important; /* Separate transitions */
   height: 32px !important;
   outline: none !important;
   position: relative !important;
   overflow: hidden !important;
   white-space: nowrap !important;
+  min-width: 44px !important; /* Minimum width to accommodate icon and padding */
 }
 
-/* Hover effects for toolbar buttons */
-.browser-action-toolbar .toolbar-btn:hover {
+/* Hover effects for toolbar buttons - expand to show text */
+.browser-action-toolbar .toolbar-btn:hover,
+.browser-action-buttons-container .toolbar-btn:hover,
+.browser-nav-controls button.toolbar-btn:hover:not(:disabled) {
   background-color: rgba(255, 255, 255, 0.15) !important;
   border-color: rgba(255, 255, 255, 0.3) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  gap: 6px !important; /* Restore gap on hover */
+  padding-right: 12px !important; /* Ensure proper padding when expanded */
+  transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease, gap 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) !important; /* More gradual expand */
 }
 
 /* Active/pressed state */
-.browser-action-toolbar .toolbar-btn:active {
+.browser-action-toolbar .toolbar-btn:active,
+.browser-action-buttons-container .toolbar-btn:active,
+.browser-nav-controls button.toolbar-btn:active:not(:disabled) {
   transform: translateY(0) !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Focus state for accessibility */
-.browser-action-toolbar .toolbar-btn:focus {
+.browser-action-toolbar .toolbar-btn:focus,
+.browser-action-buttons-container .toolbar-btn:focus,
+.browser-nav-controls button.toolbar-btn:focus {
   outline: none !important;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4) !important;
+  box-shadow: 0 0 0 2px var(--browser-accent-primary, rgba(37, 99, 235, 0.4)) !important;
 }
 
 /* Special styling for extract button */
-.browser-action-toolbar .extract-btn {
-  background-color: rgba(37, 99, 235, 0.3) !important;
-  border-color: rgba(37, 99, 235, 0.5) !important;
+.browser-action-toolbar .extract-btn,
+.browser-action-buttons-container .extract-btn,
+.browser-nav-controls button.extract-btn {
+  background-color: var(--browser-active-bg, rgba(37, 99, 235, 0.3)) !important;
+  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.5)) !important;
 }
 
-.browser-action-toolbar .extract-btn:hover {
+.browser-action-toolbar .extract-btn:hover,
+.browser-action-buttons-container .extract-btn:hover,
+.browser-nav-controls button.extract-btn:hover {
   background-color: rgba(37, 99, 235, 0.4) !important;
-  border-color: rgba(37, 99, 235, 0.6) !important;
+  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.6)) !important;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
 }
 
-/* Active states for specific buttons */
-.browser-action-toolbar .toolbar-btn.active {
-  background-color: rgba(37, 99, 235, 0.4) !important;
-  border-color: rgba(37, 99, 235, 0.6) !important;
+/* Active states for specific buttons - using cohesive color scheme */
+.browser-action-toolbar .toolbar-btn.active,
+.browser-action-buttons-container .toolbar-btn.active,
+.browser-nav-controls button.toolbar-btn.active {
+  background-color: var(--browser-active-bg, rgba(37, 99, 235, 0.4)) !important;
+  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.6)) !important;
   color: #ffffff !important;
+  gap: 6px !important; /* Show gap for active buttons */
 }
 
-.browser-action-toolbar .reader-mode-btn.active {
+/* Active states should also show text */
+.browser-action-toolbar .toolbar-btn.active span,
+.browser-action-buttons-container .toolbar-btn.active span,
+.browser-nav-controls button.toolbar-btn.active span {
+  width: auto !important;
+  opacity: 1 !important;
+  max-width: 120px !important;
+  margin-left: 0 !important;
+}
+
+.browser-action-toolbar .reader-mode-btn.active,
+.browser-action-buttons-container .reader-mode-btn.active,
+.browser-nav-controls button.reader-mode-btn.active {
   background-color: rgba(34, 197, 94, 0.3) !important;
   border-color: rgba(34, 197, 94, 0.5) !important;
 }
 
-.browser-action-toolbar .research-btn.active {
+.browser-action-toolbar .research-btn.active,
+.browser-action-buttons-container .research-btn.active,
+.browser-nav-controls button.research-btn.active {
   background-color: rgba(168, 85, 247, 0.3) !important;
   border-color: rgba(168, 85, 247, 0.5) !important;
 }
 
-/* SVG icon styling */
-.browser-action-toolbar .toolbar-btn svg {
+/* SVG icon styling - enhanced for visibility */
+.browser-action-toolbar .toolbar-btn img,
+.browser-action-buttons-container .toolbar-btn img,
+.browser-nav-controls button.toolbar-btn img,
+.browser-nav-controls button img {
   width: 14px !important;
   height: 14px !important;
   flex-shrink: 0 !important;
-  opacity: 0.9 !important;
-  transition: opacity 0.2s ease !important;
-}
-
-.browser-action-toolbar .toolbar-btn:hover svg {
   opacity: 1 !important;
+  transition: opacity 0.2s ease, filter 0.2s ease !important;
+  filter: brightness(1.8) contrast(1.4) saturate(1.5) !important;
 }
 
-/* Button text styling */
-.browser-action-toolbar .toolbar-btn span {
+.browser-action-toolbar .toolbar-btn:hover img,
+.browser-action-buttons-container .toolbar-btn:hover img,
+.browser-nav-controls button.toolbar-btn:hover img,
+.browser-nav-controls button:hover img {
+  opacity: 1 !important;
+  filter: brightness(2.2) contrast(1.6) saturate(1.7) !important;
+}
+
+/* Enhanced styling for disabled navigation buttons - keep icons visible */
+.browser-nav-controls button.toolbar-btn:disabled,
+.browser-nav-controls button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.browser-nav-controls button.toolbar-btn:disabled img,
+.browser-nav-controls button:disabled img {
+  opacity: 0.8 !important;
+  filter: brightness(1.4) contrast(1.2) saturate(1.2) !important;
+}
+
+/* Button text styling - collapsed by default, expands on hover */
+.browser-action-toolbar .toolbar-btn span,
+.browser-action-buttons-container .toolbar-btn span,
+.browser-nav-controls button.toolbar-btn span {
   font-weight: 500 !important;
   letter-spacing: 0.01em !important;
+  width: auto !important; /* Auto width for text content */
+  opacity: 0 !important;
+  overflow: hidden !important;
+  transition: opacity 0.2s cubic-bezier(0.4, 0.0, 0.2, 1), max-width 1.2s cubic-bezier(0.4, 0.0, 0.2, 1) !important; /* Fast fade, slow slide */
+  white-space: nowrap !important;
+  margin-left: -6px !important; /* Negative margin to prevent button jumping */
+  max-width: 0 !important; /* Use max-width for sliding effect */
+}
+
+/* Show text on hover */
+.browser-action-toolbar .toolbar-btn:hover span,
+.browser-action-buttons-container .toolbar-btn:hover span,
+.browser-nav-controls button.toolbar-btn:hover span {
+  opacity: 1 !important;
+  max-width: 120px !important; /* Generous max-width for longer labels */
+  margin-left: 0 !important;
+  transition: opacity 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), max-width 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) !important; /* More gradual expand */
+}
+
+/* Navigation controls - keep text hidden on hover and no gap expansion */
+.browser-nav-controls button.toolbar-btn:hover {
+  gap: 0px !important; /* Keep no gap for nav controls */
+  padding-right: 12px !important; /* Standard padding */
+}
+
+.browser-nav-controls button.toolbar-btn:hover span {
+  opacity: 0 !important; /* Keep text hidden */
+  max-width: 0 !important; /* Keep text hidden */
+  margin-left: -6px !important; /* Keep negative margin */
 }
 
 /* Responsive adjustments */
@@ -127,25 +222,33 @@
     gap: 6px !important;
   }
   
-  .browser-action-toolbar .toolbar-btn {
+  .browser-action-toolbar .toolbar-btn,
+  .browser-action-buttons-container .toolbar-btn,
+  .browser-nav-controls button.toolbar-btn {
     padding: 4px 8px !important;
     font-size: 12px !important;
     height: 28px !important;
     min-width: auto !important;
   }
   
-  .browser-action-toolbar .toolbar-btn svg {
+  .browser-action-toolbar .toolbar-btn img,
+  .browser-action-buttons-container .toolbar-btn img,
+  .browser-nav-controls button.toolbar-btn img {
     width: 12px !important;
     height: 12px !important;
   }
 }
 
 @media (max-width: 480px) {
-  .browser-action-toolbar .toolbar-btn span {
+  .browser-action-toolbar .toolbar-btn span,
+  .browser-action-buttons-container .toolbar-btn span,
+  .browser-nav-controls button.toolbar-btn span {
     display: none !important;
   }
   
-  .browser-action-toolbar .toolbar-btn {
+  .browser-action-toolbar .toolbar-btn,
+  .browser-action-buttons-container .toolbar-btn,
+  .browser-nav-controls button.toolbar-btn {
     padding: 6px !important;
     gap: 0 !important;
     min-width: 28px !important;
@@ -199,12 +302,6 @@
 
 .browser-action-toolbar .toolbar-btn:hover::before {
   opacity: 1;
-}
-
-/* Ensure proper z-index stacking */
-.browser-action-toolbar {
-  position: relative;
-  z-index: 8;
 }
 
 /* Integration with browser header */

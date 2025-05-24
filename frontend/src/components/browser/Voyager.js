@@ -9,6 +9,7 @@
  */
 
 import React, { Component } from 'react';
+import ReactDOM from 'react-dom/client';
 import { nanoid } from 'nanoid';
 import DOMPurify from 'dompurify';
 
@@ -16,12 +17,12 @@ import DOMPurify from 'dompurify';
 import VoyagerTabManager from './tabs/VoyagerTabManager';
 import TabManagerButton from './tabs/TabManagerButton';
 
-// Import browser component utilities
+// Import browser component utilities from centralized BrowserEnv
 import { 
   detectEnvironment,
   formatUrl,
   applySiteSpecificSettings
-} from './utils/BrowserUtilities';
+} from './utils/BrowserEnv';
 
 // Use centralized handlers from the index file
 import { 
@@ -490,13 +491,27 @@ class Voyager extends Component {
     this.setState({
       isMounted: true
     }, () => {
-      // Initialize immediately with simplified logic
-      this.initialize();
+      // Initialize with a minimal delay to ensure React rendering is complete
+      setTimeout(() => {
+        this.initialize();
+      }, 50); // Reduced delay - just enough for React to finish rendering
     });
   }
   
   componentWillUnmount() {
     this._isUnloading = true;
+    
+    // CRITICAL FIX: Reset VoyagerLifecycle state before cleanup to prevent race conditions
+    try {
+      const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
+      if (VoyagerLifecycle && typeof VoyagerLifecycle.resetBrowserState === 'function') {
+        console.log('Resetting VoyagerLifecycle state before component unmount');
+        VoyagerLifecycle.resetBrowserState(this);
+      }
+    } catch (err) {
+      console.warn('Error resetting VoyagerLifecycle state:', err);
+    }
+    
     this.cleanup();
     
     // Set isMounted to false to prevent any further state updates
@@ -573,11 +588,11 @@ class Voyager extends Component {
     this.currentUrl = formattedUrl;
     
     // Create a more reliable navigation timeout with progressive fallbacks
-    // Start with a longer timeout period (8 seconds instead of 5)
-    const navigationTimeoutPeriod = 8000;
+    // Use a longer timeout period (10 seconds instead of 8) to give more time for initial page load
+    const navigationTimeoutPeriod = 10000;
     
     this._navigationTimeout = setTimeout(() => {
-      console.log('Navigation timeout reached, hiding loading content');
+      console.log('Navigation timeout reached, handling gracefully');
       
       // Set a flag that we're handling a timeout
       this._handlingNavigationTimeout = true;
@@ -588,6 +603,8 @@ class Voyager extends Component {
         this.checkIfPageIsLoaded(() => {
           // If checking loaded state didn't resolve the issue, show a message
           if (this.state.isLoading && this._handlingNavigationTimeout) {
+            console.log('Page still appears to be loading after timeout, forcing visibility');
+            
             // Update loading state to help UI recover
             this.setState({ isLoading: false });
             updateLoadingControls(this, false);
@@ -600,6 +617,25 @@ class Voyager extends Component {
                   // Apply full styles to ensure visibility
                   if (typeof this.webview.applyAllCriticalStyles === 'function') {
                     this.webview.applyAllCriticalStyles(true);
+                  } else {
+                    // Direct style application as a fallback
+                    this.webview.style.cssText = `
+                      visibility: visible !important;
+                      opacity: 1 !important;
+                      display: flex !important;
+                      position: absolute !important;
+                      z-index: 10 !important;
+                      top: 0 !important;
+                      left: 0 !important;
+                      width: 100% !important;
+                      height: 100% !important;
+                      border: none !important;
+                      margin: 0 !important;
+                      padding: 0 !important;
+                      background-color: white !important;
+                      overflow: hidden !important; 
+                      pointer-events: auto !important;
+                    `;
                   }
                   
                   // Make sure webview is visible
@@ -613,11 +649,17 @@ class Voyager extends Component {
                   // Try to gracefully extract information from the page
                   if (typeof this.webview.executeJavaScript === 'function') {
                     this.webview.executeJavaScript(`
-                      {
-                        title: document.title || 'Unknown Page',
-                        url: window.location.href,
-                        loaded: true
-                      }
+                      (function() {
+                        try {
+                          return {
+                            title: document.title || 'Unknown Page',
+                            url: window.location.href,
+                            loaded: true
+                          };
+                        } catch (e) {
+                          return { error: e.message };
+                        }
+                      })()
                     `).then(result => {
                       if (result) {
                         console.log('Retrieved page info despite timeout:', result);
@@ -634,6 +676,20 @@ class Voyager extends Component {
                     }).catch(err => {
                       console.warn('Failed to get page info after timeout:', err);
                     });
+                  }
+                  
+                  // Apply site-specific fixes, especially for Google
+                  if (formattedUrl.includes('google.com') && typeof this.webview.executeJavaScript === 'function') {
+                    this.webview.executeJavaScript(`
+                      (function() {
+                        // Add Google-specific fixes
+                        const style = document.createElement('style');
+                        style.textContent = "html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; } " +
+                          "#main, #cnt, #rcnt, #center_col, #rso, [role='main'] { width: 100% !important; max-width: none !important; }";
+                        document.head.appendChild(style);
+                        return true;
+                      })()
+                    `).catch(() => console.log('Could not apply Google-specific fixes'));
                   }
                 }
               } catch (err) {
@@ -713,13 +769,28 @@ class Voyager extends Component {
     
     // Start time for tracking duration
     const startTime = Date.now();
-    const maxDetectionTime = 8000; // Max 8 seconds of detection
+    const maxDetectionTime = 12000; // Increase max detection time to 12 seconds
     
-    // Use a relatively fast polling interval (250ms)
+    // Use a relatively fast polling interval (200ms)
     this._loadDetectionInterval = setInterval(() => {
       // Check if we've been polling too long
       if (Date.now() - startTime > maxDetectionTime) {
         clearInterval(this._loadDetectionInterval);
+        
+        // If we're still loading after max detection time, force the webview to be visible
+        if (this.state?.isLoading && this.webview) {
+          console.log('Max detection time reached, forcing webview visibility');
+          if (typeof this.webview.applyAllCriticalStyles === 'function') {
+            this.webview.applyAllCriticalStyles(true);
+          } else {
+            this.webview.style.visibility = 'visible';
+            this.webview.style.opacity = '1';
+          }
+          
+          // Update UI state
+          this.setState({ isLoading: false });
+          updateLoadingControls(this, false);
+        }
         return;
       }
       
@@ -729,9 +800,16 @@ class Voyager extends Component {
         return;
       }
       
+      // After 2 seconds of loading, ensure webview is at least partially visible
+      // This ensures users see something even if load events don't fire correctly
+      if (Date.now() - startTime > 2000 && this.webview) {
+        this.webview.style.visibility = 'visible';
+        this.webview.style.opacity = '1';
+      }
+      
       // Call our check method
       this.checkIfPageIsLoaded();
-    }, 250);
+    }, 200);
   }
   
   /**
@@ -752,23 +830,36 @@ class Voyager extends Component {
           typeof this.webview.executeJavaScript === 'function') {
         
         this.webview.executeJavaScript(`
-          {
-            currentUrl: window.location.href,
-            readyState: document.readyState,
-            title: document.title
-          }
+          (function() {
+            try {
+              return {
+                currentUrl: window.location.href,
+                readyState: document.readyState,
+                title: document.title,
+                hasBody: !!document.body
+              };
+            } catch (e) {
+              return { error: e.message };
+            }
+          })()
         `).then(result => {
           if (!result) {
             if (callback) callback();
             return;
           }
           
-          // Check if URL has changed, indicating successful navigation
-          if (result.currentUrl && result.currentUrl !== 'about:blank' && 
-              result.currentUrl !== this.currentUrl &&
-              result.readyState === 'complete') {
+          // Check if URL has changed, indicating successful navigation or if readyState is complete
+          if ((result.currentUrl && result.currentUrl !== 'about:blank' && 
+              result.currentUrl !== this.currentUrl) ||
+              result.readyState === 'complete' ||
+              (result.hasBody && result.readyState === 'interactive')) {
             
-            console.log(`Page appears to be loaded based on URL change: ${result.currentUrl}`);
+            console.log(`Page appears to be loaded based on state check:`, {
+              urlChanged: result.currentUrl !== this.currentUrl,
+              readyState: result.readyState,
+              hasBody: result.hasBody,
+              title: result.title
+            });
             
             // Update title if available
             if (result.title) {
@@ -1024,21 +1115,8 @@ class Voyager extends Component {
     // Ensure webview is fully visible
     if (this.webview) {
       try {
-        // Apply all webview styles using our new method
-        this.applyWebviewStyles(this.webview);
-        
-        // Alternative style application for reliability
-        if (typeof this.webview.applyAllCriticalStyles === 'function') {
-          this.webview.applyAllCriticalStyles(true);
-        } else {
-          safeApplyCriticalStyles(this.webview, true);
-        }
-        
-        // Double-check visibility with direct styling
-        this.webview.style.visibility = 'visible';
-        this.webview.style.opacity = '1';
-        this.webview.style.display = 'flex';
-        this.webview.style.zIndex = '10';
+        // Use StyleManager for consistent styling (this is the primary styling method)
+        safeApplyCriticalStyles(this.webview, true);
         
         // Force browser to recalculate webview layout
         void this.webview.offsetHeight;
@@ -1879,15 +1957,26 @@ class Voyager extends Component {
     const isContainerConnected = hasContainer && (
       this.containerRef.current.isConnected || 
       document.contains(this.containerRef.current) ||
-      this.containerRef.current.parentNode
+      this.containerRef.current.parentNode ||
+      // Additional check: is the container actually in the DOM tree
+      (this.containerRef.current.parentElement && document.contains(this.containerRef.current.parentElement))
     );
     
-    if (!hasContainer || !isContainerConnected) {
+    // Additional safety check: ensure container has basic DOM properties
+    const hasBasicDomProperties = hasContainer && 
+      typeof this.containerRef.current.tagName === 'string' &&
+      typeof this.containerRef.current.appendChild === 'function';
+    
+    if (!hasContainer || !isContainerConnected || !hasBasicDomProperties) {
       console.warn('Cannot initialize Voyager - container not mounted', {
         hasContainer: !!hasContainer,
         isConnected: hasContainer ? this.containerRef.current.isConnected : false,
         inDocument: hasContainer ? document.contains(this.containerRef.current) : false,
-        hasParent: hasContainer ? !!this.containerRef.current.parentNode : false
+        hasParent: hasContainer ? !!this.containerRef.current.parentNode : false,
+        hasParentElement: hasContainer ? !!this.containerRef.current.parentElement : false,
+        parentInDocument: hasContainer && this.containerRef.current.parentElement ? document.contains(this.containerRef.current.parentElement) : false,
+        hasTagName: hasContainer ? typeof this.containerRef.current.tagName === 'string' : false,
+        hasAppendChild: hasContainer ? typeof this.containerRef.current.appendChild === 'function' : false
       });
       
       // Reset initializing flag
@@ -1899,9 +1988,9 @@ class Voyager extends Component {
       }
       
       this._initAttempts++;
-      const delay = Math.min(this._initAttempts * 200, 2000); // Shorter delays and cap
+      const delay = Math.min(this._initAttempts * 100, 1000); // Reduced from 150ms base and 1500ms cap
       
-      if (this._initAttempts < 10) { // Reduced retry limit to prevent excessive attempts
+      if (this._initAttempts < 5) { // Reduced from 8 attempts since DOM checking is more robust
         console.log(`Retry #${this._initAttempts} scheduled in ${delay}ms`);
         setTimeout(() => {
           // Double-check if component wasn't cleaned up in the meantime
@@ -1910,7 +1999,7 @@ class Voyager extends Component {
           }
         }, delay);
       } else {
-        console.error('Failed to initialize Voyager after multiple attempts');
+        console.error('Failed to initialize Voyager after multiple attempts - DOM may have timing issues');
       }
       return;
     }
@@ -1937,52 +2026,59 @@ class Voyager extends Component {
       return;
     }
     
-    // Ensure the webview has all required methods
-    if (this.webview) {
-      // Try to use StyleManager for method setup
-      try {
-        const StyleManager = require('./handlers/StyleManager').default;
-        if (StyleManager && typeof StyleManager.ensureApplyAllCriticalStylesMethod === 'function') {
-          StyleManager.ensureApplyAllCriticalStylesMethod(this.webview);
-        } else {
-          // Fallback to local helper function if StyleManager is not available
-          console.warn('StyleManager not available for method setup, using local fallback');
-          safeApplyCriticalStyles(this.webview, true);
-        }
-      } catch (error) {
-        console.warn('Error ensuring applyAllCriticalStyles method:', error);
-        // Use local helper as fallback
-        safeApplyCriticalStyles(this.webview, true);
-      }
-    }
-    
     // Initialize centralized browser handlers
     initBrowserHandlers(this);
     
-    // Initialize tab manager if needed
+    // CRITICAL FIX: Force fresh initialization if this is a remount after navigation
+    const shouldForceReset = this._wasUnmounted || !this.state.isMounted;
+    if (shouldForceReset) {
+      console.log('Forcing fresh VoyagerLifecycle initialization after component remount');
+    }
+    
+    // Use VoyagerLifecycle to properly initialize webview and all systems
+    const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
+    if (VoyagerLifecycle && typeof VoyagerLifecycle.initialize === 'function') {
+      console.log('Initializing browser via VoyagerLifecycle system');
+      VoyagerLifecycle.initialize(this, { 
+        forceStateReset: shouldForceReset 
+      });
+    } else {
+      console.warn('VoyagerLifecycle not available, using fallback initialization');
+    }
+    
+    // Clear the unmount flag after successful initialization
+    this._wasUnmounted = false;
+    
+    // Ensure tab manager is properly initialized
+    // The tabManager should have been created by setupCompleteBrowserLayout
     if (!this.tabManager) {
+      console.warn('Tab manager not created by layout manager, creating fallback');
       this.tabManager = new VoyagerTabManager(this);
     }
     
-    // Add tab manager button to browser action buttons container
-    const header = this.containerRef.current?.querySelector('.browser-header');
-    if (header) {
-      // Find the action buttons container instead of creating a new container
-      const actionButtonsContainer = header.querySelector('.browser-action-buttons');
+    // Try to find browser header for tab manager button - with enhanced fallback
+    const browserHeaderElement = this.containerRef.current?.querySelector('.browser-header') ||
+                                 this.containerRef.current?.querySelector('.browser-header-container') ||
+                                 this.containerRef.current?.querySelector('.voyager-header');
+    
+    if (browserHeaderElement) {
+      // Look for action buttons container with multiple fallback options
+      const actionButtonsContainer = browserHeaderElement.querySelector('.browser-action-buttons') ||
+                                    browserHeaderElement.querySelector('.action-buttons-container') ||
+                                    browserHeaderElement.querySelector('.toolbar-actions-right') ||
+                                    browserHeaderElement.querySelector('.browser-action-toolbar');
       
       if (actionButtonsContainer) {
-        // Create a new container for the tab manager button within action buttons
-        const tabManagerContainer = document.createElement('div');
-        tabManagerContainer.className = 'tab-manager-container';
-        actionButtonsContainer.appendChild(tabManagerContainer);
-        
-        // Render tab manager button into the new container
         try {
-          const ReactDOM = require('react-dom/client');
-          // Check if we already have a root for this container
-          if (!this._tabManagerRoot) {
-            this._tabManagerRoot = ReactDOM.createRoot(tabManagerContainer);
-          }
+          // Create tab manager container in the action buttons area
+          const tabManagerContainer = document.createElement('div');
+          tabManagerContainer.className = 'tab-manager-container';
+          actionButtonsContainer.appendChild(tabManagerContainer);
+          
+          // Create React root for tab manager button
+          this._tabManagerRoot = ReactDOM.createRoot(tabManagerContainer);
+          
+          // Render tab manager button
           this._tabManagerRoot.render(
             <TabManagerButton 
               voyager={this} 
@@ -1997,7 +2093,7 @@ class Voyager extends Component {
         console.warn('Could not find action buttons container to add tab manager button');
       }
     } else {
-      console.warn('Could not find browser header to add tab manager button');
+      console.warn('Could not find browser header to add tab manager button - this is expected during initial layout creation');
     }
     
     // Properly bind event handlers to the browser instance
@@ -2074,12 +2170,9 @@ class Voyager extends Component {
     if (refreshButton) refreshButton.addEventListener('click', this.refreshPage);
     if (stopButton) stopButton.addEventListener('click', this.stopLoading);
     
-    // Navigate to Google as the default page
-    if (!this.hasNavigatedInitially) {
-      console.log('Navigating to Google as default page');
-      this.navigate('https://www.google.com');
-      this.hasNavigatedInitially = true;
-    }
+    // CRITICAL FIX: Wait for webview dom-ready event before navigation
+    // Remove immediate navigation that was causing "WebView must be attached to the DOM" errors
+    this._setupInitialNavigation();
     
     // Initialize researcher component if needed
     if (!this.researcher && this.props && this.props.enableResearch !== false) {
@@ -2088,26 +2181,71 @@ class Voyager extends Component {
   }
   
   /**
-   * Schedule the initial navigation - simplified approach
+   * Set up initial navigation after webview is ready
+   * This fixes the race condition where navigation was attempted before dom-ready event
    */
-  _scheduleInitialNavigation() {
+  _setupInitialNavigation() {
     // Check if we've already navigated successfully
     if (this.hasNavigatedInitially) {
-      console.log('Already navigated initially, skipping navigation scheduling');
+      console.log('Already navigated initially, skipping navigation setup');
       return;
     }
-    
-    // Simple approach: navigate to Google immediately
-    console.log('Navigating to Google on initialization');
+
+    // Wait for webview to be ready before attempting navigation
+    if (this.webview) {
+      // Check if webview is already ready
+      if (this.webview.isReady || this.webview.getAttribute('data-ready') === 'true') {
+        console.log('Webview already ready, navigating immediately');
+        this._performInitialNavigation();
+      } else {
+        console.log('Setting up dom-ready listener for initial navigation');
+        
+        // Add one-time dom-ready event listener
+        const handleDomReady = () => {
+          console.log('Webview dom-ready fired, performing initial navigation');
+          this.webview.removeEventListener('dom-ready', handleDomReady);
+          this._performInitialNavigation();
+        };
+        
+        this.webview.addEventListener('dom-ready', handleDomReady);
+        
+        // Fallback timeout in case dom-ready doesn't fire within reasonable time
+        setTimeout(() => {
+          if (!this.hasNavigatedInitially) {
+            console.log('Dom-ready timeout reached, attempting navigation anyway');
+            this.webview.removeEventListener('dom-ready', handleDomReady);
+            this._performInitialNavigation();
+          }
+        }, 3000); // 3 second fallback timeout
+      }
+    } else {
+      // No webview yet, try again in a moment
+      console.log('No webview found, retrying navigation setup in 100ms');
+      setTimeout(() => {
+        this._setupInitialNavigation();
+      }, 100);
+    }
+  }
+
+  /**
+   * Perform the actual initial navigation to Google
+   */
+  _performInitialNavigation() {
+    if (this.hasNavigatedInitially) {
+      console.log('Navigation already performed, skipping');
+      return;
+    }
+
+    console.log('Performing initial navigation to Google');
     try {
       this.navigate('https://www.google.com');
       this.hasNavigatedInitially = true;
     } catch (error) {
       console.error('Error during initial navigation:', error);
+      // Mark as navigated to prevent infinite retries
+      this.hasNavigatedInitially = true;
     }
   }
-  
-
   
   /**
    * Clean up browser resources
@@ -2115,6 +2253,20 @@ class Voyager extends Component {
    */
   cleanup() {
     console.log('Cleaning up Voyager browser component');
+    
+    // CRITICAL FIX: Mark component as unmounted for future initialization
+    this._wasUnmounted = true;
+    
+    // Use VoyagerLifecycle cleanup for proper system cleanup
+    try {
+      const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
+      if (VoyagerLifecycle && typeof VoyagerLifecycle.cleanup === 'function') {
+        console.log('Cleaning up browser via VoyagerLifecycle system');
+        VoyagerLifecycle.cleanup(this);
+      }
+    } catch (err) {
+      console.warn('Error during VoyagerLifecycle cleanup:', err);
+    }
     
     // Reset initialization flags
     this._isInitialized = false;
@@ -2595,6 +2747,147 @@ class Voyager extends Component {
         {/* It manages its own DOM and doesn't need to be rendered through React */}
       </div>
     );
+  }
+
+  /**
+   * Create webview element using BrowserRenderer
+   * This method is called by VoyagerLifecycle during initialization
+   */
+  createWebviewElement() {
+    try {
+      const { createWebviewElement } = require('./renderers/BrowserRenderer');
+      
+      if (typeof createWebviewElement === 'function') {
+        console.log('Creating webview element via BrowserRenderer');
+        const webview = createWebviewElement(this);
+        
+        if (webview) {
+          // Find the webview container to insert the webview
+          const webviewContainer = this.containerRef.current?.querySelector('.browser-webview-container') ||
+                                   this.containerRef.current?.querySelector('.browser-content') ||
+                                   this.containerRef.current;
+          
+          if (webviewContainer) {
+            // Clear any existing content in the container
+            webviewContainer.innerHTML = '';
+            
+            // Insert the webview into the container
+            webviewContainer.appendChild(webview);
+            
+            // Now check if it's connected to the DOM
+            if (webview.isConnected || document.contains(webview)) {
+              this.webview = webview;
+              
+              // Update WorkerManager reference
+              if (WorkerManager && !WorkerManager.webviewRef) {
+                WorkerManager.webviewRef = this.webview;
+                WorkerManager.hasWebview = true;
+                console.log('Updated WorkerManager webview reference');
+              }
+              
+              console.log('Webview element created and inserted into DOM successfully');
+              return webview;
+            } else {
+              console.warn('Webview was inserted but is not connected to DOM');
+              return null;
+            }
+          } else {
+            console.error('No webview container found to insert webview');
+            return null;
+          }
+        } else {
+          console.warn('createWebviewElement returned null webview');
+          return null;
+        }
+      } else {
+        console.error('createWebviewElement function not found in BrowserRenderer');
+        return null;
+      }
+    } catch (err) {
+      console.error('Error in createWebviewElement:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Initialize browser content (fallback method for VoyagerLifecycle)
+   */
+  initBrowserContent() {
+    try {
+      console.log('Initializing browser content via initBrowserContent fallback');
+      
+      // Use WebviewInitializer if available
+      const WebviewInitializer = require('./handlers/WebviewInitializer');
+      if (WebviewInitializer && typeof WebviewInitializer.createWebview === 'function') {
+        const webview = WebviewInitializer.createWebview(this);
+        
+        if (webview && (webview.isConnected || document.contains(webview))) {
+          this.webview = webview;
+          console.log('Browser content initialized successfully via WebviewInitializer');
+          return true;
+        }
+      }
+      
+      // Fallback to createWebviewElement with proper DOM insertion
+      const webview = this.createWebviewElement();
+      
+      if (webview && (webview.isConnected || document.contains(webview))) {
+        console.log('Browser content initialized successfully via createWebviewElement fallback');
+        return true;
+      }
+      
+      console.warn('Could not initialize browser content - no webview created or connected');
+      return false;
+    } catch (err) {
+      console.error('Error in initBrowserContent:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Force browser initialization (last resort method for VoyagerLifecycle)
+   */
+  forceInitBrowser() {
+    try {
+      console.log('Force initializing browser via forceInitBrowser');
+      
+      // Get webview container with better detection
+      const webviewContainer = this.containerRef.current?.querySelector('.browser-webview-container') ||
+                               this.containerRef.current?.querySelector('.browser-content') ||
+                               this.containerRef.current?.querySelector('.voyager-content') ||
+                               this.containerRef.current;
+      
+      if (!webviewContainer) {
+        console.error('No webview container found for force initialization');
+        return false;
+      }
+      
+      // Use WebviewInitializer directly if available
+      const WebviewInitializer = require('./handlers/WebviewInitializer');
+      if (WebviewInitializer && typeof WebviewInitializer.initializeWebview === 'function') {
+        const webview = WebviewInitializer.initializeWebview(this, webviewContainer);
+        
+        if (webview && (webview.isConnected || document.contains(webview))) {
+          this.webview = webview;
+          console.log('Browser force initialized successfully via WebviewInitializer');
+          return true;
+        }
+      }
+      
+      // Fallback to createWebviewElement approach
+      const webview = this.createWebviewElement();
+      
+      if (webview && (webview.isConnected || document.contains(webview))) {
+        console.log('Browser force initialized successfully via createWebviewElement');
+        return true;
+      }
+      
+      console.error('Force initialization failed - could not create or connect webview');
+      return false;
+    } catch (err) {
+      console.error('Error in forceInitBrowser:', err);
+      return false;
+    }
   }
 }
 

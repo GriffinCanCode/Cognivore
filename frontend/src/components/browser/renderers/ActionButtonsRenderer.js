@@ -9,7 +9,7 @@
  */
 export function createActionButtons(browser) {
   const actionButtons = document.createElement('div');
-  actionButtons.className = 'browser-action-buttons';
+  actionButtons.className = 'browser-action-buttons-container';
   
   // Create and add action buttons
   const bookmarkButton = createBookmarkButton(browser);
@@ -38,12 +38,11 @@ export function createActionButtons(browser) {
  */
 function createBookmarkButton(browser) {
   const bookmarkButton = document.createElement('button');
-  bookmarkButton.className = 'browser-bookmark-btn';
+  bookmarkButton.className = 'toolbar-btn browser-bookmark-btn';
   bookmarkButton.title = 'Bookmark this page';
   bookmarkButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-    </svg>
+    <img src="./@images/action-bookmark.svg" width="16" height="16" alt="Bookmark">
+    <span>Bookmark</span>
   `;
   
   // Add enhanced bookmark functionality
@@ -82,14 +81,11 @@ function createBookmarkButton(browser) {
  */
 function createSaveButton(browser) {
   const saveButton = document.createElement('button');
-  saveButton.className = 'browser-save-btn';
+  saveButton.className = 'toolbar-btn browser-save-btn';
   saveButton.title = 'Save page to knowledge base';
   saveButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-      <polyline points="17 21 17 13 7 13 7 21"></polyline>
-      <polyline points="7 3 7 8 15 8"></polyline>
-    </svg>
+    <img src="./@images/action-save.svg" width="16" height="16" alt="Save">
+    <span>Save</span>
   `;
   
   // Add enhanced save functionality with loading state
@@ -132,14 +128,11 @@ function createSaveButton(browser) {
  */
 function createReaderModeButton(browser) {
   const readerModeButton = document.createElement('button');
-  readerModeButton.className = 'browser-action-btn browser-reader-btn';
+  readerModeButton.className = 'toolbar-btn reader-mode-btn browser-reader-btn';
   readerModeButton.title = 'Toggle reader mode';
   readerModeButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M8 3H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1"></path>
-      <path d="M12 17v-6"></path>
-      <path d="M8 13h8"></path>
-    </svg>
+    <img src="./@images/action-reader.svg" width="16" height="16" alt="Reader">
+    <span>Reader</span>
   `;
   
   // Add enhanced reader mode toggle functionality
@@ -193,13 +186,11 @@ function createReaderModeButton(browser) {
  */
 function createResearchButton(browser) {
   const researchButton = document.createElement('button');
-  researchButton.className = 'browser-research-btn';
+  researchButton.className = 'toolbar-btn research-btn browser-research-btn';
   researchButton.title = 'Toggle research mode';
   researchButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-    </svg>
+    <img src="./@images/action-research.svg" width="16" height="16" alt="Research">
+    <span>Research</span>
   `;
   
   // Ultra-enhanced research mode toggle with maximum resilience

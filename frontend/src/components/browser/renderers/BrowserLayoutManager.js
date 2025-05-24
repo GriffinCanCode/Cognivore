@@ -76,7 +76,7 @@ export function setupCompleteBrowserLayout(browser) {
 /**
  * Initialize or get existing tab manager
  * @param {Object} browser - Browser instance
- * @returns {Object} Tab manager instance
+ * @returns {Object} VoyagerTabManager instance
  */
 function initializeTabManager(browser) {
   // Check if tab manager already exists
@@ -86,23 +86,22 @@ function initializeTabManager(browser) {
   
   // Create new VoyagerTabManager
   const voyagerTabManager = new VoyagerTabManager(browser);
-  const tabManager = voyagerTabManager.getTabManager();
   
-  // Store references
-  browser.voyagerTabManager = voyagerTabManager;
-  browser.tabManager = tabManager;
+  // Store the VoyagerTabManager instance (not the internal TabManager)
+  browser.tabManager = voyagerTabManager;
   
   // Create initial tab if none exist
-  if (!tabManager.getTabs().length) {
+  const internalTabManager = voyagerTabManager.getTabManager();
+  if (!internalTabManager.getTabs().length) {
     console.log('Creating initial tab since no tabs exist');
-    tabManager.createTab({
+    internalTabManager.createTab({
       url: 'https://www.google.com',
       title: 'New Tab',
       active: true
     });
   }
   
-  return tabManager;
+  return voyagerTabManager;
 }
 
 /**
@@ -128,46 +127,62 @@ function createBrowserHeaderContainer(browser, tabManager) {
     border-bottom: 1px solid var(--border-color, #444);
   `;
   
-  // Create address bar (at the top)
-  const addressContainer = createAddressBarContainer(browser);
-  headerContainer.appendChild(addressContainer);
+  // CRITICAL FIX: Create a browser-header element that Voyager.js expects
+  const browserHeader = document.createElement('div');
+  browserHeader.className = 'browser-header';
+  browserHeader.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  `;
   
-  // Create traditional header with navigation and action buttons
-  const header = createBrowserHeader(browser);
-  headerContainer.appendChild(header);
-  
-  // Create tab bar (below address bar and header)
+  // Create tab bar FIRST (order: 1)
   const tabBarContainer = createTabBarContainer(browser, tabManager);
-  headerContainer.appendChild(tabBarContainer);
+  browserHeader.appendChild(tabBarContainer);
+  
+  // Create address bar SECOND (order: 2)
+  const addressContainer = createAddressBarContainer(browser);
+  browserHeader.appendChild(addressContainer);
+  
+  // Create action toolbar THIRD (order: 3)
+  const actionToolbar = createBrowserActionToolbar(browser);
+  browserHeader.appendChild(actionToolbar);
+  
+  // Add the browser-header to the header container
+  headerContainer.appendChild(browserHeader);
   
   return headerContainer;
 }
 
 /**
- * Create the traditional browser header with navigation and action controls
+ * Create the browser action toolbar as a separate component
  * @param {Object} browser - Browser instance
- * @returns {HTMLElement} Header element
+ * @returns {HTMLElement} Action toolbar element
  */
-function createBrowserHeader(browser) {
-  const header = document.createElement('div');
-  header.className = 'browser-header';
-  header.style.cssText = `
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 10px;
-    background-color: var(--header-controls-bg-color, #2a2a2a);
-  `;
+function createBrowserActionToolbar(browser) {
+  const actionToolbar = document.createElement('div');
+  actionToolbar.className = 'browser-action-toolbar';
+  
+  // Create toolbar actions container
+  const toolbarActions = document.createElement('div');
+  toolbarActions.className = 'toolbar-actions';
   
   // Add navigation controls
   const navControls = createNavigationControls(browser);
-  header.appendChild(navControls);
+  toolbarActions.appendChild(navControls);
+  
+  // Create toolbar actions right container
+  const toolbarActionsRight = document.createElement('div');
+  toolbarActionsRight.className = 'toolbar-actions-right';
   
   // Add action buttons
   const actionButtons = createActionButtons(browser);
-  header.appendChild(actionButtons);
+  toolbarActionsRight.appendChild(actionButtons);
   
-  return header;
+  actionToolbar.appendChild(toolbarActions);
+  actionToolbar.appendChild(toolbarActionsRight);
+  
+  return actionToolbar;
 }
 
 /**
@@ -179,14 +194,14 @@ function createWebviewContainer(browser) {
   const webviewContainer = document.createElement('div');
   webviewContainer.className = 'browser-webview-container';
   webviewContainer.style.cssText = `
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
-    width: 100%;
-    height: 100%;
-    background-color: white;
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 500px !important;
+    display: flex !important;
+    flex: 1 !important;
+    overflow: hidden !important;
+    background-color: white !important;
   `;
   
   return webviewContainer;

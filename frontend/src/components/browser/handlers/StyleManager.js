@@ -27,65 +27,57 @@ const styleState = {
  * @returns {boolean} Success state
  */
 function safeApplyStyles(webview, show = true) {
-  if (!webview) {
-    styleLogger.error('Cannot apply styles - webview is null');
-    return false;
-  }
+  if (!webview) return false;
   
   try {
-    // First ensure the method exists
-    if (typeof webview.applyAllCriticalStyles !== 'function') {
-      // Try to add the method via StyleManager
-      if (typeof ensureApplyAllCriticalStylesMethod === 'function') {
-        ensureApplyAllCriticalStylesMethod(webview);
-      } else {
-        // Fallback implementation if method couldn't be added
-        webview.applyAllCriticalStyles = function(show) {
-          if (show) {
-            this.style.visibility = 'visible';
-            this.style.opacity = '1';
-            this.style.display = 'flex';
-          } else {
-            this.style.visibility = 'hidden';
-            this.style.opacity = '0';
-          }
-          return true;
-        };
+    if (show) {
+      // First ensure the webview container has proper dimensions
+      const container = webview.parentElement;
+      if (container) {
+        container.style.cssText = `
+          position: relative !important;
+          width: 100% !important;
+          height: 100% !important;
+          min-height: 500px !important;
+          display: flex !important;
+          flex: 1 !important;
+          overflow: hidden !important;
+        `;
       }
-    }
-    
-    // Now call the method if it exists
-    if (typeof webview.applyAllCriticalStyles === 'function') {
-      return webview.applyAllCriticalStyles(show);
+      
+      // Apply comprehensive webview styles
+      webview.style.cssText = `
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 500px !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 1 !important;
+        background-color: white !important;
+        flex: 1 !important;
+        pointer-events: auto !important;
+      `;
+      
+      // Force layout recalculation
+      void webview.offsetHeight;
+      
+      console.log('Applied critical visibility styles to webview and container');
     } else {
-      // Manual fallback if method couldn't be added
-      if (show) {
-        webview.style.visibility = 'visible';
-        webview.style.opacity = '1';
-        webview.style.display = 'flex';
-      } else {
-        webview.style.visibility = 'hidden';
-        webview.style.opacity = '0';
-      }
-      return true;
+      webview.style.visibility = 'hidden';
+      webview.style.opacity = '0';
     }
-  } catch (err) {
-    styleLogger.error('Error applying styles:', err);
     
-    // Final fallback - direct style setting
-    try {
-      if (show) {
-        webview.style.visibility = 'visible';
-        webview.style.opacity = '1';
-      } else {
-        webview.style.visibility = 'hidden';
-        webview.style.opacity = '0';
-      }
-      return true;
-    } catch (finalErr) {
-      styleLogger.error('Final fallback for styles failed:', finalErr);
-      return false;
-    }
+    return true;
+  } catch (err) {
+    console.error('Error in safeApplyStyles:', err);
+    return false;
   }
 }
 

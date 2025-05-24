@@ -41,12 +41,11 @@ export function createNavigationControls(browser) {
  */
 function createBackButton(browser) {
   const backButton = document.createElement('button');
-  backButton.className = 'browser-back-btn';
+  backButton.className = 'toolbar-btn browser-back-btn';
   backButton.title = 'Back';
   backButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="15 18 9 12 15 6"></polyline>
-    </svg>
+    <img src="./@images/nav-back.svg" width="16" height="16" alt="Back">
+    <span>Back</span>
   `;
   backButton.disabled = true;
   
@@ -74,12 +73,11 @@ function createBackButton(browser) {
  */
 function createForwardButton(browser) {
   const forwardButton = document.createElement('button');
-  forwardButton.className = 'browser-forward-btn';
+  forwardButton.className = 'toolbar-btn browser-forward-btn';
   forwardButton.title = 'Forward';
   forwardButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="9 18 15 12 9 6"></polyline>
-    </svg>
+    <img src="./@images/nav-forward.svg" width="16" height="16" alt="Forward">
+    <span>Forward</span>
   `;
   forwardButton.disabled = true;
   
@@ -107,14 +105,11 @@ function createForwardButton(browser) {
  */
 function createRefreshButton(browser) {
   const refreshButton = document.createElement('button');
-  refreshButton.className = 'browser-refresh-btn';
+  refreshButton.className = 'toolbar-btn browser-refresh-btn';
   refreshButton.title = 'Refresh';
   refreshButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="23 4 23 10 17 10"></polyline>
-      <polyline points="1 20 1 14 7 14"></polyline>
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-    </svg>
+    <img src="./@images/nav-refresh.svg" width="16" height="16" alt="Refresh">
+    <span>Refresh</span>
   `;
   
   // Add enhanced click handling with visual feedback
@@ -143,12 +138,11 @@ function createRefreshButton(browser) {
  */
 function createStopButton(browser) {
   const stopButton = document.createElement('button');
-  stopButton.className = 'browser-stop-btn';
+  stopButton.className = 'toolbar-btn browser-stop-btn';
   stopButton.title = 'Stop';
   stopButton.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="6" y="6" width="12" height="12"></rect>
-    </svg>
+    <img src="./@images/nav-stop.svg" width="16" height="16" alt="Stop">
+    <span>Stop</span>
   `;
   stopButton.style.display = 'none';
   

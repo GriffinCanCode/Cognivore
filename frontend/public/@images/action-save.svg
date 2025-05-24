@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <linearGradient id="saveGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9b30ff;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#bd7df5;stop-opacity:0.6" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle with subtle pulse -->
+  <circle cx="12" cy="12" r="10" fill="url(#saveGradient)" opacity="0.1">
+    <animate attributeName="r" 
+             dur="3.1s" 
+             repeatCount="indefinite" 
+             values="10;10.6;10" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="2.4s" 
+             repeatCount="indefinite" 
+             values="0.1;0.22;0.1" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+  
+  <!-- Document outline -->
+  <path d="M6 4 C6 2.9 6.9 2 8 2 L13 2 L18 7 L18 20 C18 21.1 17.1 22 16 22 L8 22 C6.9 22 6 21.1 6 20 Z" 
+        fill="none" 
+        stroke="url(#saveGradient)" 
+        stroke-width="1.8" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+        filter="url(#glow)">
+    <animate attributeName="stroke-width" 
+             dur="2.8s" 
+             repeatCount="indefinite" 
+             values="1.8;2.2;1.8" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </path>
+  
+  <!-- Document corner fold -->
+  <path d="M13 2 L13 7 L18 7" 
+        fill="none" 
+        stroke="url(#saveGradient)" 
+        stroke-width="1.5" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+        opacity="0.8">
+    <animate attributeName="opacity" 
+             dur="2.3s" 
+             repeatCount="indefinite" 
+             values="0.8;1;0.8" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </path>
+  
+  <!-- Download arrow -->
+  <path d="M12 8 L12 16" 
+        stroke="url(#saveGradient)" 
+        stroke-width="2" 
+        stroke-linecap="round"
+        filter="url(#glow)">
+    <animate attributeName="stroke-width" 
+             dur="2.2s" 
+             repeatCount="indefinite" 
+             values="2;2.5;2" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </path>
+  
+  <!-- Arrow head -->
+  <path d="M9 13 L12 16 L15 13" 
+        fill="none"
+        stroke="url(#saveGradient)" 
+        stroke-width="2" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+        filter="url(#glow)">
+    <animate attributeName="stroke-width" 
+             dur="2.2s" 
+             repeatCount="indefinite" 
+             values="2;2.5;2" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </path>
+  
+  <!-- Flowing energy particles -->
+  <circle cx="5" cy="10" r="0.5" fill="#bd7df5" opacity="0.6">
+    <animate attributeName="cy" 
+             dur="2.7s" 
+             repeatCount="indefinite" 
+             values="10;12;10" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="1.9s" 
+             repeatCount="indefinite" 
+             values="0.6;0.9;0.6" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+  
+  <!-- Secondary particle -->
+  <circle cx="19" cy="14" r="0.4" fill="#9b30ff" opacity="0.5">
+    <animate attributeName="cx" 
+             dur="2.5s" 
+             repeatCount="indefinite" 
+             values="19;20;19" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="r" 
+             dur="2.1s" 
+             repeatCount="indefinite" 
+             values="0.4;0.6;0.4" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+  
+  <!-- Data stream particle -->
+  <circle cx="12" cy="18" r="0.3" fill="#bd7df5" opacity="0.7">
+    <animate attributeName="cy" 
+             dur="1.8s" 
+             repeatCount="indefinite" 
+             values="18;19;18" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="1.6s" 
+             repeatCount="indefinite" 
+             values="0.7;1;0.7" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+</svg> 

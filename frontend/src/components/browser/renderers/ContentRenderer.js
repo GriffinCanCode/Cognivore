@@ -166,6 +166,9 @@ function formatSpecialContent(content, contentType, baseUrl, baseTag) {
   return content;
 }
 
+// Import centralized environment detection
+import { detectEnvironment } from '../utils/BrowserEnv.js';
+
 /**
  * Create a fallback content placeholder for environments with restrictions
  * @param {Object} browser - Browser instance for event handlers
@@ -182,8 +185,9 @@ export function createBrowserPlaceholder(browser) {
   placeholder.style.width = '100%';
   placeholder.style.height = '100%';
   
-  // Skip showing placeholder in Electron app
-  if (window.isElectron === true || (browser && browser.isElectronApp)) {
+  // Skip showing placeholder in Electron app using centralized detection
+  const environment = detectEnvironment();
+  if (environment.isElectron || (browser && browser.isElectronApp)) {
     placeholder.style.display = 'none';
     return placeholder;
   }

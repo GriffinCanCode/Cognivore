@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <linearGradient id="readerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9b30ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#bd7df5;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Document frame -->
+  <rect x="5" y="3" width="14" height="18" 
+        rx="2" ry="2"
+        fill="none" 
+        stroke="url(#readerGradient)" 
+        stroke-width="2" 
+        filter="url(#glow)">
+    <animate attributeName="stroke-width" 
+             dur="3s" 
+             repeatCount="indefinite" 
+             values="2;2.5;2" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </rect>
+  
+  <!-- Text lines with full opacity -->
+  <line x1="8" y1="7" x2="16" y2="7" 
+        stroke="url(#readerGradient)" 
+        stroke-width="1.5" 
+        stroke-linecap="round"
+        opacity="1">
+    <animate attributeName="opacity" 
+             dur="2.5s" 
+             repeatCount="indefinite" 
+             values="1;0.7;1" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </line>
+  
+  <line x1="8" y1="10" x2="14" y2="10" 
+        stroke="url(#readerGradient)" 
+        stroke-width="1.5" 
+        stroke-linecap="round"
+        opacity="0.9">
+    <animate attributeName="opacity" 
+             dur="2.7s" 
+             repeatCount="indefinite" 
+             values="0.9;0.6;0.9" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </line>
+  
+  <line x1="8" y1="13" x2="16" y2="13" 
+        stroke="url(#readerGradient)" 
+        stroke-width="1.5" 
+        stroke-linecap="round"
+        opacity="0.8">
+    <animate attributeName="opacity" 
+             dur="2.9s" 
+             repeatCount="indefinite" 
+             values="0.8;0.5;0.8" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </line>
+  
+  <line x1="8" y1="16" x2="13" y2="16" 
+        stroke="url(#readerGradient)" 
+        stroke-width="1.5" 
+        stroke-linecap="round"
+        opacity="0.7">
+    <animate attributeName="opacity" 
+             dur="3.1s" 
+             repeatCount="indefinite" 
+             values="0.7;0.4;0.7" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </line>
+  
+  <!-- Reading focus indicator with higher visibility -->
+  <circle cx="3" cy="12" r="1" fill="#bd7df5" opacity="0.8">
+    <animate attributeName="cy" 
+             dur="4s" 
+             repeatCount="indefinite" 
+             values="12;7;16;12" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1" />
+    <animate attributeName="opacity" 
+             dur="2.5s" 
+             repeatCount="indefinite" 
+             values="0.8;1;0.8" 
+             calcMode="spline"
+             keySplines="0.4 0 0.6 1; 0.4 0 0.6 1" />
+  </circle>
+</svg> 

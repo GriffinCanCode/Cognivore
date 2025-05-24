@@ -108,9 +108,6 @@ class App extends Component {
     // Create Settings component
     this.settings = new Settings(notificationService);
     
-    // Create Browser component
-    this.browser = new Browser(notificationService);
-    
     // Create search section
     this.searchSection = new SearchSection(notificationService);
     
@@ -388,8 +385,8 @@ class App extends Component {
       }
       
       // Clean up the browser component
-      if (this.browser) {
-        this.browser.cleanup();
+      if (this.browserRef.current) {
+        this.browserRef.current.cleanup();
       }
       
       // Remove any browser containers that might be directly in the body
@@ -414,9 +411,9 @@ class App extends Component {
       // For preferences, initialize the settings component with general tab
       this.settings.activeTab = 'general';
       this.settings.initialize();
-    } else if ((itemId === 'browser' || itemId === 'voyager') && this.browser) {
-      // For browser/voyager, initialize it
-      this.browser.initialize();
+    } else if ((itemId === 'browser' || itemId === 'voyager') && this.browserRef.current) {
+      // For browser/voyager, initialize it using the React ref
+      this.browserRef.current.initialize();
     }
     
     // If on mobile, close the sidebar
@@ -618,6 +615,13 @@ class App extends Component {
         // Store reference to container for browser component initialization
         this.browserContainer = browserElement;
         
+        // CRITICAL FIX: Set container reference immediately, not in setTimeout
+        // This ensures containerRef is available when componentDidMount fires
+        if (this.browserRef && this.browserRef.current) {
+          this.browserRef.current.containerRef = { current: this.browserContainer };
+          console.log('Set containerRef immediately for React-rendered Voyager component');
+        }
+        
         // Clean up any existing browser-mount to prevent duplicates
         const oldBrowserMount = document.getElementById('browser-mount');
         if (oldBrowserMount && oldBrowserMount.parentNode) {
@@ -643,9 +647,9 @@ class App extends Component {
           try {
             // Import React for JSX
             const React = require('react');
-            // Render the full browser component with React
+            // Render the full browser component with React - use imported Browser class directly
             this._browserRoot.render(
-              React.createElement(this.browser.constructor, {
+              React.createElement(Browser, {
                 ref: this.browserRef,
                 initialUrl: 'https://www.google.com',
                 notificationService: null,
@@ -654,34 +658,20 @@ class App extends Component {
             );
             console.log('Rendered Voyager browser component using React for full functionality');
             
-            // Set up the container reference after React render
+            // Ensure containerRef is set after React render (backup)
             setTimeout(() => {
-              if (this.browserRef && this.browserRef.current) {
-                // Set the container reference to point to our created container
+              if (this.browserRef && this.browserRef.current && !this.browserRef.current.containerRef) {
                 this.browserRef.current.containerRef = { current: this.browserContainer };
-                console.log('Set containerRef for React-rendered Voyager component');
-                
-                // Don't call initialize() here - it's already called in componentDidMount
-                // The component will initialize itself when it's ready
+                console.log('Set containerRef for React-rendered Voyager component (backup)');
               }
-            }, 100); // Short delay to ensure React render is complete
+            }, 10); // Very short delay as backup only
             
           } catch (err) {
             console.error('Error rendering browser with React:', err);
             
             // Fallback to ensure container reference is set (don't reinitialize)
             setTimeout(() => {
-              if (this.browser) {
-                // Check if container is properly in the DOM
-                if (this.browserContainer && this.browserContainer.isConnected) {
-                  // Set the container reference for the browser
-                  this.browser.containerRef = { current: this.browserContainer };
-                  console.log('Set browser container reference (fallback):', this.browserContainer);
-                  // Don't call initialize() - it should already be called by componentDidMount
-                } else {
-                  console.warn('Browser container not connected to DOM');
-                }
-              } else if (this.browserRef && this.browserRef.current) {
+              if (this.browserRef && this.browserRef.current) {
                 // Check if container is properly in the DOM
                 if (this.browserContainer && this.browserContainer.isConnected) {
                   // Set the container reference for the browser
@@ -792,7 +782,7 @@ class App extends Component {
     if (this.searchSection) { /* no cleanup needed */ }
     if (this.header) { /* no cleanup needed */ }
     if (this.settings) this.settings.cleanup();
-    if (this.browser) this.browser.cleanup();
+    if (this.browserRef.current) this.browserRef.current.cleanup();
     
     // Remove document listeners from DocProcessor
     if (this.documentManager) {
@@ -835,7 +825,6 @@ class App extends Component {
     this.documentManager = null;
     this.anthology = null;
     this.settings = null;
-    this.browser = null;
     
     appLogger.info('App cleanup complete');
   }
