@@ -87,12 +87,19 @@ function setupTabBarRendering(browser, tabManager, container) {
           : tabManager;
         
         // Create handlers that delegate to browser methods
-        const handleTabClick = (tabId) => {
+        const handleTabClick = async (tabId) => {
           try {
-            if (typeof browser.setActiveTab === 'function') {
-              browser.setActiveTab(tabId);
+            // First try VoyagerTabManager's switchToTab if available
+            if (tabManager && typeof tabManager.switchToTab === 'function') {
+              await tabManager.switchToTab(tabId);
             } else if (internalTabManager && typeof internalTabManager.setActiveTab === 'function') {
               internalTabManager.setActiveTab(tabId);
+              
+              // Get tab data for navigation if VoyagerTabManager not available
+              const tab = internalTabManager.getTabById(tabId);
+              if (tab && tab.url && browser.navigate) {
+                browser.navigate(tab.url);
+              }
             }
           } catch (err) {
             console.warn('Error in tab click handler:', err);
@@ -101,8 +108,8 @@ function setupTabBarRendering(browser, tabManager, container) {
         
         const handleTabClose = (tabId) => {
           try {
-            if (typeof browser.closeTab === 'function') {
-              browser.closeTab(tabId);
+            if (tabManager && typeof tabManager.closeTab === 'function') {
+              tabManager.closeTab(tabId);
             } else if (internalTabManager && typeof internalTabManager.closeTab === 'function') {
               internalTabManager.closeTab(tabId);
             }
@@ -113,8 +120,8 @@ function setupTabBarRendering(browser, tabManager, container) {
         
         const handleNewTab = () => {
           try {
-            if (typeof browser.addTab === 'function') {
-              browser.addTab();
+            if (tabManager && typeof tabManager.createTab === 'function') {
+              tabManager.createTab();
             } else if (internalTabManager && typeof internalTabManager.createTab === 'function') {
               internalTabManager.createTab({
                 url: 'https://www.google.com',

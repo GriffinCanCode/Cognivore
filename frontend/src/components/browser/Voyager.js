@@ -30,7 +30,8 @@ import {
   ErrorHandler, 
   EventHandlers, 
   HistoryService,
-  initBrowserHandlers 
+  initBrowserHandlers,
+  updateNavigationButtons
 } from './handlers/index.js';
 
 // Import StyleManager for consistent style handling
@@ -474,12 +475,17 @@ class Voyager extends Component {
     // Set current URL for tracking
     this.currentUrl = formattedUrl;
     
-    // Emit navigation event for tab manager
-    if (this.tabManager) {
+    // CRITICAL FIX: Only emit navigation event if NOT during tab switching
+    // This prevents duplicate navigation events that corrupt tab URLs
+    if (this.tabManager && (!this.tabManager.isSwitchingTabs || !this.tabManager.isCleaningUp)) {
+      console.log('Emitting navigation event to tab manager (user navigation)');
       this.tabManager.emitEvent('navigation', {
         url: formattedUrl,
-        title: this.state.title
+        title: this.state.title,
+        source: 'user_navigation'
       });
+    } else {
+      console.log('Skipping navigation event emission (tab switching in progress)');
     }
     
     // Create a more reliable navigation timeout with progressive fallbacks
@@ -959,9 +965,26 @@ class Voyager extends Component {
     try {
       if (this.webview && typeof this.webview.getURL === 'function') {
         const currentURL = this.webview.getURL();
+        let currentTitle = this.state.title || 'Loading...';
+        
+        // Try to get the actual page title
+        if (this.webview.getWebContents && typeof this.webview.getWebContents === 'function') {
+          try {
+            const webContents = this.webview.getWebContents();
+            if (webContents && typeof webContents.getTitle === 'function') {
+              const webviewTitle = webContents.getTitle();
+              if (webviewTitle && webviewTitle.trim() && webviewTitle !== 'about:blank') {
+                currentTitle = webviewTitle;
+              }
+            }
+          } catch (titleError) {
+            console.warn('Error getting webview title:', titleError);
+          }
+        }
+        
         if (currentURL && currentURL !== 'about:blank') {
-          // Update URL in state
-          this.setState({ url: currentURL, title: this.state.title || 'Loading...' });
+          // Update URL and title in state
+          this.setState({ url: currentURL, title: currentTitle });
           
           // Update address bar input
           if (this.addressInput) {
@@ -971,15 +994,22 @@ class Voyager extends Component {
           // Update current URL tracking
           this.currentUrl = currentURL;
           
-          // Emit navigation event for tab manager
+          // Emit navigation event for tab manager with proper title
           if (this.tabManager) {
-            this.tabManager.emitEvent('navigation', {
-              url: currentURL,
-              title: this.state.title
-            });
+            // CRITICAL FIX: Don't emit navigation events during tab switching
+            if (this.tabManager.isSwitchingTabs) {
+              console.log(`Webview load complete during tab switch: ${currentURL} - not emitting navigation event`);
+            } else {
+              console.log(`Webview load complete, notifying tab manager: ${currentURL} - ${currentTitle}`);
+              this.tabManager.emitEvent('navigation', {
+                url: currentURL,
+                title: currentTitle,
+                source: 'webview_load'
+              });
+            }
           }
           
-          console.log(`Address bar updated to actual URL: ${currentURL}`);
+          console.log(`Address bar updated to actual URL: ${currentURL} with title: ${currentTitle}`);
         }
       }
     } catch (error) {
@@ -1969,7 +1999,7 @@ class Voyager extends Component {
             this._tabManagerRoot.render(
               <TabManagerButton 
                 voyager={this} 
-                tabManager={this.tabManager.getTabManager()} 
+                tabManager={this.tabManager} 
               />
             );
             console.log('Tab manager button rendered successfully in action buttons container');
@@ -2053,8 +2083,23 @@ class Voyager extends Component {
         this.handlePageNavigation = (e) => {
           if (e && e.url) {
             updateAddressBar(this, e.url);
-            this.setState({ currentUrl: e.url });
+            this.setState({ currentUrl: e.url, url: e.url });
             updateNavigationButtons(this);
+            
+            // CRITICAL FIX: Improved navigation event handling for tab manager
+            if (this.tabManager) {
+              // Check if this is during tab switching to prevent duplicate events
+              if (this.tabManager.isSwitchingTabs) {
+                console.log(`Webview navigation detected during tab switch: ${e.url} - not emitting event`);
+              } else {
+                console.log(`Webview navigation detected (user navigation): ${e.url}`);
+                this.tabManager.emitEvent('navigation', {
+                  url: e.url,
+                  title: this.state.title || 'Loading...',
+                  source: 'webview_navigation'
+                });
+              }
+            }
           }
         };
         

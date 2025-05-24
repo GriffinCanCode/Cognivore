@@ -179,16 +179,28 @@ const TabManagerButton = ({ voyager, tabManager }) => {
   }, [isOpen, hasError]);
   
   // Handle tab click from tab manager with error handling
-  const handleTabClick = (tabId) => {
+  const handleTabClick = async (tabId) => {
     try {
       if (voyager && tabManager) {
-        tabManager.setActiveTab(tabId);
-        
-        // Get tab data
-        const tab = tabManager.getTabById(tabId);
-        if (tab && tab.url) {
-          // Navigate to tab URL using Voyager
-          voyager.navigate(tab.url);
+        // Use the VoyagerTabManager's switchToTab method if available
+        if (typeof tabManager.switchToTab === 'function') {
+          await tabManager.switchToTab(tabId);
+        } else {
+          // Fallback to internal TabManager
+          const internalTabManager = (typeof tabManager.getTabManager === 'function') 
+            ? tabManager.getTabManager() 
+            : tabManager;
+          
+          if (internalTabManager && typeof internalTabManager.setActiveTab === 'function') {
+            internalTabManager.setActiveTab(tabId);
+          }
+          
+          // Get tab data for navigation
+          const tab = internalTabManager ? internalTabManager.getTabById(tabId) : null;
+          if (tab && tab.url && voyager.navigate) {
+            // Navigate to tab URL using Voyager
+            voyager.navigate(tab.url);
+          }
         }
       }
       

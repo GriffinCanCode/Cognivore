@@ -130,23 +130,59 @@ export function formatUrl(url) {
   // Remove leading/trailing whitespace
   url = url.trim();
   
-  // Check if the URL has a protocol
-  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) {
-    // If it looks like a domain name with TLD, add https://
-    if (/^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(\/.*)?$/.test(url)) {
-      return `https://${url}`;
-    }
-    
-    // If it has spaces or doesn't look like a URL, treat as a search query
-    if (/\s/.test(url) || !/\./.test(url)) {
-      return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-    }
-    
-    // Default to adding https://
+  // Check if the URL already has a protocol
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) {
+    return url;
+  }
+  
+  // If it already looks like a domain name with TLD, add https://
+  if (/^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(\/.*)?$/.test(url)) {
     return `https://${url}`;
   }
   
-  return url;
+  // If it has spaces, definitely treat as a search query
+  if (/\s/.test(url)) {
+    return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+  }
+  
+  // For single words without dots, try to intelligently determine if it's a domain or search
+  if (!/\./.test(url)) {
+    // Common domain patterns - try .com first
+    const commonDomains = [
+      'wikipedia', 'facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 
+      'github', 'stackoverflow', 'reddit', 'amazon', 'google', 'microsoft',
+      'apple', 'netflix', 'spotify', 'discord', 'slack', 'zoom', 'dropbox',
+      'pinterest', 'tumblr', 'quora', 'medium', 'wordpress', 'blogger'
+    ];
+    
+    // Check if it's a known common domain
+    if (commonDomains.includes(url.toLowerCase())) {
+      return `https://${url}.com`;
+    }
+    
+    // If it's a single word with only letters/numbers/hyphens, likely a domain
+    if (/^[a-zA-Z0-9-]+$/.test(url) && url.length >= 3 && url.length <= 63) {
+      // Try .com first for single word domains
+      return `https://${url}.com`;
+    }
+    
+    // If it contains special characters or numbers mixed with text, likely a search
+    if (/[^a-zA-Z0-9-]/.test(url) || /\d.*[a-zA-Z]|[a-zA-Z].*\d/.test(url)) {
+      return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+    }
+    
+    // Default for single words: try as domain first
+    return `https://${url}.com`;
+  }
+  
+  // Has dots but doesn't match domain pattern - could be partial domain or search
+  // If it looks like a partial domain (word.word), try adding https
+  if (/^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$/.test(url)) {
+    return `https://${url}`;
+  }
+  
+  // Fallback to search for anything else
+  return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
 }
 
 /**

@@ -6,7 +6,7 @@
 import AddressBarManager from './AddressBarManager';
 import ExtractorManager from '../extraction/ExtractorManager';
 import ErrorHandler, { ErrorCategories, recordError, getErrorStats, getErrorHistory, exportErrorHistory, clearErrorHistory } from './ErrorHandler';
-import EventHandlers from './EventHandlers';
+import EventHandlers, { updateNavigationButtons } from './EventHandlers';
 import HistoryService from './HistoryService';
 import NavigationService from './NavigationService';
 import ReaderModeManager from './ReaderModeManager';
@@ -30,6 +30,9 @@ export {
   StyleManager,
   VoyagerLifecycle,
   WebviewInitializer,
+  
+  // Export specific utilities from EventHandlers
+  updateNavigationButtons,
   
   // Export specific utilities from ErrorHandler
   ErrorCategories,

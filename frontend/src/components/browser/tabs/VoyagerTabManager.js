@@ -6,6 +6,7 @@
  */
 
 import TabManager from './TabManager';
+import webviewStateManager from './WebviewStateManager.js';
 
 class VoyagerTabManager {
   constructor(voyager) {
@@ -35,18 +36,43 @@ class VoyagerTabManager {
     if (this.initialized || this.isCleaningUp) return;
     
     try {
-      // Get initial tab data from current page or create default Google tab
+      // CRITICAL FIX: Ensure we always have a valid URL and don't create duplicate tabs
       if (this.voyager) {
-        const url = this.voyager.state?.url || 'https://www.google.com';
-        const title = this.voyager.state?.title || 'Google';
+        let initialUrl = 'https://www.google.com';
+        let initialTitle = 'Google';
         
-        // Always create initial tab (either with current data or default Google)
-        this.tabManager.addTab({
-          url,
-          title,
-          favicon: this.getFaviconFromUrl(url),
+        // Only use voyager URL if it's actually valid
+        if (this.voyager.state?.url && 
+            this.voyager.state.url !== '' && 
+            this.voyager.state.url !== 'about:blank' &&
+            this.voyager.state.url !== null &&
+            this.voyager.state.url !== undefined) {
+          initialUrl = this.voyager.state.url;
+          initialTitle = this.voyager.state.title || this.voyager.state.url;
+        }
+        
+        console.log('Initializing VoyagerTabManager with:', { initialUrl, initialTitle });
+        
+        // CRITICAL FIX: Clear any existing tabs first to prevent duplicates
+        if (this.tabManager.getTabs().length > 0) {
+          console.log('Clearing existing tabs before initialization');
+          this.tabManager.getTabs().forEach(tab => {
+            this.tabManager.closeTab(tab.id);
+          });
+        }
+        
+        // Create initial tab with guaranteed valid URL
+        const initialTab = this.tabManager.addTab({
+          url: initialUrl,
+          title: initialTitle,
+          favicon: this.getFaviconFromUrl(initialUrl),
           isActive: true
         });
+        
+        // Ensure the tab is set as active
+        this.tabManager.setActiveTab(initialTab.id);
+        
+        console.log('Created initial tab:', initialTab);
         
         // Set up clean event listeners
         this.setupEventListeners();
@@ -136,21 +162,100 @@ class VoyagerTabManager {
    * @param {Object} navigationData - Page navigation data
    */
   handlePageNavigation(navigationData) {
-    if (!navigationData || !navigationData.url || this.isCleaningUp || this.isSwitchingTabs) return;
+    // CRITICAL FIX: More robust checks to prevent navigation event interference during tab switching
+    if (!navigationData || !navigationData.url || this.isCleaningUp) return;
+    
+    // CRITICAL FIX: Ignore ALL navigation events during tab switching operations
+    if (this.isSwitchingTabs) {
+      console.log('Ignoring navigation event during tab switching:', navigationData.url, 'source:', navigationData.source);
+      return;
+    }
+    
+    // CRITICAL FIX: Enhanced filtering based on navigation source and timing
+    const { url, title, source } = navigationData;
+    
+    // CRITICAL FIX: More aggressive filtering for webview events near tab switches
+    if (source === 'webview_load' || source === 'webview_navigation') {
+      // Check if we just finished a tab switch recently (within 3 seconds)
+      if (this._lastTabSwitchTime && (Date.now() - this._lastTabSwitchTime) < 3000) {
+        console.log(`Ignoring ${source} event - too close to recent tab switch:`, url);
+        return;
+      }
+    }
+    
+    // CRITICAL FIX: Validate URL before processing
+    if (!url || url === '' || url === 'about:blank' || url === null || url === undefined) {
+      console.log('Ignoring navigation event with invalid URL:', url);
+      return;
+    }
+    
+    // CRITICAL FIX: Check if this is a tab switch navigation by comparing with existing tab URLs
+    const existingTab = this.tabManager.getTabs().find(tab => tab.url === url);
+    if (existingTab && existingTab.id !== this.tabManager.getActiveTabId()) {
+      console.log('Navigation appears to be a tab switch, ignoring to prevent URL corruption:', url);
+      return;
+    }
     
     try {
-      const { url, title } = navigationData;
       const activeTab = this.tabManager.getActiveTab();
       
       if (activeTab) {
-        // Update existing active tab
+        // CRITICAL FIX: Better URL validation and comparison
+        if (!activeTab.url || activeTab.url === '' || activeTab.url === null) {
+          console.log('Active tab has invalid URL, updating with navigation URL:', url);
+          this.tabManager.updateTab(activeTab.id, {
+            url,
+            title: title || activeTab.title || url,
+            lastVisited: new Date().toISOString()
+          });
+          return;
+        }
+        
+        // CRITICAL FIX: Only update tab URL if it's actually different and not a tab switch
+        const normalizedCurrentUrl = this.normalizeUrl(activeTab.url);
+        const normalizedNewUrl = this.normalizeUrl(url);
+        
+        // Don't update if URLs are essentially the same (prevents unnecessary updates)
+        if (normalizedCurrentUrl === normalizedNewUrl) {
+          console.log('URL unchanged, skipping navigation update:', url);
+          return;
+        }
+        
+        console.log(`Page navigation detected: ${activeTab.url} -> ${url} (source: ${source || 'unknown'})`);
+        
+        // CRITICAL FIX: Capture current state BEFORE updating URL to preserve the previous page state
+        if (this.voyager && this.voyager.webview) {
+          // Immediate basic state capture to preserve current page before URL change
+          webviewStateManager.captureBasicState(activeTab.id, this.voyager.webview);
+        }
+        
+        // Update existing active tab with new navigation data
         this.tabManager.updateTab(activeTab.id, {
           url,
           title: title || activeTab.title,
           lastVisited: new Date().toISOString()
         });
+
+        // CRITICAL FIX: Enhanced state capture after navigation with better timing
+        if (this.voyager && this.voyager.webview) {
+          // Clear any existing capture timeout to prevent overlapping captures
+          if (this._navigationCaptureTimeout) {
+            clearTimeout(this._navigationCaptureTimeout);
+          }
+          
+          this._navigationCaptureTimeout = setTimeout(async () => {
+            if (!this.isCleaningUp && !this.isSwitchingTabs) {
+              try {
+                console.log(`Capturing state for tab ${activeTab.id} after navigation to ${url}`);
+                await webviewStateManager.captureState(activeTab.id, this.voyager.webview);
+              } catch (error) {
+                console.warn('Failed to capture state after navigation:', error);
+              }
+            }
+          }, 2000); // Increased delay to ensure page is fully loaded
+        }
       } else {
-        // Create new tab if none exists
+        // Create new tab if none exists - but ensure it has a valid URL
         const newTab = this.tabManager.addTab({
           url,
           title: title || url,
@@ -158,6 +263,7 @@ class VoyagerTabManager {
           isActive: true
         });
         this.tabManager.setActiveTab(newTab.id);
+        console.log('Created new tab for navigation:', newTab);
       }
     } catch (error) {
       console.error('Error handling page navigation:', error);
@@ -287,41 +393,128 @@ class VoyagerTabManager {
   }
   
   /**
-   * Switch to a specific tab
+   * Switch to a specific tab with state preservation
    * @param {string} tabId - Tab ID to switch to
    */
-  switchToTab(tabId) {
-    if (this.isCleaningUp || this.isSwitchingTabs) return;
+  async switchToTab(tabId) {
+    if (this.isCleaningUp) {
+      console.log('Component cleaning up, skipping tab switch');
+      return;
+    }
+    
+    // CRITICAL FIX: Prevent overlapping tab switches with better locking
+    if (this.isSwitchingTabs) {
+      console.log('Tab switch already in progress, queueing request for tab:', tabId);
+      
+      // Queue the tab switch for later execution instead of ignoring it
+      setTimeout(() => {
+        if (!this.isCleaningUp && !this.isSwitchingTabs) {
+          console.log('Executing queued tab switch to:', tabId);
+          this.switchToTab(tabId);
+        }
+      }, 600); // Wait for current switch to complete
+      return;
+    }
     
     // Set flag to prevent race conditions
     this.isSwitchingTabs = true;
+    // CRITICAL FIX: Track tab switch timing for navigation event filtering
+    this._lastTabSwitchTime = Date.now();
     
     try {
-      const tab = this.tabManager.getTabById(tabId);
-      if (tab) {
-        this.tabManager.setActiveTab(tabId);
-        
-        // Navigate Voyager to the tab's URL
-        if (this.voyager && tab.url) {
-          // Use setTimeout to avoid blocking the UI during navigation
-          setTimeout(() => {
-            try {
-              if (!this.isCleaningUp && this.voyager) {
-                this.voyager.navigate(tab.url);
-              }
-            } catch (error) {
-              console.error('Error navigating to tab URL:', error);
-            } finally {
-              // Clear the switching flag after navigation
-              this.isSwitchingTabs = false;
-            }
-          }, 10);
-        } else {
-          this.isSwitchingTabs = false;
-        }
-      } else {
+      const targetTab = this.tabManager.getTabById(tabId);
+      const currentActiveTab = this.tabManager.getActiveTab();
+      
+      if (!targetTab) {
+        console.warn(`Cannot switch to tab ${tabId}: tab not found`);
         this.isSwitchingTabs = false;
+        return;
       }
+
+      // CRITICAL FIX: Validate target tab has a valid URL
+      if (!targetTab.url || targetTab.url === '' || targetTab.url === null || targetTab.url === undefined) {
+        console.warn(`Target tab ${tabId} has invalid URL, setting default`);
+        targetTab.url = 'https://www.google.com';
+        this.tabManager.updateTab(tabId, { url: targetTab.url, title: 'Google' });
+      }
+
+      // Skip if already the active tab
+      if (currentActiveTab && currentActiveTab.id === tabId) {
+        console.log('Target tab is already active, no switch needed');
+        this.isSwitchingTabs = false;
+        return;
+      }
+
+      console.log(`Switching from tab ${currentActiveTab?.id || 'none'} to tab ${tabId}`, {
+        currentUrl: currentActiveTab?.url,
+        targetUrl: targetTab.url,
+        timestamp: new Date().toISOString()
+      });
+
+      // Step 1: Save current tab state if we have an active tab and webview
+      if (currentActiveTab && this.voyager && this.voyager.webview) {
+        try {
+          // CRITICAL FIX: Only capture state if current tab has a valid URL
+          if (currentActiveTab.url && currentActiveTab.url !== '' && currentActiveTab.url !== null) {
+            console.log(`Capturing state for current tab ${currentActiveTab.id} (${currentActiveTab.url})`);
+            await webviewStateManager.captureState(currentActiveTab.id, this.voyager.webview);
+          } else {
+            console.log(`Skipping state capture for tab ${currentActiveTab.id} - invalid URL`);
+          }
+        } catch (error) {
+          console.warn('Failed to capture current tab state:', error);
+          // Continue with tab switch even if state capture fails
+        }
+      }
+
+      // Step 2: Set the new active tab in TabManager
+      this.tabManager.setActiveTab(tabId);
+      
+      // Step 3: Navigate and restore state for the target tab
+      if (this.voyager && targetTab.url) {
+        try {
+          // Check if we have saved state for this tab
+          const savedState = webviewStateManager.getState(tabId);
+          
+          if (savedState && savedState.url && this.voyager.webview) {
+            // CRITICAL FIX: Validate saved state URL before restoration
+            if (savedState.url !== 'about:blank' && savedState.url !== '' && savedState.url !== null) {
+              console.log(`Restoring saved state for tab ${tabId} (${savedState.url})`);
+              const restored = await webviewStateManager.restoreState(
+                tabId, 
+                this.voyager.webview, 
+                targetTab.url
+              );
+              
+              if (restored) {
+                console.log(`Successfully restored state for tab ${tabId}`);
+              } else {
+                console.log(`State restoration failed for tab ${tabId}, navigating normally`);
+                // Fallback to normal navigation
+                await this.safeNavigate(targetTab.url);
+              }
+            } else {
+              console.log(`Saved state has invalid URL for tab ${tabId}, navigating normally`);
+              await this.safeNavigate(targetTab.url);
+            }
+          } else {
+            // No saved state, just navigate normally
+            console.log(`No saved state for tab ${tabId}, navigating to ${targetTab.url}`);
+            await this.safeNavigate(targetTab.url);
+          }
+        } catch (error) {
+          console.error('Error during tab navigation/restoration:', error);
+          // Fallback to basic navigation
+          await this.safeNavigate(targetTab.url);
+        }
+      }
+
+      // CRITICAL FIX: Extended delay to ensure navigation completes before clearing flag
+      setTimeout(() => {
+        this.isSwitchingTabs = false;
+        console.log(`Tab switch to ${tabId} completed at ${new Date().toISOString()}`);
+      }, 700); // Increased delay to prevent race conditions
+
     } catch (error) {
       console.error('Error switching to tab:', error);
       this.isSwitchingTabs = false;
@@ -329,7 +522,23 @@ class VoyagerTabManager {
   }
   
   /**
-   * Create a new tab
+   * Safe navigation wrapper that handles errors gracefully
+   * @param {string} url - URL to navigate to
+   */
+  async safeNavigate(url) {
+    try {
+      if (this.voyager && this.voyager.navigate && typeof this.voyager.navigate === 'function') {
+        await this.voyager.navigate(url);
+      } else {
+        console.warn('Voyager navigate method not available');
+      }
+    } catch (error) {
+      console.error('Error in safe navigation:', error);
+    }
+  }
+  
+  /**
+   * Create a new tab with enhanced state management
    * @param {Object} tabData - Tab data
    * @returns {Object} - Created tab
    */
@@ -337,14 +546,27 @@ class VoyagerTabManager {
     if (this.isCleaningUp) return null;
     
     try {
-      const newTab = this.tabManager.addTab({
-        url: tabData.url || 'https://www.google.com',
+      // Capture current tab state before creating new tab
+      const currentActiveTab = this.tabManager.getActiveTab();
+      if (currentActiveTab && this.voyager && this.voyager.webview) {
+        // Do a quick basic state capture for the current tab
+        webviewStateManager.captureBasicState(currentActiveTab.id, this.voyager.webview);
+      }
+
+      // CRITICAL FIX: Ensure new tab has a valid URL
+      const defaultUrl = 'https://www.google.com';
+      const newTabData = {
+        url: tabData.url || defaultUrl,
         title: tabData.title || 'New Tab',
-        favicon: tabData.favicon || this.getFaviconFromUrl(tabData.url),
+        favicon: tabData.favicon || this.getFaviconFromUrl(tabData.url || defaultUrl),
         ...tabData
-      });
+      };
+
+      console.log('Creating new tab with data:', newTabData);
+
+      const newTab = this.tabManager.addTab(newTabData);
       
-      // Switch to new tab
+      // Switch to new tab with state preservation
       this.switchToTab(newTab.id);
       
       return newTab;
@@ -574,6 +796,12 @@ class VoyagerTabManager {
       // Stop any ongoing tab switching
       this.isSwitchingTabs = false;
       
+      // CRITICAL FIX: Clear navigation capture timeout
+      if (this._navigationCaptureTimeout) {
+        clearTimeout(this._navigationCaptureTimeout);
+        this._navigationCaptureTimeout = null;
+      }
+      
       // Clear content processing queue
       this.contentQueue = [];
       this.isProcessingContent = false;
@@ -584,6 +812,13 @@ class VoyagerTabManager {
         this.eventListeners.clear();
       } catch (error) {
         console.warn('Error clearing event listeners:', error);
+      }
+      
+      // Clean up webview state manager
+      try {
+        webviewStateManager.clearAllStates();
+      } catch (error) {
+        console.warn('Error cleaning up webview state manager:', error);
       }
       
       // Clean up tab manager
