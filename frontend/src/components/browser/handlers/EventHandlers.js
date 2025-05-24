@@ -13,6 +13,22 @@ import * as HistoryService from './HistoryService.js';
 export function handleWebviewLoad(browser, e) {
   console.log('Webview loaded successfully:', e);
   
+  // CRITICAL FIX: Clear navigation timeout to prevent timeout message
+  if (browser._navigationTimeout) {
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
+    console.log('Navigation timeout cleared - page loaded successfully');
+  }
+  
+  // Also clear any redundant detection intervals
+  if (browser._loadDetectionInterval) {
+    clearInterval(browser._loadDetectionInterval);
+    browser._loadDetectionInterval = null;
+  }
+  
+  // Clear handling timeout flag if it exists
+  browser._handlingNavigationTimeout = false;
+  
   // Mark as not loading
   browser.isLoading = false;
   browser.contentRendered = true;
@@ -930,6 +946,22 @@ export function checkIfPageIsLoaded(browser) {
  */
 export function handleLoadStop(browser, e) {
   console.log('Webview stopped loading - applying final styles and marking ready');
+  
+  // Clear navigation timeout to prevent timeout message
+  if (browser._navigationTimeout) {
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
+    console.log('Navigation timeout cleared on load stop');
+  }
+  
+  // Also clear any detection intervals
+  if (browser._loadDetectionInterval) {
+    clearInterval(browser._loadDetectionInterval);
+    browser._loadDetectionInterval = null;
+  }
+  
+  // Clear handling timeout flag
+  browser._handlingNavigationTimeout = false;
   
   // Mark as not loading
   browser.isLoading = false;

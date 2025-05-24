@@ -33,7 +33,8 @@
   scrollbar-width: none !important; /* Firefox */
   -ms-overflow-style: none !important; /* IE/Edge */
   scroll-behavior: smooth !important;
-  padding: 0 0 0 0 !important; /* Removed horizontal padding to allow first tab to align with edge */
+  padding: 0 !important; /* No padding to allow first tab to align with edge */
+  margin: 0 !important; /* No margin to allow first tab to align with edge */
   box-sizing: border-box !important;
 }
 
@@ -68,8 +69,10 @@
 /* First tab styling - align with left edge */
 .voyager-tab-bar .tab-item:first-child {
   margin-left: 0 !important;
+  margin-right: 1px !important; /* Keep spacing with next tab */
   border-left-width: 0 !important; /* Remove left border on first tab */
   border-top-left-radius: 0 !important; /* Remove left radius on first tab */
+  border-bottom-left-radius: 0 !important; /* Remove left radius on first tab */
 }
 
 .tab-item::before {

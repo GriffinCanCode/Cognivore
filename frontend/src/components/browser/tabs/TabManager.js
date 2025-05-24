@@ -94,7 +94,7 @@ class TabManager {
   createTab(tabData) {
     const newTab = {
       id: nanoid(),
-      url: tabData.url || 'about:blank',
+      url: tabData.url || 'https://www.google.com',
       title: tabData.title || 'New Tab',
       favicon: tabData.favicon || null,
       createdAt: new Date().toISOString(),

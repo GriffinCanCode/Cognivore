@@ -29,19 +29,17 @@ class VoyagerTabManager {
   init() {
     if (this.initialized) return;
     
-    // Get initial tab data from current page
+    // Get initial tab data from current page or create default Google tab
     if (this.voyager) {
-      const url = this.voyager.state?.url;
-      const title = this.voyager.state?.title;
+      const url = this.voyager.state?.url || 'https://www.google.com';
+      const title = this.voyager.state?.title || 'Google';
       
-      if (url) {
-        // Create initial tab
-        this.tabManager.addTab({
-          url,
-          title: title || url,
-          favicon: this.getFaviconFromUrl(url)
-        });
-      }
+      // Always create initial tab (either with current data or default Google)
+      this.tabManager.addTab({
+        url,
+        title,
+        favicon: this.getFaviconFromUrl(url)
+      });
       
       // Set up event listeners
       this.setupEvents();

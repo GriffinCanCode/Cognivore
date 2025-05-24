@@ -12,9 +12,6 @@ import React, { Component } from 'react';
 import { nanoid } from 'nanoid';
 import DOMPurify from 'dompurify';
 
-// Import researcher component and research panel styles
-import Researcher from './researcher/Researcher';
-
 // Import tab management system
 import VoyagerTabManager from './tabs/VoyagerTabManager';
 import TabManagerButton from './tabs/TabManagerButton';
@@ -45,14 +42,11 @@ import {
   renderHtml,
 } from './renderers/ContentRenderer';
 
-import {
-  setupBrowserLayout,
-  setupNavigationBar,
-  setupWebViewContainer,
-  updateAddressBar,
-  updateLoadingIndicator,
-  updatePageTitle as updatePageTitleRenderer
-} from './renderers/BrowserRenderer';
+// Import from specialized renderers for proper separation of concerns
+import { setupCompleteBrowserLayout } from './renderers/BrowserLayoutManager';
+import { updateAddressBar } from './renderers/AddressBarRenderer';
+import { updateLoadingControls } from './renderers/NavigationControlsRenderer';
+import { createWebview, enforceWebviewStyles } from './renderers/BrowserRenderer';
 
 import { toggleReaderMode, setReaderMode, getReaderMode, isReaderModeActive as checkReaderModeActive } from './handlers/ReaderModeManager';
 import ExtractorManager from './extraction/ExtractorManager';
@@ -496,16 +490,9 @@ class Voyager extends Component {
     this.setState({
       isMounted: true
     }, () => {
-      // Small delay to ensure DOM is fully ready before initialization
-      setTimeout(async () => {
-        await this.initialize();
-      }, 50);
+      // Initialize immediately with simplified logic
+      this.initialize();
     });
-    
-    // Ensure we have the correct initial view mode
-    if (!this.state.viewMode) {
-      this.setState({ viewMode: 'browser' });
-    }
   }
   
   componentWillUnmount() {
@@ -541,14 +528,8 @@ class Voyager extends Component {
       document.title = title;
     }
     
-    // Call BrowserRenderer version if available
-    try {
-      if (typeof updatePageTitleRenderer === 'function') {
-        updatePageTitleRenderer(this, title);
-      }
-    } catch (err) {
-      // Silently handle import errors
-    }
+    // Note: Page title management is now handled directly in this component
+    // No need to delegate to BrowserRenderer since title updates are simple
   }
   
   /**
@@ -586,7 +567,7 @@ class Voyager extends Component {
     updateAddressBar(this, formattedUrl);
     
     // Update loading indicator
-    updateLoadingIndicator(this, true);
+    updateLoadingControls(this, true);
     
     // Set current URL for tracking
     this.currentUrl = formattedUrl;
@@ -609,7 +590,7 @@ class Voyager extends Component {
           if (this.state.isLoading && this._handlingNavigationTimeout) {
             // Update loading state to help UI recover
             this.setState({ isLoading: false });
-            updateLoadingIndicator(this, false);
+            updateLoadingControls(this, false);
             
             // Try a fallback approach - sometimes the load event doesn't fire
             if (this.webview) {
@@ -627,7 +608,7 @@ class Voyager extends Component {
                   this.webview.readyToShow = true;
                   
                   // Update UI to reflect completion
-                  updateLoadingIndicator(this, false);
+                  updateLoadingControls(this, false);
                   
                   // Try to gracefully extract information from the page
                   if (typeof this.webview.executeJavaScript === 'function') {
@@ -797,7 +778,7 @@ class Voyager extends Component {
             
             // Update loading state
             this.setState({ isLoading: false });
-            updateLoadingIndicator(this, false);
+            updateLoadingControls(this, false);
             
             // Make webview fully visible
             if (this.webview) {
@@ -811,12 +792,17 @@ class Voyager extends Component {
             if (this._navigationTimeout) {
               clearTimeout(this._navigationTimeout);
               this._navigationTimeout = null;
+              console.log('Navigation timeout cleared in checkIfPageIsLoaded');
             }
             
             // Clear detection interval
             if (this._loadDetectionInterval) {
               clearInterval(this._loadDetectionInterval);
+              this._loadDetectionInterval = null;
             }
+            
+            // Clear handling timeout flag
+            this._handlingNavigationTimeout = false;
           }
           
           if (callback) callback();
@@ -844,7 +830,7 @@ class Voyager extends Component {
     }
     
     this.setState({ isLoading: true });
-    updateLoadingIndicator(this, true);
+    updateLoadingControls(this, true);
   }
   
   /**
@@ -864,7 +850,7 @@ class Voyager extends Component {
     } else if (this.iframe) {
       // For iframe, we just update the UI state since we can't actually stop it
       this.setState({ isLoading: false });
-      updateLoadingIndicator(this, false);
+      updateLoadingControls(this, false);
     }
   }
   
@@ -989,9 +975,28 @@ class Voyager extends Component {
   handleWebviewLoad(event) {
     console.log('Webview loaded:', this.state.url);
     
+    // CRITICAL FIX: Clear navigation timeout to prevent timeout message
+    if (this._navigationTimeout) {
+      clearTimeout(this._navigationTimeout);
+      this._navigationTimeout = null;
+      console.log('Navigation timeout cleared - page loaded successfully');
+    }
+    
+    // Also clear any detection intervals
+    if (this._loadDetectionInterval) {
+      clearInterval(this._loadDetectionInterval);
+      this._loadDetectionInterval = null;
+    }
+    
+    // Clear handling timeout flag
+    this._handlingNavigationTimeout = false;
+    
+    // Force loading state to false to ensure UI updates
+    this.isLoading = false;
+    
     // Update UI state
     this.setState({ isLoading: false });
-    updateLoadingIndicator(this, false);
+    updateLoadingControls(this, false);
     
     // Update address bar with the actual URL from the webview
     try {
@@ -1924,14 +1929,13 @@ class Voyager extends Component {
       dimensions: `${this.containerRef.current.offsetWidth}x${this.containerRef.current.offsetHeight}`
     });
     
-    // Set up browser layout
-    setupBrowserLayout(this);
+    // Set up complete browser layout using the modern layout manager
+    const layoutContainer = setupCompleteBrowserLayout(this);
     
-    // Set up navigation bar
-    setupNavigationBar(this);
-    
-    // Set up webview container
-    setupWebViewContainer(this);
+    if (!layoutContainer) {
+      console.error('Failed to set up browser layout');
+      return;
+    }
     
     // Ensure the webview has all required methods
     if (this.webview) {
@@ -2030,12 +2034,12 @@ class Voyager extends Component {
         // Bind event handlers properly
         this.handleLoadStart = (e) => {
           this.setState({ isLoading: true });
-          updateLoadingIndicator(this, true);
+          updateLoadingControls(this, true);
         };
         
         this.handleLoadStop = (e) => {
           this.setState({ isLoading: false });
-          updateLoadingIndicator(this, false);
+          updateLoadingControls(this, false);
         };
         
         this.handlePageNavigation = (e) => {
@@ -2070,13 +2074,9 @@ class Voyager extends Component {
     if (refreshButton) refreshButton.addEventListener('click', this.refreshPage);
     if (stopButton) stopButton.addEventListener('click', this.stopLoading);
     
-    // Only schedule initial navigation if we haven't navigated yet and webview exists
-    if (!this.hasNavigatedInitially && this.webview) {
-      this._initialNavigationAttempts = 0;
-      this._scheduleInitialNavigation();
-    } else if (this.webview && !this.hasNavigatedInitially) {
-      // If webview exists but we haven't navigated, navigate immediately
-      console.log('Webview ready, navigating immediately to Google');
+    // Navigate to Google as the default page
+    if (!this.hasNavigatedInitially) {
+      console.log('Navigating to Google as default page');
       this.navigate('https://www.google.com');
       this.hasNavigatedInitially = true;
     }
@@ -2088,409 +2088,26 @@ class Voyager extends Component {
   }
   
   /**
-   * Schedule the initial navigation with immediate reliability
+   * Schedule the initial navigation - simplified approach
    */
   _scheduleInitialNavigation() {
-    // Clear any existing scheduled navigation
-    if (this._initialNavigationTimeout) {
-      clearTimeout(this._initialNavigationTimeout);
-    }
-    
-    // Track attempts for debugging and emergency fallback
-    this._initialNavigationAttempts++;
-    
     // Check if we've already navigated successfully
     if (this.hasNavigatedInitially) {
       console.log('Already navigated initially, skipping navigation scheduling');
       return;
     }
     
-    // Start with very short delays, and immediately create emergency webview on 3rd attempt
-    const delay = this._initialNavigationAttempts === 1 ? 50 : 150;
-    
-    console.log(`Scheduling initial navigation attempt #${this._initialNavigationAttempts} in ${delay}ms`);
-    
-    this._initialNavigationTimeout = setTimeout(() => {
-      // Check again if we've already navigated
-      if (this.hasNavigatedInitially) {
-        console.log('Navigation already completed, cancelling scheduled attempt');
-        return;
-      }
-      
-      // Fast-track to emergency webview on 3rd attempt
-      if (this._initialNavigationAttempts >= 3) {
-        console.log('Fast-tracking to emergency webview creation');
-        this._createEmergencyWebview();
-        return;
-      }
-      
-      // More reliable webview connection check
-      const webviewExists = this.webview && typeof this.webview === 'object';
-      const webviewFunctional = webviewExists && 
-        typeof this.webview.src !== 'undefined' &&
-        (this.webview.src === '' || this.webview.src === 'about:blank' || this.webview.src.startsWith('http'));
-      const webviewConnected = webviewExists && 
-        (this.webview.isConnected || this.webview._isAttached || document.contains(this.webview));
-      
-      // Check if webview appears to be working (has loaded content)
-      const webviewWorking = webviewExists && webviewConnected && 
-        (this.webview.src !== '' && this.webview.src !== 'about:blank');
-      
-      // If webview is working and has content, don't recreate it
-      if (webviewWorking) {
-        console.log('Webview appears to be working with content, skipping recreation');
-        this.hasNavigatedInitially = true;
-        return;
-      }
-      
-      // Detailed diagnostic logging for better debugging
-      if (webviewExists && !webviewConnected) {
-        console.log('Webview exists but connection checks failed:', {
-          hasParent: Boolean(this.webview.parentNode),
-          isConnected: this.webview.isConnected,
-          _isAttached: this.webview._isAttached,
-          inDocument: document.contains(this.webview),
-          src: this.webview.src,
-          functional: webviewFunctional
-        });
-      }
-      
-      if (webviewConnected && webviewFunctional) {
-        console.log('Webview is connected to DOM, proceeding with navigation');
-        
-        // Force webview to be visible before navigation using direct style properties for safety
-        if (this.webview) {
-          try {
-            // Apply styles with direct property assignments first (safer than cssText)
-            this.webview.style.visibility = 'visible';
-            this.webview.style.opacity = '1';
-            this.webview.style.display = 'flex';
-            this.webview.style.position = 'absolute';
-            this.webview.style.top = '0';
-            this.webview.style.left = '0';
-            this.webview.style.width = '100%';
-            this.webview.style.height = '100%';
-            this.webview.style.minWidth = '100%';
-            this.webview.style.minHeight = '100%';
-            this.webview.style.zIndex = '10';
-            this.webview.style.border = 'none';
-            this.webview.style.margin = '0';
-            this.webview.style.padding = '0';
-            this.webview.style.backgroundColor = 'white';
-            this.webview.style.pointerEvents = 'auto';
-            
-            // Mark webview as ready and attached with multiple flags for redundancy
-            this.webview.readyToShow = true;
-            this.webview._isAttached = true;
-            this.webview.dataset.attached = "true";
-            
-            // Force a DOM reflow to ensure styles are applied
-            void this.webview.offsetHeight;
-            
-            // Apply styles with our method, skipping JavaScript execution until DOM is ready
-            this.applyWebviewStyles(this.webview, true);
-            
-            // Set a listener to track dom-ready state for proper JavaScript execution
-            if (!this._domReadyListener && this.webview) {
-              this._domReadyListener = () => {
-                console.log('Webview dom-ready event received - enabling JavaScript execution');
-                this.webview.dataset.domReady = 'true';
-                this.webview._domReady = true;
-                this.applyWebviewStyles(this.webview, false);
-              };
-              
-              try {
-                this.webview.addEventListener('dom-ready', this._domReadyListener);
-              } catch (e) {
-                console.warn('Could not add dom-ready listener:', e);
-              }
-            }
-            
-            // Set a listener to prevent destruction
-            if (!this._destructionListener && this.webview) {
-              this._destructionListener = () => {
-                console.log('Webview destruction prevented - reapplying styles');
-                setTimeout(() => this.applyWebviewStyles(this.webview, true), 0);
-                return true;
-              };
-              
-              try {
-                this.webview.addEventListener('destroyed', this._destructionListener);
-              } catch (e) {
-                console.warn('Could not add destruction listener:', e);
-              }
-            }
-          } catch (styleError) {
-            console.warn('Error applying webview styles:', styleError);
-            // Continue with navigation even if styling fails
-          }
-        }
-        
-        // Only navigate once we're sure the webview is ready
-        this.navigate('https://www.google.com');
-        this.hasNavigatedInitially = true;
-      } else {
-        console.warn('Webview not connected to DOM, retrying...');
-        
-        // Immediately try to recreate the webview container on first failure
-        if (this._initialNavigationAttempts === 1) {
-          console.log('First attempt failed, immediately recreating webview container');
-          
-          // Clear any existing webview elements
-          if (this.webviewContainer) {
-            while (this.webviewContainer.firstChild) {
-              this.webviewContainer.removeChild(this.webviewContainer.firstChild);
-            }
-          }
-          
-          try {
-            // Recreate the webview container and element
-            if (typeof setupWebViewContainer === 'function') {
-              setupWebViewContainer(this);
-              
-              // Verify webview creation and apply styling/flags
-              if (this.webview) {
-                this.webview.readyToShow = true;
-                this.webview._isAttached = true;
-                this.webview.dataset.attached = "true";
-                
-                // Apply styling immediately, but skip JavaScript
-                this.applyWebviewStyles(this.webview, true);
-                
-                // Force visibility
-                this.webview.style.visibility = 'visible';
-                this.webview.style.opacity = '1';
-                
-                // Force a reflow
-                void this.webview.offsetHeight;
-                
-                console.log('Applied critical styles after recreation');
-              }
-            }
-          } catch (error) {
-            console.error('Error recreating webview:', error);
-          }
-          
-          // Update worker system with new webview reference
-          if (this.webview && WorkerManager) {
-            try {
-              if (typeof WorkerManager.updateWebviewReference === 'function') {
-                WorkerManager.updateWebviewReference(this.webview);
-              }
-            } catch (err) {
-              console.warn('Error updating worker reference:', err);
-            }
-          }
-        }
-        
-        // Try once more and then go to emergency creation
-        this._scheduleInitialNavigation();
-      }
-    }, delay);
-  }
-  
-  /**
-   * Optimized emergency webview creation method with instant layout calculation
-   * @private
-   */
-  _createEmergencyWebview() {
-    console.log('Creating optimized emergency webview');
-    
+    // Simple approach: navigate to Google immediately
+    console.log('Navigating to Google on initialization');
     try {
-      // First, clear any existing emergency webview containers
-      const existingEmergencyContainers = document.querySelectorAll('.emergency-browser-container');
-      existingEmergencyContainers.forEach(container => {
-        try {
-          container.remove();
-        } catch (e) {
-          console.warn('Error removing existing emergency container:', e);
-        }
-      });
-      
-      // Create a new container directly attached to document.body for maximum reliability
-      const container = document.createElement('div');
-      container.className = 'emergency-browser-container';
-      container.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 2000;
-        background-color: white;
-        display: flex;
-        overflow: hidden;
-      `;
-      document.body.appendChild(container);
-      
-      // Store the container for later cleanup
-      this._emergencyContainer = container;
-      
-      // Create a high-performance webview with all necessary attributes
-      const webview = document.createElement('webview');
-      webview.className = 'emergency-webview';
-      webview.id = 'emergency-webview-' + Date.now();
-      
-      // Set optimized inline styling for immediate rendering
-      webview.style.cssText = `
-        width: 100% !important;
-        height: 100% !important;
-        display: flex !important;
-        flex: 1 !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        border: none !important;
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        z-index: 100 !important;
-        background-color: white !important;
-        min-width: 100% !important;
-        min-height: 100% !important;
-        max-width: 100% !important;
-        max-height: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-      `;
-      
-      // Add essential attributes for proper rendering
-      webview.setAttribute('src', 'https://www.google.com');
-      webview.setAttribute('partition', 'persist:voyager-emergency-' + Date.now());
-      webview.setAttribute('allowtransparency', 'false');
-      webview.setAttribute('webpreferences', 'contextIsolation=yes, sandbox=yes');
-      
-      // Mark webview as ready before DOM insertion to avoid timing issues
-      webview.readyToShow = true;
-      webview._isAttached = true;
-      webview.dataset.emergency = "true";
-      
-      // Set up listeners BEFORE DOM insertion to catch all events
-      // 1. dom-ready listener
-      webview.addEventListener('dom-ready', () => {
-        console.log('Emergency webview dom-ready event fired');
-        // Mark the webview as ready for JavaScript execution
-        webview.dataset.domReady = 'true';
-        webview._domReady = true;
-        // Now apply styles including JavaScript
-        this.applyWebviewStyles(webview, false);
-      });
-      
-      // 2. did-finish-load listener
-      webview.addEventListener('did-finish-load', () => {
-        console.log('Emergency webview finished loading');
-        // Apply styling again after load completes
-        this.applyWebviewStyles(webview, false);
-      });
-      
-      // 3. Add error listener
-      webview.addEventListener('did-fail-load', (e) => {
-        if (e.errorCode !== -3) { // Ignore aborted navigation
-          console.error('Emergency webview failed to load:', e);
-        }
-      });
-      
-      // 4. Add destroyed listener to monitor and prevent destruction
-      webview.addEventListener('destroyed', () => {
-        console.warn('Emergency webview was destroyed, reapplying styles');
-        setTimeout(() => {
-          if (webview && webview.isConnected) {
-            this.applyWebviewStyles(webview, true);
-          }
-        }, 0);
-      });
-      
-      // Add the webview to the container
-      container.appendChild(webview);
-      
-      // Update reference in this component
-      this.webview = webview;
-      
-      // Force DOM layout calculation for immediate rendering
-      void container.offsetHeight;
-      void webview.offsetHeight;
-      
-      // Apply all styling immediately
-      this.applyWebviewStyles(webview, true);
-      
-      // Update worker system with new webview reference
-      if (WorkerManager && typeof WorkerManager.updateWebviewReference === 'function') {
-        WorkerManager.updateWebviewReference(webview);
-        console.log('Worker system webview reference updated');
-      }
-      
-      console.log('Emergency webview created and attached to DOM successfully');
-      
-      // Add brief double-check after layout calculation
-      setTimeout(() => {
-        if (webview && webview.isConnected) {
-          // Check if any safety measures are needed
-          const computedStyle = window.getComputedStyle(webview);
-          const needsAdjustment = 
-            computedStyle.visibility !== 'visible' || 
-            computedStyle.display === 'none' ||
-            parseInt(computedStyle.width) < 10 ||
-            parseInt(computedStyle.height) < 10;
-            
-          if (needsAdjustment) {
-            console.log('Safety check: Webview dimensions need adjustment');
-            webview.style.cssText = `
-              width: 100% !important;
-              height: 100% !important;
-              display: flex !important;
-              visibility: visible !important;
-              opacity: 1 !important;
-              position: absolute !important;
-              top: 0 !important;
-              left: 0 !important;
-              z-index: 100 !important;
-            `;
-            void webview.offsetHeight;
-          }
-        }
-      }, 200);
-      
-      return true;
-    } catch (err) {
-      console.error('Emergency webview creation failed:', err);
-      // Try a final fallback method
-      this._createMinimalFallbackWebview();
-      return false;
+      this.navigate('https://www.google.com');
+      this.hasNavigatedInitially = true;
+    } catch (error) {
+      console.error('Error during initial navigation:', error);
     }
   }
   
-  /**
-   * Ultra-minimal fallback webview creation as final resort
-   * @private
-   */
-  _createMinimalFallbackWebview() {
-    try {
-      // Create most basic container possible
-      const container = document.createElement('div');
-      container.id = 'minimal-emergency-container';
-      container.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:3000;background:white;';
-      
-      // Create minimal webview
-      const webview = document.createElement('webview');
-      webview.id = 'minimal-emergency-webview';
-      webview.src = 'https://www.google.com';
-      webview.style.cssText = 'width:100%;height:100%;border:none;';
-      
-      // Add to DOM
-      container.appendChild(webview);
-      document.body.appendChild(container);
-      
-      // Update reference
-      this.webview = webview;
-      this._emergencyContainer = container;
-      
-      console.log('Created minimal fallback webview as last resort');
-      return true;
-    } catch (err) {
-      console.error('Even minimal fallback webview creation failed:', err);
-      return false;
-    }
-  }
+
   
   /**
    * Clean up browser resources
@@ -2505,10 +2122,6 @@ class Voyager extends Component {
     this.hasNavigatedInitially = false;
     
     // Clear any active intervals first to prevent them from running during cleanup
-    if (this._emergencyStyleInterval) {
-      clearInterval(this._emergencyStyleInterval);
-      this._emergencyStyleInterval = null;
-    }
     
     if (this._navigationTimeout) {
       clearTimeout(this._navigationTimeout);
@@ -2520,13 +2133,7 @@ class Voyager extends Component {
       this._loadDetectionInterval = null;
     }
     
-    if (this._initialNavigationTimeout) {
-      clearTimeout(this._initialNavigationTimeout);
-      this._initialNavigationTimeout = null;
-    }
-    
-    // Reset navigation attempts
-    this._initialNavigationAttempts = 0;
+
     
     // Remove destruction prevention listener if it exists
     if (this._destructionListener && this.webview) {
@@ -2556,30 +2163,7 @@ class Voyager extends Component {
         console.warn('Error removing event listeners from webview:', err);
       }
     }
-    
-    // Clean up emergency webview container if it exists
-    if (this._emergencyContainer && this._emergencyContainer.isConnected) {
-      try {
-        if (this._emergencyContainer.parentNode) {
-          this._emergencyContainer.parentNode.removeChild(this._emergencyContainer);
-        }
-        this._emergencyContainer = null;
-      } catch (err) {
-        console.warn('Error cleaning up emergency container:', err);
-      }
-    }
-    
-    // Find and remove any emergency containers that might have been created
-    const emergencyContainers = document.querySelectorAll('.emergency-browser-container');
-    emergencyContainers.forEach(container => {
-      try {
-        if (container.parentNode) {
-          container.parentNode.removeChild(container);
-        }
-      } catch (err) {
-        console.warn('Error removing emergency container:', err);
-      }
-    });
+  
     
     // Clean up sidebar observer if it exists
     if (this._sidebarObserver) {
@@ -2686,8 +2270,8 @@ class Voyager extends Component {
     // Reset loading state if needed
     if (this.state?.isLoading) {
       this.setState({ isLoading: false });
-      if (typeof updateLoadingIndicator === 'function') {
-        updateLoadingIndicator(this, false);
+      if (typeof updateLoadingControls === 'function') {
+        updateLoadingControls(this, false);
       }
     }
     

@@ -1,0 +1,257 @@
+/**
+ * TabBarRenderer - Handles rendering and management of the browser tab bar
+ * Delegates to existing TabBar component and TabManager instead of duplicating functionality
+ */
+
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import TabBar from '../tabs/TabBar.js';
+
+/**
+ * Create tab bar container and render TabBar component
+ * @param {Object} browser - Browser instance
+ * @param {Object} tabManager - Tab manager instance
+ * @returns {HTMLElement} Tab bar container element
+ */
+export function createTabBarContainer(browser, tabManager) {
+  // Create tab bar wrapper container
+  const tabBarContainer = document.createElement('div');
+  tabBarContainer.className = 'voyager-tab-bar-wrapper';
+  
+  // Add styling for tab bar container
+  tabBarContainer.style.cssText = `
+    width: 100%;
+    background-color: var(--tab-bar-bg-color, #1e1e1e);
+    border-bottom: 1px solid var(--border-color, #444);
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    box-sizing: border-box;
+  `;
+  
+  // Create React container
+  const reactContainer = document.createElement('div');
+  reactContainer.className = 'voyager-tab-bar-react-container';
+  reactContainer.style.cssText = `
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+  `;
+  
+  tabBarContainer.appendChild(reactContainer);
+  
+  // Store references
+  browser.tabBarContainer = tabBarContainer;
+  browser.tabBarReactContainer = reactContainer;
+  
+  // Set up tab bar rendering
+  setupTabBarRendering(browser, tabManager, reactContainer);
+  
+  return tabBarContainer;
+}
+
+/**
+ * Set up React rendering for the TabBar component
+ * @param {Object} browser - Browser instance
+ * @param {Object} tabManager - Tab manager instance
+ * @param {HTMLElement} container - React container element
+ */
+function setupTabBarRendering(browser, tabManager, container) {
+  // Create React root for the tab bar
+  let reactRoot = null;
+  
+  try {
+    // Use createRoot for React 18 compatibility
+    reactRoot = ReactDOM.createRoot(container);
+    container._reactRoot = reactRoot;
+    console.log('TabBar React root created successfully');
+  } catch (error) {
+    console.error('Error creating TabBar React root:', error);
+    createFallbackTabBar(browser, container);
+    return;
+  }
+  
+  // Render function that properly delegates to TabBar component
+  const renderTabBar = () => {
+    if (!reactRoot || !tabManager) return;
+    
+    try {
+      // Create handlers that delegate to browser methods
+      const handleTabClick = (tabId) => {
+        try {
+          if (typeof browser.setActiveTab === 'function') {
+            browser.setActiveTab(tabId);
+          } else if (tabManager && typeof tabManager.setActiveTab === 'function') {
+            tabManager.setActiveTab(tabId);
+          }
+        } catch (err) {
+          console.warn('Error in tab click handler:', err);
+        }
+      };
+      
+      const handleTabClose = (tabId) => {
+        try {
+          if (typeof browser.closeTab === 'function') {
+            browser.closeTab(tabId);
+          } else if (tabManager && typeof tabManager.closeTab === 'function') {
+            tabManager.closeTab(tabId);
+          }
+        } catch (err) {
+          console.warn('Error in tab close handler:', err);
+        }
+      };
+      
+      const handleNewTab = () => {
+        try {
+          if (typeof browser.addTab === 'function') {
+            browser.addTab();
+          } else if (tabManager && typeof tabManager.createTab === 'function') {
+            tabManager.createTab({
+              url: 'https://www.google.com',
+              title: 'New Tab',
+              active: true
+            });
+          }
+        } catch (err) {
+          console.warn('Error in new tab handler:', err);
+        }
+      };
+      
+      // Get current active tab ID
+      const activeTabId = browser?.activeTabId || tabManager?.getActiveTabId() || null;
+      
+      // Render TabBar component with proper delegation
+      reactRoot.render(
+        React.createElement(TabBar, {
+          tabManager: tabManager,
+          activeTabId: activeTabId,
+          onTabClick: handleTabClick,
+          onTabClose: handleTabClose,
+          onNewTab: handleNewTab
+        })
+      );
+      
+      console.log('TabBar component rendered successfully via delegation');
+      
+    } catch (error) {
+      console.error('Error rendering TabBar component:', error);
+      createFallbackTabBar(browser, container);
+    }
+  };
+  
+  // Set up tab manager event listener for updates
+  if (tabManager && typeof tabManager.addListener === 'function') {
+    tabManager.addListener(() => {
+      renderTabBar();
+    });
+  }
+  
+  // Initial render
+  renderTabBar();
+  
+  // Store render function for manual updates
+  browser._renderTabBar = renderTabBar;
+}
+
+/**
+ * Create fallback tab bar when React rendering fails
+ * @param {Object} browser - Browser instance  
+ * @param {HTMLElement} container - Container element
+ */
+function createFallbackTabBar(browser, container) {
+  console.warn('Creating fallback tab bar due to React rendering failure');
+  
+  // Clear container
+  container.innerHTML = '';
+  
+  // Create fallback tab with improved styling and functionality
+  const fallbackTab = document.createElement('div');
+  fallbackTab.className = 'tab-item active fallback';
+  fallbackTab.innerHTML = `
+    <span class="tab-favicon-placeholder">🌐</span>
+    <span class="tab-title">New Tab</span>
+    <button class="tab-close-btn" onclick="event.stopPropagation();">×</button>
+  `;
+  fallbackTab.style.cssText = `
+    display: flex !important; 
+    align-items: center !important; 
+    height: 32px !important; 
+    padding: 0 10px !important; 
+    background-color: rgba(37, 99, 235, 0.25) !important; 
+    border-radius: 8px 8px 0 0 !important; 
+    margin: 4px 1px 0 !important; 
+    color: white !important; 
+    font-size: 12px !important; 
+    cursor: pointer !important;
+    border: 1px solid rgba(37, 99, 235, 0.4) !important;
+    border-bottom: none !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 3 !important;
+  `;
+  
+  // Add click handler for fallback tab
+  fallbackTab.addEventListener('click', () => {
+    console.log('Fallback tab clicked');
+    if (browser && typeof browser.navigate === 'function') {
+      browser.navigate('https://www.google.com');
+    }
+  });
+  
+  container.appendChild(fallbackTab);
+  
+  // Enhanced "+" button for new tab with better functionality
+  const fallbackNewTab = document.createElement('button');
+  fallbackNewTab.className = 'new-tab-button fallback';
+  fallbackNewTab.innerHTML = '+';
+  fallbackNewTab.style.cssText = `
+    display: flex !important; 
+    align-items: center !important; 
+    justify-content: center !important; 
+    width: 32px !important; 
+    height: 32px !important; 
+    margin: 4px 1px 0 !important; 
+    background-color: rgba(15, 23, 42, 0.4) !important; 
+    border-radius: 8px 8px 0 0 !important; 
+    color: white !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-bottom: none !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    font-weight: bold !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  `;
+  
+  // Add click handler for new tab button
+  fallbackNewTab.addEventListener('click', () => {
+    console.log('Fallback new tab button clicked');
+    if (browser && typeof browser.navigate === 'function') {
+      browser.navigate('https://www.google.com');
+    }
+  });
+  
+  // Add hover effects
+  fallbackNewTab.addEventListener('mouseenter', () => {
+    fallbackNewTab.style.backgroundColor = 'rgba(15, 23, 42, 0.7)';
+  });
+  
+  fallbackNewTab.addEventListener('mouseleave', () => {
+    fallbackNewTab.style.backgroundColor = 'rgba(15, 23, 42, 0.4)';
+  });
+  
+  container.appendChild(fallbackNewTab);
+}
+
+/**
+ * Update tab bar manually (for cases where automatic updates don't work)
+ * @param {Object} browser - Browser instance
+ */
+export function updateTabBar(browser) {
+  if (browser._renderTabBar && typeof browser._renderTabBar === 'function') {
+    browser._renderTabBar();
+  }
+} 
