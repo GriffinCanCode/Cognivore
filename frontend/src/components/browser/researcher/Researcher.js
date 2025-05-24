@@ -36,6 +36,13 @@ function debounce(func, wait = 300) {
  */
 class Researcher {
   constructor(props) {
+    // CRITICAL FIX: Add debugging to track navigation triggers
+    console.log('🔍 Researcher constructor called with props:', {
+      autoAnalyze: props?.autoAnalyze,
+      currentUrl: props?.currentUrl,
+      hasOnResearchItemClick: !!props?.onResearchItemClick
+    });
+    
     // Initialize component logger
     this.logger = logger.scope('Researcher');
     this.logger.info(`Researcher constructor called with ID: ${nanoid().substring(0, 6)}`);

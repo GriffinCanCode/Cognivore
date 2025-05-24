@@ -20,6 +20,13 @@ export function navigate(browser, url, forceNavigate = false) {
   if (!url) return;
   
   console.log('Navigation request:', browser?.state?.url, '->', url);
+  console.log('Navigation triggered by:', new Error().stack);
+  
+  // Special warning for wikipedia.com navigation
+  if (url.includes('wikipedia.com') || url === 'wikipedia.com') {
+    console.warn('🚨 WIKIPEDIA NAVIGATION DETECTED - this may be causing the crash');
+    console.warn('Navigation stack trace:', new Error().stack);
+  }
   
   // Format URL for navigation
   const formattedUrl = formatUrl(url);
@@ -62,6 +69,22 @@ export function navigate(browser, url, forceNavigate = false) {
   // Set a new timeout for 10 seconds (was 8 seconds)
   browser._navigationTimeout = setTimeout(() => {
     console.log('Navigation timeout reached for URL:', formattedUrl);
+    
+    // CRITICAL FIX: Don't show timeout errors for very short URLs that might be accidental
+    if (formattedUrl.length < 20 && !formattedUrl.includes('://')) {
+      console.warn('Very short URL detected, likely accidental navigation:', formattedUrl);
+      console.warn('Suppressing timeout error and returning to previous page');
+      
+      // Reset loading state without showing error
+      if (browser.setState) {
+        browser.setState({ isLoading: false, error: null });
+      }
+      updateLoadingControls(browser, false);
+      
+      // Clear timeout flag
+      browser._handlingNavigationTimeout = false;
+      return;
+    }
     
     // Prevent duplicate timeout handling
     if (browser._handlingNavigationTimeout) {
@@ -534,11 +557,36 @@ export function renderHtml(browser, html) {
   updateLoadingControls(browser, false);
 }
 
+/**
+ * Clear navigation timeout for a browser instance
+ * @param {Object} browser - Browser instance
+ * @param {string} reason - Reason for clearing (for logging)
+ */
+export function clearNavigationTimeout(browser, reason = 'unknown') {
+  if (browser._navigationTimeout) {
+    console.log(`🔥 Clearing navigation timeout - reason: ${reason}`);
+    clearTimeout(browser._navigationTimeout);
+    browser._navigationTimeout = null;
+  }
+  
+  // Also clear timeout handling flag
+  if (browser._handlingNavigationTimeout) {
+    browser._handlingNavigationTimeout = false;
+  }
+  
+  // Clear any load detection intervals as well
+  if (browser._loadDetectionInterval) {
+    clearInterval(browser._loadDetectionInterval);
+    browser._loadDetectionInterval = null;
+  }
+}
+
 export default {
   navigate,
   goBack,
   goForward,
   refreshPage,
   stopLoading,
-  renderHtml
+  renderHtml,
+  clearNavigationTimeout
 }; 

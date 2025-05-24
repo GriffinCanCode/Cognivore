@@ -1,350 +1,22 @@
 /**
- * WebviewInitializer - Creates and initializes the webview element
+ * WebviewInitializer - SINGLE SOURCE OF TRUTH for webview creation
  * 
  * Handles webview element creation, event binding, and initial configuration.
- * Uses StyleManager for all styling aspects to avoid duplication.
+ * This is the ONLY place where webview creation should happen to prevent conflicts.
  */
 
 import logger from '../../../utils/logger';
+import StyleManager from './StyleManager';
 import { handleWebviewLoad } from './EventHandlers';
 import { handlePageLoadError, handleCertificateError } from './ErrorHandler';
-import styleManager from './StyleManager';
 
 // Create a logger instance
 const webviewLogger = logger.scope('WebviewInitializer');
 
 /**
- * Initialize a webview element and add it to the browser container
+ * UNIFIED webview creation - the ONLY method that should create webviews
  * @param {Object} browser - Browser component instance
- * @param {HTMLElement} container - Container element for the webview
- * @returns {HTMLElement} Created webview element
- */
-function initializeWebview(browser, container) {
-  if (!browser || !container) {
-    webviewLogger.error('Cannot initialize webview - missing browser or container');
-    return null;
-  }
-
-  try {
-    webviewLogger.debug('Creating webview element');
-    
-    // Create the webview element
-    const webview = document.createElement('webview');
-    
-    // Set essential attributes
-    webview.setAttribute('webpreferences', 'contextIsolation=yes, javascript=yes');
-    webview.setAttribute('preload', './webview-preload.js');
-    webview.setAttribute('partition', 'persist:cognivore');
-    webview.setAttribute('allowpopups', 'true');
-    webview.setAttribute('disablewebsecurity', 'false');
-    webview.setAttribute('data-ready', 'false');
-    webview.setAttribute('data-load-finished', 'false');
-    
-    // Create and store a unique identifier for the webview
-    webview.id = `webview-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    
-    // Set initial source to about:blank to prevent flashing
-    webview.setAttribute('src', 'about:blank');
-    
-    // Apply basic styles immediately to prevent flashing
-    styleManager.applyBasicStyles(webview);
-    
-    // Set autosize to true for proper resizing
-    webview.setAttribute('autosize', 'true');
-    
-    // Setup visibility-ensuring method on the webview instance
-    webview.forceVisibility = function() {
-      this.style.visibility = 'visible';
-      this.style.opacity = '1';
-      this.style.display = 'block';
-      this.style.position = 'absolute';
-      this.style.top = '0';
-      this.style.left = '0';
-      this.style.width = '100%';
-      this.style.height = '100%';
-      this.style.zIndex = '10';
-      
-      // Force a reflow to ensure styles are applied
-      void this.offsetHeight;
-      
-      // Dispatch custom event for monitoring
-      this.dispatchEvent(new CustomEvent('visibility-enforced'));
-      
-      webviewLogger.debug('Forced visibility on webview:', this.id);
-    };
-    
-    // Setup method to apply all critical styles
-    webview.applyAllCriticalStyles = function() {
-      // Apply both general critical styles and site-specific styles
-      const isGoogle = browser.state && browser.state.url && browser.state.url.includes('google.com');
-      
-      // Apply general critical styles first
-      styleManager.applyCriticalStyles(this);
-      
-      // Apply Google-specific styles if needed
-      if (isGoogle) {
-        try {
-          this.executeJavaScript(`
-            (function() {
-              // Create style element if it doesn't exist
-              let styleEl = document.getElementById('cognivore-critical-styles');
-              if (!styleEl) {
-                styleEl = document.createElement('style');
-                styleEl.id = 'cognivore-critical-styles';
-                document.head.appendChild(styleEl);
-              }
-              
-              // Apply critical styles for Google
-              styleEl.textContent = \`
-                html, body {
-                  margin: 0 !important;
-                  padding: 0 !important;
-                  width: 100% !important;
-                  height: 100% !important;
-                  overflow-x: hidden !important;
-                  visibility: visible !important;
-                  opacity: 1 !important;
-                  display: block !important;
-                }
-                #main, #cnt, #rcnt, #center_col, #rso, [role="main"],
-                .g, .yuRUbf, .MjjYud, #search, #searchform {
-                  display: block !important;
-                  visibility: visible !important;
-                  opacity: 1 !important;
-                }
-              \`;
-              
-              // Force visibility on key elements
-              const criticalElements = [
-                document.documentElement,
-                document.body,
-                document.getElementById('main'),
-                document.getElementById('cnt'),
-                document.getElementById('rcnt'),
-                document.getElementById('center_col'),
-                document.getElementById('rso'),
-                document.querySelector('[role="main"]')
-              ];
-              
-              criticalElements.forEach(el => {
-                if (el) {
-                  el.style.visibility = 'visible';
-                  el.style.opacity = '1';
-                  el.style.display = el.tagName === 'BODY' || el.tagName === 'HTML' ? 'block' : '';
-                }
-              });
-              
-              // Attempt to force reflow
-              document.body.getBoundingClientRect();
-              
-              return true;
-            })();
-          `).catch(err => {
-            webviewLogger.warn('Error applying Google-specific styles:', err.message);
-          });
-        } catch (err) {
-          webviewLogger.warn('Error executing Google style script:', err.message);
-        }
-      }
-      
-      // Also apply visibility styles directly to the webview
-      this.forceVisibility();
-      
-      webviewLogger.debug('Applied all critical styles to webview:', this.id);
-    };
-    
-    // Bind event handlers
-    bindWebviewEvents(browser, webview);
-    
-    // Append the webview to the container
-    container.appendChild(webview);
-    
-    // Log that initialization is complete
-    webviewLogger.debug('Webview element created and initialized:', webview.id);
-    
-    // Set an aggressive visibility timeout that ensures webview is visible
-    // even if load events don't fire correctly
-    setTimeout(() => {
-      if (webview && webview.isConnected) {
-        if (webview.style.visibility !== 'visible' || webview.style.opacity !== '1') {
-          webviewLogger.debug('Applying visibility timeout enforcement');
-          webview.forceVisibility();
-          if (typeof webview.applyAllCriticalStyles === 'function') {
-            webview.applyAllCriticalStyles();
-          }
-        }
-      }
-    }, 2000);
-    
-    return webview;
-  } catch (error) {
-    webviewLogger.error('Error initializing webview:', error);
-    return null;
-  }
-}
-
-/**
- * Bind required event handlers to webview element
- * @param {Object} browser - Browser component instance
- * @param {HTMLElement} webview - Webview element
- */
-function bindWebviewEvents(browser, webview) {
-  if (!browser || !webview) return;
-  
-  try {
-    // Bind essential webview events
-    
-    // Load events
-    webview.addEventListener('did-start-loading', () => {
-      webviewLogger.debug('Webview started loading');
-      webview.setAttribute('data-loading', 'true');
-      
-      // Apply initial visibility to prevent white screen during load
-      webview.style.visibility = 'visible';
-      webview.style.opacity = '1';
-      
-      // On any load start, make sure critical Google styles will be applied
-      // when page is from Google
-      if (browser.state && browser.state.url && browser.state.url.includes('google.com')) {
-        setTimeout(() => {
-          if (webview && webview.isConnected && typeof webview.applyAllCriticalStyles === 'function') {
-            webviewLogger.debug('Pre-emptively applying Google critical styles');
-            webview.applyAllCriticalStyles();
-          }
-        }, 500); // Apply early, even before page finishes loading
-      }
-    });
-    
-    webview.addEventListener('did-stop-loading', () => {
-      webviewLogger.debug('Webview stopped loading');
-      webview.setAttribute('data-loading', 'false');
-      webview.setAttribute('data-load-finished', 'true');
-      
-      // When loading stops, ensure visibility
-      webview.style.visibility = 'visible';
-      webview.style.opacity = '1';
-      
-      // Use the complete load handler from EventHandlers
-      handleWebviewLoad(browser);
-    });
-    
-    // Navigation events
-    webview.addEventListener('did-navigate', (event) => {
-      webviewLogger.debug('Webview navigated to:', event.url);
-      
-      // Reset load finished flag on new navigation
-      webview.setAttribute('data-load-finished', 'false');
-      
-      // Check if it's a Google page and pre-emptively apply critical styles
-      if (event.url && event.url.includes('google.com')) {
-        // Schedule several attempts to ensure styles are applied
-        const applyGoogleStyles = () => {
-          if (webview && webview.isConnected && typeof webview.applyAllCriticalStyles === 'function') {
-            webview.applyAllCriticalStyles();
-          }
-        };
-        
-        // Apply immediately and then at intervals
-        applyGoogleStyles();
-        
-        // Schedule additional attempts
-        setTimeout(applyGoogleStyles, 500);
-        setTimeout(applyGoogleStyles, 1500);
-        setTimeout(applyGoogleStyles, 3000);
-      }
-    });
-    
-    webview.addEventListener('did-navigate-in-page', (event) => {
-      webviewLogger.debug('Webview navigated in page to:', event.url);
-    });
-    
-    // Error events
-    webview.addEventListener('did-fail-load', (event) => {
-      webviewLogger.warn('Webview failed to load:', event);
-      handlePageLoadError(browser, event);
-    });
-    
-    webview.addEventListener('did-fail-provisional-load', (event) => {
-      webviewLogger.warn('Webview failed provisional load:', event);
-      handlePageLoadError(browser, event);
-    });
-    
-    webview.addEventListener('certificate-error', (event) => {
-      webviewLogger.warn('Webview certificate error:', event);
-      handleCertificateError(browser, event);
-    });
-    
-    // Content visibility check event
-    webview.addEventListener('dom-ready', () => {
-      webviewLogger.debug('Webview DOM ready');
-      webview.setAttribute('data-ready', 'true');
-      
-      // After DOM is ready, force visibility and apply critical styles
-      webview.style.visibility = 'visible';
-      webview.style.opacity = '1';
-      
-      if (typeof webview.applyAllCriticalStyles === 'function') {
-        webview.applyAllCriticalStyles();
-      }
-      
-      // Check if content is actually visible after a short delay
-      setTimeout(() => {
-        if (webview && webview.isConnected) {
-          try {
-            webview.executeJavaScript(`
-              (function() {
-                // Check if body and key elements are visible
-                const bodyStyles = window.getComputedStyle(document.body);
-                const htmlStyles = window.getComputedStyle(document.documentElement);
-                
-                const isBodyVisible = bodyStyles.display !== 'none' && bodyStyles.visibility !== 'hidden';
-                const isHtmlVisible = htmlStyles.display !== 'none' && htmlStyles.visibility !== 'hidden';
-                
-                if (!isBodyVisible || !isHtmlVisible) {
-                  // Force visibility on critical elements
-                  document.documentElement.style.visibility = 'visible';
-                  document.documentElement.style.display = 'block';
-                  document.body.style.visibility = 'visible';
-                  document.body.style.display = 'block';
-                }
-                
-                return { isBodyVisible, isHtmlVisible };
-              })();
-            `).then(result => {
-              if (!result.isBodyVisible || !result.isHtmlVisible) {
-                webviewLogger.debug('Detected hidden body/html, applied visibility fix');
-              }
-            }).catch(err => {
-              webviewLogger.warn('Error checking content visibility:', err.message);
-            });
-          } catch (err) {
-            webviewLogger.warn('Error executing content visibility check:', err.message);
-          }
-        }
-      }, 500);
-    });
-    
-    // Create custom load success event
-    webview.addEventListener('load-success', () => {
-      webviewLogger.debug('Webview load success event fired');
-      webview.setAttribute('data-load-success', 'true');
-    });
-    
-    // Console message logging (useful for debugging)
-    webview.addEventListener('console-message', (event) => {
-      webviewLogger.debug(`Webview console [${event.level}]: ${event.message}`);
-    });
-    
-    webviewLogger.debug('All webview event handlers bound successfully');
-  } catch (error) {
-    webviewLogger.error('Error binding webview events:', error);
-  }
-}
-
-/**
- * Create and initialize a webview for a browser
- * @param {Object} browser - Browser component instance
- * @returns {HTMLElement} Initialized webview
+ * @returns {HTMLElement} Created and fully configured webview element
  */
 function createWebview(browser) {
   if (!browser) {
@@ -354,24 +26,302 @@ function createWebview(browser) {
   
   try {
     // Get the container element
-    const container = browser.container || browser.contentFrame;
+    const container = browser.containerRef?.current?.querySelector('.browser-webview-container') ||
+                     browser.containerRef?.current?.querySelector('.browser-content') ||
+                     browser.containerRef?.current;
     
     if (!container || !container.isConnected) {
       webviewLogger.error('Cannot create webview: container not available or not connected to DOM');
       return null;
     }
     
-    // Initialize and return the webview
-    return initializeWebview(browser, container);
+    webviewLogger.debug('Creating webview element with unified approach');
+    
+    // Create the webview element
+    const webview = document.createElement('webview');
+    
+    // Generate unique ID and partition
+    const uniqueId = `webview-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const partition = `persist:voyager-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+    
+    // Set essential attributes in specific order to prevent conflicts
+    webview.id = uniqueId;
+    webview.setAttribute('partition', partition);
+    webview.setAttribute('webpreferences', 'contextIsolation=yes, javascript=yes, webSecurity=no');
+    webview.setAttribute('allowpopups', 'true');
+    webview.setAttribute('disablewebsecurity', 'true');
+    webview.setAttribute('autosize', 'false');
+    
+    // Apply COMPREHENSIVE styles via StyleManager - SINGLE SOURCE OF TRUTH
+    webviewLogger.debug('Applying comprehensive styles via StyleManager');
+    StyleManager.applyInitialStyles(webview);
+    
+    // Set readiness flags
+    webview.isReady = false;
+    webview.readyToShow = true;
+    
+    // UNIFIED event handlers - bind ALL events here to prevent duplication
+    bindAllWebviewEvents(browser, webview);
+    
+    // Add enhanced methods to webview instance
+    addWebviewMethods(browser, webview);
+    
+    // Clear container and append webview
+    container.innerHTML = '';
+    container.appendChild(webview);
+    
+    // Verify DOM attachment
+    if (webview.isConnected || document.contains(webview)) {
+      webview.isAttached = true;
+      webview._isAttached = true;
+      
+      // Force layout recalculation
+      void webview.offsetHeight;
+      
+      // Apply comprehensive styling immediately after attachment
+      StyleManager.applyWebviewStyles(browser, webview, true);
+      
+      // Schedule style maintenance checks
+      StyleManager.scheduleStyleChecks(browser, webview);
+      
+      webviewLogger.debug('Webview created and attached successfully:', uniqueId);
+      
+      // Set up visibility timeout as safety measure
+      setTimeout(() => {
+        if (webview && webview.isConnected) {
+          // Use StyleManager for safe visibility application
+          StyleManager.safeApplyStyles(webview, true);
+          webview.readyToShow = true;
+        }
+      }, 1000);
+      
+      return webview;
+    } else {
+      webviewLogger.error('Webview attachment failed');
+      return null;
+    }
   } catch (error) {
     webviewLogger.error('Error creating webview:', error);
     return null;
   }
 }
 
-// Export public methods
+/**
+ * Bind ALL webview events in one place to prevent duplication
+ * @param {Object} browser - Browser component instance
+ * @param {HTMLElement} webview - Webview element
+ */
+function bindAllWebviewEvents(browser, webview) {
+  if (!browser || !webview) return;
+  
+  try {
+    webviewLogger.debug('Binding unified event handlers');
+    
+    // Navigation timeout clearing - SINGLE source of truth
+    const clearNavigationTimeout = () => {
+      if (browser._navigationTimeout) {
+        clearTimeout(browser._navigationTimeout);
+        browser._navigationTimeout = null;
+        webviewLogger.debug('Navigation timeout cleared');
+      }
+      if (browser._handlingNavigationTimeout) {
+        browser._handlingNavigationTimeout = false;
+      }
+    };
+    
+    // UNIFIED load events
+    webview.addEventListener('did-start-loading', () => {
+      webviewLogger.debug('Webview started loading');
+      webview.setAttribute('data-loading', 'true');
+      // Use StyleManager for comprehensive visibility
+      StyleManager.safeApplyStyles(webview, true);
+    });
+    
+    webview.addEventListener('did-stop-loading', () => {
+      webviewLogger.debug('Webview stopped loading');
+      webview.setAttribute('data-loading', 'false');
+      webview.setAttribute('data-load-finished', 'true');
+      webview.isReady = true;
+      
+      // Clear timeouts and call load handler
+      clearNavigationTimeout();
+      
+      // Apply load complete styling via StyleManager
+      StyleManager.applyLoadCompleteStyling(webview);
+      
+      handleWebviewLoad(browser);
+    });
+    
+    webview.addEventListener('did-finish-load', () => {
+      webviewLogger.debug('Webview finished loading');
+      webview.isReady = true;
+      webview.setAttribute('data-load-finished', 'true');
+      
+      // Clear timeouts and ensure comprehensive styling
+      clearNavigationTimeout();
+      StyleManager.applyWebviewStyles(browser, webview, true);
+      
+      // Apply site-specific fixes if needed
+      applySiteSpecificFixes(browser, webview);
+    });
+    
+    // DOM ready event
+    webview.addEventListener('dom-ready', () => {
+      webviewLogger.debug('Webview DOM ready');
+      webview.setAttribute('data-ready', 'true');
+      webview.isReady = true;
+      
+      // Clear timeouts and apply essential styling
+      clearNavigationTimeout();
+      StyleManager.applyEssentialStyles(webview);
+      
+      // Apply critical styles via JavaScript
+      applyCriticalContentStyles(webview);
+    });
+    
+    // Navigation events
+    webview.addEventListener('did-navigate', (event) => {
+      webviewLogger.debug('Webview navigated to:', event.url);
+      webview.setAttribute('data-load-finished', 'false');
+    });
+    
+    // Error events
+    webview.addEventListener('did-fail-load', (event) => {
+      webviewLogger.warn('Webview failed to load:', event);
+      handlePageLoadError(browser, event);
+    });
+    
+    webview.addEventListener('certificate-error', (event) => {
+      webviewLogger.warn('Webview certificate error:', event);
+      handleCertificateError(browser, event);
+    });
+    
+    webviewLogger.debug('All unified event handlers bound successfully');
+  } catch (error) {
+    webviewLogger.error('Error binding webview events:', error);
+  }
+}
+
+/**
+ * Add enhanced methods to webview instance
+ * @param {Object} browser - Browser component instance
+ * @param {HTMLElement} webview - Webview element
+ */
+function addWebviewMethods(browser, webview) {
+  // Enhanced visibility method using StyleManager
+  webview.forceVisibility = function() {
+    webviewLogger.debug('Forcing visibility on webview via StyleManager:', this.id);
+    StyleManager.safeApplyStyles(this, true);
+    void this.offsetHeight; // Force reflow
+  };
+  
+  // UNIFIED critical styles application
+  webview.applyAllCriticalStyles = function() {
+    // Use StyleManager for comprehensive styling
+    webviewLogger.debug('Applying all critical styles via StyleManager for:', this.id);
+    StyleManager.applyWebviewStyles(browser, this, true);
+    
+    // Apply content styles if this is a Google page
+    const isGoogle = browser.state?.url?.includes('google.com');
+    if (isGoogle) {
+      applySiteSpecificFixes(browser, this);
+    }
+    
+    // Apply general content fixes
+    applyCriticalContentStyles(this);
+    
+    webviewLogger.debug('Applied all critical styles to webview:', this.id);
+  };
+}
+
+/**
+ * Apply critical content styles via JavaScript
+ * @param {HTMLElement} webview - Webview element
+ */
+function applyCriticalContentStyles(webview) {
+  if (!webview || typeof webview.executeJavaScript !== 'function') return;
+  
+  try {
+    webview.executeJavaScript(`
+      (function() {
+        try {
+          // Apply critical visibility styles
+          if (document.documentElement) {
+            document.documentElement.style.visibility = 'visible';
+            document.documentElement.style.display = 'block';
+          }
+          if (document.body) {
+            document.body.style.visibility = 'visible';
+            document.body.style.display = 'block';
+          }
+          return true;
+        } catch (e) {
+          console.warn('Error applying critical styles:', e.message);
+          return false;
+        }
+      })();
+    `).catch(err => {
+      webviewLogger.warn('Error applying critical content styles:', err.message);
+    });
+  } catch (err) {
+    webviewLogger.warn('Error executing critical styles script:', err.message);
+  }
+}
+
+/**
+ * Apply site-specific fixes (Google, etc.)
+ * @param {Object} browser - Browser component instance  
+ * @param {HTMLElement} webview - Webview element
+ */
+function applySiteSpecificFixes(browser, webview) {
+  if (!browser.state?.url || typeof webview.executeJavaScript !== 'function') return;
+  
+  const isGoogle = browser.state.url.includes('google.com');
+  
+  if (isGoogle) {
+    try {
+      webview.executeJavaScript(`
+        (function() {
+          try {
+            // Create style element for minimal Google fixes
+            let styleEl = document.getElementById('unified-google-fixes');
+            if (!styleEl) {
+              styleEl = document.createElement('style');
+              styleEl.id = 'unified-google-fixes';
+              document.head.appendChild(styleEl);
+            }
+            
+            // Apply minimal Google fixes that preserve layout
+            styleEl.textContent = \`
+              /* Minimal fixes - preserve Google's responsive design */
+              html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                box-sizing: border-box !important;
+              }
+              
+              /* Only fix overflow, don't force dimensions */
+              body {
+                overflow-x: hidden !important;
+              }
+            \`;
+            
+            return true;
+          } catch (e) {
+            console.warn('Error applying minimal Google fixes:', e.message);
+            return false;
+          }
+        })();
+      `).catch(err => {
+        webviewLogger.warn('Error applying minimal Google fixes:', err.message);
+      });
+    } catch (err) {
+      webviewLogger.warn('Error executing minimal Google fixes script:', err.message);
+    }
+  }
+}
+
+// Export ONLY the unified interface
 export default {
-  createWebview,
-  initializeWebview,
-  bindWebviewEvents
-}; 
+  createWebview
+};

@@ -530,15 +530,28 @@ class TabManager {
   }
 
   /**
+   * Get the active tab object
+   * @returns {Object|null} - Active tab object or null if none active
+   */
+  getActiveTab() {
+    if (!this.activeTabId) return null;
+    return this.tabs.find(tab => tab.id === this.activeTabId) || null;
+  }
+
+  /**
    * Set the active tab
    * @param {string} tabId - Tab ID to activate
+   * @returns {boolean} - Whether the tab was successfully activated
    */
   setActiveTab(tabId) {
     const tab = this.getTabById(tabId);
     if (tab) {
       this.activeTabId = tabId;
+      tab.lastAccessed = new Date().toISOString();
       this.notifyListeners();
+      return true;
     }
+    return false;
   }
 
   /**
@@ -749,14 +762,60 @@ class TabManager {
    * @returns {Promise<Object>} - Updated tab
    */
   async updateTabContent(tabId, extractedContent) {
-    const tab = this.getTabById(tabId);
-    if (!tab) throw new Error(`Tab not found: ${tabId}`);
-    
-    // Update tab with extracted content
-    tab.extractedContent = extractedContent;
-    
-    this.notifyListeners();
-    return tab;
+    try {
+      const tab = this.getTabById(tabId);
+      if (!tab) throw new Error(`Tab not found: ${tabId}`);
+      
+      // Update tab with extracted content
+      tab.extractedContent = extractedContent;
+      
+      this.notifyListeners();
+      return tab;
+    } catch (error) {
+      console.error('Error updating tab content:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up TabManager resources
+   */
+  cleanup() {
+    try {
+      // Clear all listeners
+      this.listeners = [];
+      
+      // Clear all tabs and groups
+      this.tabs = [];
+      this.groups = [this.defaultGroup];
+      this.defaultGroup.tabIds = [];
+      this.activeTabId = null;
+      
+      // Clean up tab grouping service
+      if (this.tabGroupingService && typeof this.tabGroupingService.cleanup === 'function') {
+        this.tabGroupingService.cleanup();
+      }
+      
+      console.log('TabManager cleaned up successfully');
+    } catch (error) {
+      console.error('Error during TabManager cleanup:', error);
+    }
+  }
+
+  /**
+   * Enhanced error handling for tab operations
+   * @param {string} operation - Operation name
+   * @param {Function} fn - Function to execute
+   * @param {...any} args - Arguments for the function
+   * @returns {any} - Function result or null on error
+   */
+  safeExecute(operation, fn, ...args) {
+    try {
+      return fn.apply(this, args);
+    } catch (error) {
+      console.error(`Error in TabManager.${operation}:`, error);
+      return null;
+    }
   }
 }
 

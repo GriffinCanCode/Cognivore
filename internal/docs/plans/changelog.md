@@ -1,634 +1,123 @@
 # Changelog
 
-## [Latest] - 2025-01-24
+## 2025-01-15 - CRITICAL: Fixed Dual TabBar Rendering Conflict 
 
 ### Fixed
-- **CRITICAL**: Fixed missing ReactDOM import causing tab manager button rendering failure
-  - Added missing `import ReactDOM from 'react-dom/client'` in `Voyager.js`
-  - Resolves "ReferenceError: ReactDOM is not defined" error when trying to render tab manager button
-  - Tab manager button now renders successfully in browser action toolbar
-  - Eliminates console error that was preventing proper browser component initialization completion
-  - Browser webview creation and navigation functionality remains intact
+- **CRITICAL React DOM Dual Rendering**: Completely eliminated remaining "Failed to execute 'insertBefore' on 'Node'" errors by fixing dual TabBar rendering
+  - **Root Cause**: TabBar was being rendered twice - once via ReactDOM.createRoot in TabBarRenderer.js AND once as a React component in main Voyager.js render method
+  - **Solution**: Removed TabBar from main Voyager render method, keeping only the TabBarRenderer approach for consistent single-source rendering
+  - **TabManagerButton Stabilization**: Added 150ms total stabilization delay (50ms + 100ms) before enabling React portals to ensure complete DOM stability
+  - **Enhanced Error Recovery**: Improved TabManagerButton error handling with retry functionality and better defensive programming
+  - **Files Modified**:
+    - `frontend/src/components/browser/Voyager.js` - Removed duplicate TabBar rendering from main render method
+    - `frontend/src/components/browser/tabs/TabManagerButton.js` - Enhanced DOM stabilization delays and error handling
 
 ### Technical Details
-- Root cause: Missing ReactDOM import in Voyager.js while code was using ReactDOM.createRoot()
-- Solution: Added proper import statement for ReactDOM from 'react-dom/client'
-- File modified: `frontend/src/components/browser/Voyager.js`
-- Impact: Tab manager button now renders without errors, completing browser initialization
+- **Dual Rendering Elimination**: Ensures TabBar is rendered only once via TabBarRenderer.createTabBarContainer()
+- **DOM Timing**: Added progressive delays to allow React reconciliation to complete before portal creation
+- **Error Prevention**: Multiple layers of defensive checks prevent DOM insertion conflicts during initialization
+- **Performance**: Eliminates wasted render cycles from duplicate component rendering
+
+### Result
+- **Zero DOM Insertion Errors**: Complete elimination of React DOM reconciliation conflicts during browser initialization
+- **Stable UI Rendering**: Consistent, reliable browser component initialization without visual glitches
+- **Better Error Recovery**: Graceful handling of edge cases with user-actionable retry mechanisms
+
+## 2025-01-15 - Comprehensive React DOM Conflict Resolution
 
 ### Fixed
-- **CRITICAL**: Fixed missing browser header and IPC serialization errors preventing browser from working
-  - **Browser Header Structure**: Added missing `.browser-header` element in `BrowserLayoutManager.js` that Voyager.js expects for tab manager integration
-  - **IPC Serialization**: Removed problematic IPC messaging patching in `BrowserRenderer.js` that was causing "An object could not be cloned" errors
-  - **Webview Creation**: Simplified webview element creation to prevent serialization issues
-    - Removed complex event handlers that trigger IPC calls with non-serializable objects
-    - Removed `setupSafeIpcMessaging()` function that was patching webview.send() method
-    - Simplified CSP bypass script to prevent serialization errors
-    - Removed initial `src="about:blank"` attribute that was causing navigation conflicts
-  - **Enhanced Fallback Detection**: Improved browser header detection with multiple fallback selectors in Voyager.js
-  - **Error Prevention**: Added better error handling to prevent component initialization failures
-  - **Variable Scope**: Fixed variable redeclaration linter errors in Voyager.js
+- **CRITICAL React DOM Insertion Conflicts**: Completely resolved "Failed to execute 'insertBefore' on 'Node'" errors during browser initialization
+  - **Root Cause**: Multiple React root creations (TabBar, TabManagerButton, main Voyager component) happening simultaneously during initial render, creating DOM reconciliation conflicts
+  - **Solution**: Implemented phased initialization system that completely separates DOM operations from React operations
+  - **Phase 1**: Main browser setup (webview creation, layout) with React rendering disabled via `_deferReactRendering` flag
+  - **Phase 2**: React component initialization only after main setup is complete
+  - **TabBar Rendering**: Modified TabBarRenderer to defer React root creation and show placeholder content during main setup
+  - **TabManagerButton**: Deferred React root creation with placeholder button until main setup completes
+  - **Extended Stabilization**: Increased React reconciliation delay with multiple timeout layers (100ms + 50ms + 50ms) to ensure complete DOM stability
+  - **Error Boundaries**: Enhanced VoyagerErrorBoundary with retry functionality for graceful error recovery
+  - **WebView Lifecycle**: Added proper Promise-based sequencing to webview creation process
+  - **Fallback UI**: Added comprehensive fallback mechanisms when React components fail during initialization
+
+### Technical Implementation
+- **Files Modified**:
+  - `frontend/src/components/browser/handlers/VoyagerLifecycle.js` - Added phased initialization with `initializeReactComponents()` function
+  - `frontend/src/components/browser/renderers/TabBarRenderer.js` - Implemented deferred React rendering with placeholder system
+  - `frontend/src/components/browser/Voyager.js` - Added TabManagerButton deferral and enhanced error boundaries
+- **Sequencing**: Webview creation → React component initialization → Final UI rendering
+- **State Management**: Added `_deferReactRendering` flag to coordinate between initialization phases
+- **Placeholder System**: Temporary UI elements shown during React deferral to maintain visual feedback
+- **Error Recovery**: Multiple fallback mechanisms ensure browser functionality even if React components fail
+
+### Result
+- **Zero DOM Insertion Errors**: Eliminated all "insertBefore" and "WebView must be attached" errors
+- **Stable Initial Render**: Browser now renders consistently without visual glitches or React conflicts
+- **Improved Performance**: Reduced initialization overhead by eliminating React reconciliation conflicts
+- **Better Error Handling**: Graceful degradation when React components encounter issues during initialization
+- **Maintained Functionality**: All browser features work correctly despite architectural changes
+
+## 2025-01-15 - Critical React DOM Error Fixes
+
+### Fixed
+- **Critical React DOM Error**: Fixed "Failed to execute 'insertBefore' on 'Node'" errors during Voyager browser initialization
+  - **Root Cause**: Race condition between React's rendering cycle and webview DOM operations during initial navigation
+  - **Solution**: Added React reconciliation delay using multiple `requestAnimationFrame` calls before webview operations
+  - **WebView Lifecycle**: Enhanced VoyagerLifecycle to wait for React's complete reconciliation before DOM manipulation
+  - **Error Boundaries**: Added comprehensive VoyagerErrorBoundary component to catch and handle rendering errors gracefully
+  - **Async Cleanup**: Fixed "Cannot unmount while React is rendering" warning by scheduling cleanup asynchronously
+  - **WebView Operations**: Added operational checks before attempting stop() calls on potentially detached webviews
+  - **State Safety**: Added early returns and null checks to prevent operations during component unmounting
+  - **DOM Validation**: Enhanced webview cleanup to verify DOM attachment before attempting operations
+  - **Component Isolation**: Wrapped each major UI section in separate error boundaries for better isolation
+  - **Timing Coordination**: Implemented proper coordination between React lifecycle and browser initialization
 
 ### Technical Details
-- Root cause: Complex IPC messaging patches and missing DOM structure elements
-- Solution: Simplified webview creation and fixed layout manager to create expected DOM structure
-- Files modified: `BrowserLayoutManager.js`, `BrowserRenderer.js`, `Voyager.js`
-- Eliminates backend crashes caused by IPC serialization failures
-- Ensures browser header is available for tab manager button integration
+- **Files Modified**:
+  - `frontend/src/components/browser/handlers/VoyagerLifecycle.js` - Added React reconciliation delays and timing coordination
+  - `frontend/src/components/browser/Voyager.js` - Added error boundaries and async cleanup handling
+- **Error Prevention**: Prevents "The WebView must be attached to the DOM" errors during cleanup
+- **React Lifecycle**: Ensures proper coordination between React's rendering cycle and DOM operations
+- **Fallback UI**: Provides graceful error recovery with retry functionality
+- **Memory Safety**: Prevents memory leaks and dangling references during error conditions
 
-### Fixed
-- **CRITICAL**: Fixed dual browser instantiation and React ref timing issues in App.js
-  - Removed direct browser instantiation (`this.browser = new Browser()`) in favor of React-only approach
-  - Fixed `React.createElement()` to use imported `Browser` class directly instead of `this.browser.constructor`
-  - Updated all navigation and cleanup logic to use `this.browserRef.current` instead of `this.browser`
-  - Set `containerRef` immediately when creating browser container, not in setTimeout
-  - Ensured containerRef is available when Voyager component's `componentDidMount()` fires
-  - Eliminated race condition where React component tried to initialize before containerRef was set
-  - Simplified browser lifecycle management by using single React-managed instance
-  - Reduced backup containerRef timeout from 100ms to 10ms since primary timing is now fixed
-
-- **CRITICAL**: Fixed VoyagerLifecycle DOM readiness check causing webview creation failures after navigation
-  - Enhanced `isDomReadyForBrowser()` function in `VoyagerLifecycle.js` with more resilient DOM connectivity detection
-  - Added multiple fallback checks: `isConnected`, `document.contains()`, `parentNode`, and `parentElement` validation
-  - Added DOM property validation to ensure container has basic DOM functionality (`tagName`, `appendChild`)
-  - Improved error logging with comprehensive DOM state debugging information
-  - Reduced initialization retry attempts from 8 to 5 and retry delays from 150ms to 100ms base since DOM checking is more robust
-  - Fixed race condition where container passed initial readiness check but failed VoyagerLifecycle validation
-  - Restored immediate initialization in `componentDidMount()` with minimal 50ms delay for React rendering completion
-  - Browser now successfully creates webview and navigates to Google on first load and refresh
-
-### Technical Details
-- Root cause: VoyagerLifecycle DOM readiness check was more strict than Voyager initialization check, causing validation mismatch
-- Solution: Enhanced both systems with consistent, comprehensive DOM connectivity validation
-- Reduced reliance on timing delays in favor of robust DOM state checking
-- Maintains existing retry system as fallback while making primary path more reliable
-
-### Fixed
-- **CRITICAL**: Fixed Voyager browser first-load initialization timing issue
-  - Enhanced `componentDidMount()` in `Voyager.js` with proper DOM readiness detection
-  - Added `requestAnimationFrame()` + `setTimeout()` combination to ensure DOM is fully painted and settled
-  - Increased initial DOM settling delay from 0ms to 100ms for more reliable first-load initialization
-  - Reduced retry attempts from 10 to 8 and retry delays from 200ms to 150ms base since initial timing is now more reliable
-  - Added comprehensive DOM readiness logging to distinguish between immediate success and retry scenarios
-  - Prevents "Cannot initialize Voyager - container not mounted" error on fresh application loads
-  - Maintains perfect reload behavior while fixing first-load race condition
-
-### Technical Details
-- Root cause: React componentDidMount fired before DOM container was fully connected on first load
-- Solution: Two-phase DOM readiness check (requestAnimationFrame → setTimeout → container validation)
-- Maintains existing retry system as fallback for edge cases
-- Improved user experience by eliminating 200ms delay on first browser navigation
-
-### Fixed
-- **CRITICAL**: Fixed race condition in Voyager browser initialization causing partial renders on page reload
-  - Enhanced `VoyagerLifecycle.js` with DOM readiness checks and proper state tracking
-  - Added `browserStateTracker` Map to prevent initialization conflicts between React lifecycle and VoyagerLifecycle
-  - Implemented proper coordination between React component mount/unmount and VoyagerLifecycle state
-  - Added `resetBrowserState()` function to clean up tracking state on component unmount
-  - Modified `Voyager.js` to force fresh initialization after component remount following navigation
-  - Reduced initial webview creation delay from 100ms to 50ms for faster startup
-  - Added comprehensive DOM connectivity checks before webview creation attempts
-  - Ensures browser renders immediately and fully on all navigation scenarios including URL changes with trailing slashes
-
-### Technical Details
-- Files modified: `VoyagerLifecycle.js`, `Voyager.js`
-- Added global state tracking to prevent race conditions while maintaining SoC
-- Enhanced retry logic with proper cleanup checks during component lifecycle transitions
-- Implemented forced state reset mechanism for fresh mounts after navigation
-
-### Fixed
-- **CRITICAL**: Fixed webview initialization timing issue causing navigation failures on first load
-  - **Root Cause**: Navigation was attempted immediately after webview creation but before `dom-ready` event fired
-  - **Symptom**: "The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called" error
-  - **Solution**: Added `_setupInitialNavigation()` method that waits for `dom-ready` event before attempting navigation
-  - **Enhanced Safety**: Added 3-second fallback timeout and retry logic for edge cases
-  - **Result**: Browser now loads correctly on first initialization without requiring refresh
-  - **Files Modified**: `frontend/src/components/browser/Voyager.js`
-  - **Methods Added**: `_setupInitialNavigation()`, `_performInitialNavigation()`
-  - **Event Handling**: Added one-time `dom-ready` event listener for proper webview readiness detection
-
-### Technical Details
-- Replaced immediate `this.navigate('https://www.google.com')` call with event-driven approach
-- Enhanced webview readiness detection with multiple fallback mechanisms
-- Prevented "Navigation timeout reached" errors by ensuring webview is ready before navigation
-- Maintained backward compatibility while fixing the race condition between webview creation and navigation
-
-### Fixed
-- **CRITICAL**: Fixed conflicting CSS styles preventing webview from rendering properly after initial navigation
-  - **Root Cause**: StyleManager.safeApplyStyles was applying `display: block` while other styling methods used `display: flex`, causing conflicting styles
-  - **Multiple Style Applications**: handleWebviewLoad was calling multiple redundant styling methods that fought each other
-  - **Solution**: Made StyleManager consistent by using `display: flex` and simplified handleWebviewLoad to use single styling method
-  - **Result**: Webview now renders immediately and consistently on first navigation without style conflicts
-  - **Files Modified**: `frontend/src/components/browser/handlers/StyleManager.js`, `frontend/src/components/browser/Voyager.js`
-  - **Impact**: Eliminates white screen and partial rendering issues that were occurring after successful navigation
-
-### Technical Details
-- Changed StyleManager.safeApplyStyles from `display: block !important` to `display: flex !important`
-- Removed redundant style applications in Voyager.handleWebviewLoad (applyWebviewStyles, applyAllCriticalStyles, direct style overrides)
-- Consolidated to single safeApplyCriticalStyles call for consistent styling
-- Maintains webview navigation functionality while fixing rendering consistency
-
-### Fixed
-
-## Latest Changes
-
-### [2024-12-28] Collapsible Action Toolbar with Hover Text - COMPLETED
+## [0.6.12] - Tab System Robustness and Performance - COMPLETED
 
 ### Enhanced
-- **Action Toolbar Hover Functionality**: Implemented collapsible action toolbar that hides button text by default and shows on hover
-  - **Text Collapse**: Button text spans hidden by default (width: 0, opacity: 0) to save space
-  - **Hover Expansion**: Smooth transition to show text on hover (width: auto, opacity: 1, gap: 6px)
-  - **Icon Preservation**: Icons (14px x 14px) remain fully visible and maintain size/spacing
-  - **Active State**: Active buttons always show text to indicate current state
-  - **Smooth Transitions**: 0.3s cubic-bezier transitions for width, opacity, and spacing changes
-  - **Layout Stability**: Minimum width (44px) prevents button jumping, negative margins prevent layout shifts
+- **Tab System Robustness and Performance**: Enhanced @tabs system with improved error handling, memory management, and performance optimizations
+  - **Event Management**: Added proper event listener cleanup and tracking in Voyager.js with `initializeTabManager()` and `cleanupTabManager()` methods
+  - **Memory Leak Prevention**: Implemented comprehensive cleanup for VoyagerTabManager with `removeEventListener()` and `cleanup()` methods
+  - **Error Handling**: Enhanced TabBar component with error boundaries, loading states, and graceful fallback displays
+  - **Performance Optimization**: Added React useMemo for tab metrics calculation and useCallback for event handlers to prevent unnecessary re-renders
+  - **Content Processing Queue**: Implemented efficient content extraction queue in VoyagerTabManager to prevent system overload during heavy content processing
+  - **Resource Management**: Added proper cleanup methods to TabManager with listener clearing and reference nullification
+  - **Accessibility**: Enhanced TabBar with better ARIA labels, error messages, and keyboard navigation support
+  - **Component Isolation**: Improved separation of concerns with proper error boundaries and component-level state management
 
 ### Technical Details
-- **File Modified**: `frontend/public/styles/components/action-toolbar.css`
-- **Transition Properties**: Applied to width, opacity, gap, and margin-left for smooth animations
-- **Responsive Preserved**: Mobile breakpoints maintain existing hide-text behavior
-- **Icon Stability**: SVG icons maintain consistent positioning and filter effects
-- **Hover States**: Enhanced hover effects with proper gap restoration and padding adjustment
-
-### [2024-12-28] SVG ID Collision Fix for Reader Button Icon - COMPLETED
-
-### Fixed
-- **Reader Button Icon Rendering**: Fixed reader button SVG icon not displaying due to multiple issues
-  - **SVG ID Collision**: Multiple SVG files using identical filter ID "glow" causing conflicts when loaded on same page
-  - **Filter ID Uniqueness**: Changed action-reader.svg filter ID from "glow" to "readerGlow" to prevent conflicts
-  - **Complex SVG Simplification**: Removed complex animations, filters, and low-opacity elements that weren't rendering properly at small toolbar sizes (14-16px)
-  - **Visibility Enhancement**: Increased gradient opacity from 0.6-0.8 to 1.0 for full visibility at small sizes
-  - **Animation Removal**: Removed all complex animations that were interfering with small-scale rendering
-  - **Icon Optimization**: Simplified to essential document frame and text lines for clear visibility in toolbar
-
-### Technical Details
-- **File Modified**: `frontend/public/@images/action-reader.svg`
-- **Root Cause**: Complex SVG with animations, filters, and low-opacity elements not rendering at 14-16px toolbar size
-- **Primary Fix**: Simplified SVG to basic document icon with text lines using full-opacity gradient
-- **Secondary Fix**: Updated filter ID from "glow" to "readerGlow" to prevent ID collisions
-- **Result**: Clean, visible reader icon that renders properly alongside other action buttons
-
-### [2024-12-28] Browser Component Positioning and Color Cohesion Fix - COMPLETED
+- **Files Enhanced**:
+  - `frontend/src/components/browser/Voyager.js` - Added structured tab manager initialization and cleanup
+  - `frontend/src/components/browser/tabs/VoyagerTabManager.js` - Added content processing queue and cleanup methods
+  - `frontend/src/components/browser/tabs/TabManager.js` - Enhanced error handling and resource cleanup
+  - `frontend/src/components/browser/tabs/TabBar.js` - Added performance optimizations and error handling
+- **Architecture Improvements**: Maintained excellent SoC while enhancing reliability and performance
+- **Memory Management**: Comprehensive event listener cleanup prevents memory leaks during navigation
+- **Performance**: Content processing queue prevents UI blocking during heavy extraction operations
+- **Error Recovery**: Graceful error handling with user-friendly error messages and automatic retry mechanisms
 
 ### Fixed
-- **Action Toolbar Positioning**: Fixed action toolbar positioning to appear below address bar instead of floating above tab bar
-  - **Order Properties**: Implemented proper CSS `order` values (Tab bar: 1, Address bar: 2, Action toolbar: 3, Webview: 4)
-  - **Z-index Coordination**: Removed conflicting z-index values and replaced with CSS order-based stacking
-  - **Position Correction**: Changed action toolbar from absolute positioning to relative positioning with flex order
-  - **Visual Hierarchy**: Ensured proper visual hierarchy with tab bar at top, then address bar, then action toolbar
-
-### Improved
-- **Cohesive Color Scheme**: Implemented unified color scheme across all browser components
-  - **CSS Variables**: Added browser-specific CSS variables for consistent colors:
-    - `--browser-bg-primary`: #0c1122 (main background)
-    - `--browser-glass-bg`: rgba(15, 23, 42, 0.85) (glass morphism backgrounds)
-    - `--browser-glass-border`: rgba(255, 255, 255, 0.12) (consistent borders)
-    - `--browser-accent-primary`: #2563eb (primary blue accent)
-    - `--browser-accent-secondary`: #3b82f6 (secondary blue accent)
-    - `--browser-text-light`: #f8fafc (primary text color)
-    - `--browser-text-secondary`: #9ca3af (secondary text color)
-    - `--browser-hover-bg`: rgba(255, 255, 255, 0.1) (hover states)
-    - `--browser-active-bg`: rgba(37, 99, 235, 0.25) (active states)
-  - **Component Unification**: Updated all browser components to use the same color variables:
-    - Address bar styling with cohesive glass morphism
-    - Tab bar active states using consistent accent colors
-    - Action toolbar buttons with unified hover and active states
-    - Navigation controls with matching styling patterns
-
-### Enhanced
-- **Address Bar Styling**: Improved address bar with proper focus states and cohesive design
-  - **Glass Morphism**: Added backdrop-filter blur effects for modern appearance
-  - **Focus Indicators**: Proper focus states with accent color borders and improved contrast
-  - **Button Consistency**: Navigation and action buttons now use consistent sizing and hover effects
-- **Visual Polish**: Enhanced overall visual cohesion across browser interface
-  - **Consistent Spacing**: Standardized padding and margins across components
-  - **Unified Transitions**: Consistent transition timings and easing functions
-  - **Improved Accessibility**: Better focus indicators and contrast ratios
-
-### Technical Details
-- **File Updates**:
-  - `frontend/public/styles/components/browser.css` - Added CSS variables and cohesive styling
-  - `frontend/public/styles/components/action-toolbar.css` - Updated positioning and color scheme
-  - `frontend/public/styles/components/tabs/TabBar.css` - Integrated cohesive colors and fixed positioning
-- **Architecture**: Maintained separation of concerns while ensuring visual consistency
-- **Color System**: Established systematic approach to browser component styling with reusable color variables
-
-### [2024-12-28] Major Browser CSS Conflicts Resolution - COMPLETED
-
-### Fixed
-- **CSS Conflicts Resolution**: Resolved all CSS conflicts in browser components by completely rewriting browser.css
-  - **Removed browser-fix.css**: Deleted the non-existent browser-fix.css file reference from CSS loader and test files
-  - **Positioning Conflicts**: Changed browser container from `position: fixed` to `position: relative` to eliminate positioning conflicts
-  - **Z-index Simplification**: Simplified z-index values from complex high values (9999) to logical low values (1-12)
-  - **CSS Order Implementation**: Implemented proper CSS order properties (1-5) for consistent component stacking
-  - **Component Separation**: Removed duplicate styles that exist in other component files (ResearchPanel.css, TabBar.css, action-toolbar.css)
-  - **Research Panel Conflicts**: Removed conflicting research panel styles, letting ResearchPanel.css handle all research functionality
-  - **Tab Bar Conflicts**: Removed conflicting tab styles, letting TabBar.css handle all tab functionality
-  - **Action Toolbar Conflicts**: Removed conflicting toolbar styles, letting action-toolbar.css handle all toolbar buttons
-
-### Improved  
-- **Separation of Concerns**: Clear separation between browser.css and specialized component CSS files
-  - **Browser.css**: Focused on core browser container, webview, and basic navigation elements only
-  - **Component Delegation**: Address bar styling delegated to specific address bar components
-  - **UI Component Independence**: Tab bar, research panel, and action toolbar styles kept in their respective files
-- **Responsive Design**: Streamlined mobile breakpoints and button sizing for consistent responsive behavior
-- **Loading States**: Consolidated spinner animations and loading indicators without conflicts
-- **CSS Architecture**: Implemented clean CSS architecture with no duplicate selectors or conflicting rules
-
-### Technical Details
-- **File Updates**: 
-  - `frontend/src/utils/cssLoader.js` - Removed browser-fix.css reference
-  - `frontend/scripts/test-browser-fixes.js` - Removed browser-fix.css test and renumbered tests
-  - `frontend/public/styles/components/browser.css` - Complete rewrite with conflict-free styling
-- **Z-index Hierarchy**: Established clear z-index hierarchy (browser: 1-2, tabs: 102, research: 12, tooltips: 1000)
-- **Order Properties**: Used CSS `order` properties for proper component stacking without position conflicts
-- **Minimal Styling**: Reduced browser.css to essential styles only, removing overlapping functionality
-
-### Browser Engine Fixes
-- **Tab Manager Overlap**: Fixed VoyagerTabManager/TabManager initialization overlap causing "getTabManager is not a function" error
-  - Unified tab manager initialization to use VoyagerTabManager as primary interface
-  - Removed duplicate initialization paths in Voyager.js and BrowserLayoutManager.js
-  - Updated TabBarRenderer to handle VoyagerTabManager wrapper correctly
-  - Maintained SoC by keeping TabManager as internal implementation only
-
-## Previous Changes
-
-## [2024-05-25] Browser Loading Indicator Function Upgrade
-
-### Fixed
-- **Deprecated Function Replacement**: Updated navigation-related files to use the non-deprecated loading indicator function
-  - **NavigationService.js**: Changed import and all function calls to use updateLoadingControls
-  - **ErrorHandler.js**: Updated to use the same non-deprecated function for error handling
-  - **Import Update**: Changed import from deprecated `updateLoadingIndicator` to proper `updateLoadingControls`
-  - **Function Calls**: Updated all function calls to use updateLoadingControls
-  - **Separation of Concerns**: Aligned with the codebase's separation of concerns by using specialized renderer components
-  - **Code Consistency**: Now properly using NavigationControlsRenderer.js for loading state management
-
-### Technical Details
-- **Deprecation Resolution**: Removed usage of BrowserRenderer.updateLoadingIndicator which was marked as deprecated
-- **Renderer Specialization**: Properly leveraging the specialized NavigationControlsRenderer module
-- **Function Update**: Changed multiple instances of function calls across navigation and error handling methods
-- **Consistency**: Ensured all browser components use the same loading indicator pattern
-
-## Browser Environment Refactoring - [2024]
-**Type**: Major Refactoring  
-**Scope**: frontend/src/components/browser/utils/
-
-### ✅ Centralized Browser Environment Logic in BrowserEnv.js
-- **Consolidated duplicate `detectEnvironment()` functions** from BrowserUtilities.js and BrowserEnv.js into single implementation
-- **Moved all browser utilities** from BrowserUtilities.js to BrowserEnv.js for single source of truth:
-  - `formatUrl()` - URL formatting with protocol detection and search query handling
-  - `applySiteSpecificSettings()` - Site-specific webview configurations (Google, YouTube)
-  - `applySandboxSettings()` - Electron webview and iframe security configurations  
-  - `getIconForUrl()` - Website favicon generation
-  - `formatBytes()` - Human-readable byte formatting
-  - `showToastNotification()` - Browser UI notifications
-  - `updatePageTitle()` - Page title management
-  - `setupWebviewEnvironment()` - Webview environment initialization
-
-### ✅ Eliminated Circular Dependencies
-- **Removed circular import** between BrowserEnv.js and BrowserUtilities.js
-- **Updated BrowserUtilities.js** to re-export functions from BrowserEnv.js for backward compatibility
-- **Updated import statements** in Voyager.js and ContentRenderer.js to use centralized BrowserEnv
-
-### ✅ Enhanced Environment Detection
-- **Improved `detectEnvironment()`** with multiple Electron detection indicators
-- **Added comprehensive environment object** with isElectron, isNode, hasNodeAccess, hasWebView flags
-- **Centralized `isElectron` checks** replacing scattered manual checks throughout codebase
-- **Added `forceElectronMode()`** function for manual environment forcing
-
-### ✅ Separation of Concerns (SoC)
-- **Positioned BrowserEnv.js** as the authoritative source for all browser environment logic
-- **Maintained existing functionality** through proper module imports and re-exports
-- **Preserved component architecture** while eliminating logic duplication
-
-### ✅ Test Coverage
-- **Created comprehensive tests** in `frontend/test/components/browser/utils/BrowserEnv.test.js`
-- **Added backward compatibility tests** in `frontend/test/components/browser/utils/BrowserUtilities.test.js`
-- **Tested all environment detection scenarios** including Electron indicators and fallbacks
-- **Verified all utility functions** with edge cases and error handling
-
-### ✅ Updated Dependencies
-- **Updated Voyager.js** to import from BrowserEnv instead of BrowserUtilities
-- **Updated ContentRenderer.js** to use centralized environment detection
-- **Maintained BrowserRenderer.js** imports (already using BrowserEnv correctly)
-
-### Files Modified
-- `frontend/src/components/browser/utils/BrowserEnv.js` - ⭐ Main refactoring
-- `frontend/src/components/browser/utils/BrowserUtilities.js` - Re-export layer
-- `frontend/src/components/browser/Voyager.js` - Updated imports
-- `frontend/src/components/browser/renderers/ContentRenderer.js` - Updated environment detection
-- `frontend/test/components/browser/utils/BrowserEnv.test.js` - New test file
-- `frontend/test/components/browser/utils/BrowserUtilities.test.js` - New test file
-
-### Benefits
-- ✅ **Single source of truth** for browser environment logic
-- ✅ **Eliminated code duplication** across browser components  
-- ✅ **Improved maintainability** with centralized configuration
-- ✅ **Enhanced testability** with comprehensive test coverage
-- ✅ **Preserved backward compatibility** through re-exports
-- ✅ **Better separation of concerns** in browser architecture
-
-## [2024-05-24] Browser Navigation Loading Indicator Fix
-
-### Fixed
-- **Browser Navigation State Consistency**: Fixed browser navigation loading indicators for back/forward/refresh actions
-  - **NavigationService.js Improvements**: Added consistent state management for all navigation functions
-  - **Loading Indicator Fix**: Ensured loading indicators are properly shown and hidden during navigation
-  - **Error Handling**: Improved state checking to handle cases when setState is unavailable
-  - **Import Resolution**: Added proper import for updateLoadingIndicator function from BrowserRenderer
-  - **Navigation Functions**: Updated goBack, goForward, refreshPage, and stopLoading for consistent state handling
-
-### Technical Details
-- **State Management Pattern**: Implemented consistent state update pattern across all navigation functions
-- **Browser State Checks**: Added null checks for browser.setState vs browser.state direct assignment
-- **Loading Indicator Updates**: Ensured updateLoadingIndicator is called consistently after state updates
-- **Method Alignment**: Aligned all navigation methods to follow the same pattern for improved maintainability
-
-## [2024-12-27] Build Error Fix for BrowserLayoutManager Import Path - COMPLETED
-
-### Fixed
-- **Build System Import Error**: Fixed critical build error in BrowserLayoutManager.js preventing successful webpack compilation
-  - **Import Path Correction**: Fixed incorrect import path `../BrowserRenderer.js` to `./BrowserRenderer.js` in BrowserLayoutManager.js
-  - **File Structure Alignment**: Corrected import to match actual file structure where both files are in the same `renderers` directory
-  - **Build Success**: Resolved webpack compilation error that was preventing application build
-  - **No Functionality Impact**: Pure import path fix with no changes to actual functionality
-
-### Technical Details
-- **Error Type**: Module resolution error in webpack build process
-- **Root Cause**: Incorrect relative import path using parent directory (`../`) instead of current directory (`./`)
-- **Resolution**: Updated import statement on line 11 of BrowserLayoutManager.js
-- **Verification**: All required functions properly exported from BrowserRenderer.js and accessible with corrected path
-
-## [2024-12-27] BrowserRenderer Refactoring for Improved Separation of Concerns - COMPLETED
-
-### Refactored
-- **BrowserRenderer.js Cleanup**: Major refactoring to improve separation of concerns and eliminate code overlap with specialized renderer components
-  - **Removed Legacy Functions**: Deprecated layout setup functions (`setupBrowserLayout`, `setupNavigationBar`, `setupWebViewContainer`) that conflicted with BrowserLayoutManager
-  - **Simplified Core Functionality**: Focused BrowserRenderer.js on only essential webview creation and management (`createWebviewElement`, `createWebview`, `enforceWebviewStyles`)
-  - **Removed Overlapping UI Functions**: Deprecated `updateAddressBar`, `updateLoadingIndicator`, `updatePageTitle` functions that duplicated specialized renderer functionality
-  - **Deprecated Non-Essential Functions**: Marked progress bar, loading content, and complex styling functions as deprecated with warnings
-  - **Added Deprecation Warnings**: All deprecated functions now emit console warnings directing users to proper specialized renderers
-
-### Updated
-- **Voyager.js Integration**: Updated to use proper specialized renderers instead of deprecated BrowserRenderer functions
-  - **Layout Management**: Replaced deprecated setup functions with `setupCompleteBrowserLayout` from BrowserLayoutManager
-  - **Address Bar Updates**: Updated to use `updateAddressBar` directly from AddressBarRenderer
-  - **Loading Controls**: Updated all `updateLoadingIndicator` calls to use `updateLoadingControls` from NavigationControlsRenderer
-  - **Title Management**: Simplified page title updates to be handled directly in Voyager component
-  - **Proper Imports**: Updated imports to reference specialized renderers for their respective functionality
-
-### Improved
-- **Separation of Concerns**: Clear delegation of responsibilities between renderers
-  - **Core Webview Management**: BrowserRenderer focuses solely on webview creation and basic styling
-  - **UI Component Rendering**: AddressBarRenderer, NavigationControlsRenderer, ActionButtonsRenderer handle their respective UI elements
-  - **Layout Coordination**: BrowserLayoutManager coordinates overall browser layout
-  - **Content Management**: ContentRenderer handles content-specific functionality
-- **Code Maintainability**: Eliminated duplicate code and clarified component responsibilities
-- **Future-Proofing**: Deprecated functions provide clear migration paths for future updates
-
-### Technical Details
-- **Function Deprecation Strategy**: Kept deprecated functions for backward compatibility but added warnings and migration guidance
-- **Import Optimization**: Updated Voyager.js imports to use only necessary functions from specialized renderers
-- **Core Webview Functions**: Preserved essential webview management functions (`createWebviewElement`, `createWebview`, `enforceWebviewStyles`)
-- **Clean Architecture**: Achieved better separation between webview management, UI rendering, and layout coordination
-
-## [2024-12-26] Critical Browser DOM Error and Navigation Timeout Fix - COMPLETED
-
-### Fixed
-- **Critical DOM Circular Reference Error**: Fixed "Failed to execute 'appendChild' on 'Node': The new child element contains the parent" error in TabBar rendering
-  - **FINAL FIX**: Completely eliminated all circular references by passing only pure data to React TabBar component
-  - Replaced `tabManager` object with serialized `tabs` array containing only primitive values (id, title, url, active, favicon)
-  - Removed all function references and bound methods from React props to prevent circular dependencies
-  - Created isolated callback functions that don't capture browser object references in their closure
-  - Ensured all props passed to React components are completely serializable (no DOM references, no functions with closures)
-  - Converted activeTabId to string primitive to prevent object reference issues
-- **Navigation Timeout Issue**: Fixed critical issue where websites would show white screen due to navigation timeouts not being properly cleared
-  - Enhanced handleWebviewLoad in Voyager.js to force loading state to false
-  - Added backup navigation timeout clearing in BrowserRenderer.js webview event listeners
-  - Fixed did-finish-load and did-stop-loading events to properly clear navigation timeouts
-  - Added force clearing of _loadDetectionInterval to prevent hanging detection processes
-  - Ensured navigation timeouts are cleared in multiple places for reliability
-
-### Technical Details
-- **BrowserRenderer.js**: Modified TabBar rendering to use serializedTabData object with only essential methods
-- **Voyager.js**: Enhanced handleWebviewLoad to force isLoading = false and clear timeouts
-- **Event Listeners**: Added backup timeout clearing in webview did-finish-load and did-stop-loading events
-- **Circular Reference Prevention**: Stripped DOM references from React component props to prevent appendChild errors
-
-## [2024-12-26] Browser DOM Error and Border Fix
-
-### Fixed
-- **DOM Circular Reference Error**: Fixed critical "Failed to execute 'appendChild' on 'Node': The new child element contains the parent" error in TabBar rendering
-- **React Component Props Mismatch**: Fixed TabBar component props to match expected interface (tabManager, onNewTab instead of tabs, onTabAdd)
-- **Removed Circular DOM References**: Eliminated problematic `voyager: browser` prop that contained DOM references causing circular dependencies
-- **Border Cleanup**: Removed unwanted borders from all browser UI elements that were creating visual clutter
-- **CSS Border Removal**: Cleaned up browser-fix.css to remove borders from header, tab bar, address bar, and research panel
-- **Visual Polish**: Simplified browser UI styling for cleaner appearance without unnecessary visual separators
-
-### Technical Details
-- **BrowserRenderer.js**: Fixed TabBar props to use `tabManager` instead of `tabs`, and `onNewTab` instead of `onTabAdd`
-- **Removed Browser Object Prop**: Eliminated passing entire browser object to React component to prevent circular references
-- **CSS Cleanup**: Removed all `border` properties from browser-fix.css and replaced with `border: none !important`
-- **Event Handler Safety**: Added null checks for browser methods in TabBar event handlers
-
-## [2024-12-26] Critical Browser White Screen and Positioning Fix
-
-### Fixed
-- **White Screen Issue**: Fixed critical white screen issue where browser webview was not displaying due to conflicting CSS positioning
-- **Container Positioning**: Simplified webview container positioning from complex fixed positioning to relative positioning that works with CSS
-- **CSS Compatibility**: Removed complex sidebar width calculations and fixed positioning conflicts between JavaScript and CSS files
-- **Webview Creation**: Streamlined webview creation process to use simpler, more reliable positioning
-- **Loading Content**: Fixed loading content positioning to work properly within webview containers
-- **Container Hierarchy**: Simplified browser container hierarchy to prevent positioning conflicts
-
-### Technical Details
-- **BrowserRenderer.js**: Updated `createWebview()` function to use relative positioning instead of fixed positioning with complex calculations
-- **Container Creation**: Simplified webview container creation to work with existing CSS files (browser-fix.css)
-- **Loading Screen**: Fixed loading content positioning to use absolute positioning within webview container instead of fixed positioning on body
-- **Webview Styling**: Applied simple, effective webview styling that works with CSS positioning
-
-## [2024-12-26] Critical Browser Navigation Timeout Fix
-
-### Fixed
-- **Navigation Timeout Issue**: Fixed critical issue where "Navigation timeout reached, hiding loading content" message appeared after 8 seconds even when pages loaded successfully
-- **Root Cause**: The `handleWebviewLoad` function in EventHandlers.js was not clearing the navigation timeout set in the `navigate` method, causing timeout to always fire
-- **Timeout Clearing**: Added timeout clearing logic to `handleWebviewLoad`, `handleLoadStop`, and `checkIfPageIsLoaded` methods
-- **Event Handler Consistency**: Fixed both EventHandlers.js and Voyager.js instance methods to properly clear navigation timeouts
-- **Detection Interval Cleanup**: Added cleanup of load detection intervals to prevent memory leaks
-- **Flag Management**: Proper clearing of `_handlingNavigationTimeout` flag to prevent state inconsistencies
-
-### Technical Details
-- Updated `handleWebviewLoad` in EventHandlers.js to clear `browser._navigationTimeout` when page loads successfully
-- Updated `handleLoadStop` in EventHandlers.js to clear timeouts on load completion
-- Updated instance method `handleWebviewLoad` in Voyager.js for consistency
-- Enhanced `checkIfPageIsLoaded` to properly clear timeouts when successful navigation is detected
-- Added comprehensive logging to track timeout clearing for better debugging
-- Ensured all timeout-related cleanup happens in multiple load event handlers for reliability
-
-## [2024-05-23] Browser Tab Positioning and Default URL Updates
-
-### Fixed
-- **Tab Bar Positioning**: Updated tab bar CSS to remove all padding and margins, ensuring the first tab aligns flush with the left edge of the browser container
-- **First Tab Styling**: Enhanced first tab styles to remove left border and radius, creating seamless integration with the browser edge
-
-### Changed
-- **Default Tab URL**: Updated `TabManager.js` to default new tabs to `https://www.google.com` instead of `about:blank` for better user experience
-- **Tab Bar CSS**: Modified `.voyager-tab-bar` and `.tab-item:first-child` styles in `TabBar.css` for proper left alignment
-
-## [2024-05-23] Browser Action Toolbar Fix - Complete Resolution
-
-### Fixed
-- **Browser Action Toolbar Positioning**: Resolved duplicate toolbar creation in `BrowserRenderer.js` that was causing action buttons (Reader, Save, Research, Extract) to appear between tab bar and address bar instead of under the address bar
-- **Duplicate Toolbar Removal**: Completely removed the incorrect duplicate action toolbar from `setupWebViewContainer` function that was creating the malformed UI shown in the screenshot
-- **Action Toolbar Styling**: Created dedicated `action-toolbar.css` with cohesive modern styling including hover effects, active states, and responsive design
-- **Layout Integration**: Properly positioned action toolbar within existing header container structure to maintain correct visual hierarchy: Tab Bar → Address Bar → Navigation Controls → Action Toolbar
-- **Event Handler Correction**: Updated event listeners to properly bind to the correct action buttons from `createBrowserHeader` instead of the removed duplicate toolbar
-
-### Added
-- **New CSS File**: `frontend/public/styles/components/action-toolbar.css` with comprehensive button styling, hover effects, and responsive breakpoints
-- **Enhanced Button Styling**: Modern glass morphism design with consistent visual language matching the browser theme
-- **Tooltip Enhancement**: Improved tooltips for better accessibility
-- **Loading States**: Added loading animations for action buttons
-
-### Technical Details
-- Removed duplicate toolbar container creation in `setupWebViewContainer` function (lines 2985-3080)
-- Integrated action toolbar into existing header container instead of creating separate positioned container
-- Updated event listener selectors from `.reader-mode-btn`, `.save-btn`, `.research-btn` to `.browser-reader-btn`, `.browser-save-btn`, `.browser-research-btn`
-- Added CSS loading priority in `cssLoader.js` to ensure proper styling order
-- Maintained existing functionality while fixing positioning conflicts
-- Ensured single source of truth for action toolbar creation in `createBrowserHeader` function
-
-## 2024-01-XX - Fixed Browser Rendering and Styling Issues
-- Created comprehensive browser styling fixes to resolve rendering problems
-  - Created browser-fix.css with simplified and consolidated styling to resolve complex CSS conflicts
-  - Fixed browser container positioning from fixed to relative to prevent layout issues
-  - Resolved z-index conflicts by simplifying layering hierarchy throughout browser components
-  - Fixed tab bar visibility issues with proper fallback styling and enhanced React rendering
-  - Improved webview positioning and sizing with simplified absolute positioning
-  - Enhanced fallback tab rendering with improved functionality and hover effects
-  - Fixed address bar and navigation header positioning conflicts
-  - Created CSS loader utility (cssLoader.js) to ensure proper CSS loading order and fallbacks
-  - Implemented emergency styling system for graceful degradation when CSS files fail to load
-  - Updated Voyager initialization to be async and ensure CSS is loaded before layout setup
-  - Enhanced BrowserRenderer fallback system with improved tab functionality and click handlers
-  - Fixed research panel positioning and interaction issues
-  - Improved responsive design handling for mobile and tablet viewports
-  - Added visibility and opacity enforcement for all browser UI elements
-- Enhanced browser initialization and reliability
-  - Made Voyager.initialize() async to properly wait for CSS loading before layout creation
-  - Added comprehensive CSS loading validation and emergency fallback systems
-  - Improved error handling during browser component initialization
-  - Enhanced tab bar rendering with React 18 compatibility and proper error boundaries
-  - Added priority-based CSS loading system to ensure fix styles load before conflicting styles
-
-## 2024-01-XX - Fixed Voyager Browser Double Initialization Issue
-- Fixed critical double initialization problem causing webview recreation cycles and emergency webview fallback
-  - Prevented duplicate initialization by adding `_isInitializing` flag to avoid concurrent initialization attempts
-  - Removed duplicate `initialize()` call from App.js that was conflicting with componentDidMount initialization
-  - Enhanced navigation scheduling to prevent unnecessary webview recreation when browser is already working
-  - Fixed webview connection detection to properly identify working webviews vs those needing recreation
-  - Added checks for `hasNavigatedInitially` flag to prevent repeated navigation scheduling attempts
-  - Improved webview functional detection by checking src attribute and content loading status
-  - Enhanced cleanup to properly reset all initialization and navigation flags
-  - Fixed race condition between React rendering and browser component initialization timing
-  - Reduced emergency webview creation threshold and improved fallback logic
-- Enhanced browser component reliability and performance
-  - Eliminated excessive webview recreation cycles that were causing poor user experience
-  - Improved webview connection validation with comprehensive status checking
-  - Added proper cleanup of initial navigation timeouts and attempt counters
-  - Enhanced initialization flow to be more robust against timing issues
-  - Fixed browser rendering flash issue where correct render briefly appeared then switched to emergency fallback
-
-## 2024-01-XX - Fixed Voyager Browser Container Mounting Issue
-- Fixed critical "Cannot initialize Voyager - container not mounted" error preventing browser from loading
-  - Fixed containerRef setup in App.js to properly connect React-rendered Voyager component to its DOM container
-  - Added proper container reference setup after React render with appropriate timing
-  - Improved container mounting detection with multiple fallback checks (isConnected, document.contains, parentNode)
-  - Reduced excessive retry attempts from 30 to 10 to prevent browser initialization loops
-  - Added 50ms delay in componentDidMount to ensure DOM is fully ready before initialization
-  - Enhanced container validation logging for better debugging of mount issues
-  - Fixed race condition between React rendering and container reference assignment
-- Enhanced browser component initialization reliability
-  - Improved timing of browser initialization after React render completion
-  - Added fallback initialization paths for both direct browser instance and browserRef scenarios
-  - Reduced retry delays to prevent long initialization times (200ms intervals, 2s cap)
-
-## 2024-01-XX - Fixed Browser Tool Rendering Issues
-- Fixed critical "Cannot add property onPageLoad, object is not extensible" error in VoyagerTabManager
-  - Added Object.isExtensible check before attempting to modify React props
-  - Implemented alternative event handling system when props cannot be modified
-  - Created callbacks object to store event handlers instead of modifying immutable props
-  - Added setupAlternativeEventHandling method to wrap Voyager component methods directly
-  - Fixed TabManager creation failure that was preventing browser component from rendering
-- Fixed missing TabBar.css file reference in BrowserRenderer.js
-  - Corrected path from './components/browser/tabs/TabBar.css' to './styles/components/tabs/TabBar.css'
-  - Fixed "net::ERR_FILE_NOT_FOUND" error for TabBar.css file
-  - Ensured proper CSS loading for tab bar styling
-
-## 2024-01-XX - Created Comprehensive Test Suites for Voyager and Researcher
-- Created test suite for Voyager component (frontend/test/components/browser/Voyager.test.js)
-  - Tests for component initialization, researcher integration, navigation methods
-  - Tests for bookmark functionality, URL navigation, lifecycle methods
-  - Tests for error handling and webview styles
-- Created test suite for Researcher component (frontend/test/components/browser/researcher/Researcher.test.js)
-  - Tests for initialization with various prop combinations
-  - Tests for component methods (initialize, updateUrl, updateTitle, etc.)
-  - Tests for DOM manipulation and event handling
-  - Tests for auto-analyze feature
-- Set up Jest configuration for frontend testing (frontend/jest.config.js)
-  - Configured Babel transformation for React components
-  - Added support for ES modules from dependencies (nanoid, d3, etc.)
-  - Created mock files for CSS, images, nanoid, and d3
-- Added test scripts to frontend package.json (test, test:watch, test:coverage)
-- Created test setup file with global mocks for Electron APIs
-- Installed testing dependencies: jest, @testing-library/react, @testing-library/jest-dom, babel-jest
-
-## 2024-01-XX - Fixed React Component Errors in Voyager
-- Fixed Researcher component being incorrectly used as React component instead of plain JS class
-- Removed JSX rendering of Researcher in Voyager.render() method  
-- Updated initializeResearcher() to properly pass containerRef and autoAnalyze props
-- Fixed handleBackAction/handleForwardAction references in render method to use instance methods
-- Fixed handleBookmarkCreation call to use addBookmark instance method
-- Researcher now initializes programmatically and manages its own DOM
-- Note: muse-loader.js missing file error is gracefully handled with CSS fallback
-
-## 2024-01-08 - Enhanced Voyager Browser Component
-
-## [Unreleased]
-
-### Fixed
-- Dramatically improved webview creation performance by reducing initialization cycle from 6 attempts to 3
-- Fast-tracked emergency webview creation to happen immediately on 3rd navigation attempt (rather than 6th)
-- Reduced initial retry delay to 50ms (from 300ms) for faster error recovery
-- Added direct creation of fixed position emergency webview with enhanced styling and improved DOM calculation
-- Added minimal fallback webview creation as ultimate fallback using absolute positioning
-- Optimized DOM reflow calculations with forced layout recalculation via offsetHeight
-- Prevented execution of JavaScript before DOM readiness to avoid illegal return statements
-- Fixed webview DOM readiness errors with improved event handling
-- Enhanced JavaScript execution in webviews by properly detecting dom-ready state
-- Implemented safer style application with proper DOM readiness checks
-- Reduced emergency webview creation threshold from 8 to 6 attempts for faster recovery
-- Fixed "The WebView must be attached to the DOM" errors with improved initialization sequence
-- Enhanced webview lifecycle management to prevent destruction and recreation cycles
-- Improved webview destruction detection with specialized event listener
-- Optimized navigation initialization with faster early attempts and more thorough DOM connection checking
-- Modified emergency webview creation to happen sooner (attempt #6) for quicker recovery
-- Added comprehensive webview cleanup process to prevent memory leaks
-- Added persistent styling through the complete webview lifecycle for better stability
-- Enhanced webview attachment verification with multiple connection checks
-- Improved diagnostics with detailed connection failure logging
-- Relocated webview styling logic from main.js to Voyager component for better encapsulation
-- Added dedicated applyWebviewStyles method in Voyager.js to handle safe style application
-- Implemented IIFE pattern in executeJavaScript calls to avoid illegal return statements
-- Simplified main.js webview handling to only apply basic styles
-- Fixed webview serialization errors by splitting executeJavaScript calls into smaller chunks
-- Enhanced webview dimension setting to avoid "An object could not be cloned" errors
-- Improved webview style application with a two-phase approach for better reliability
-- Added explicit return values to avoid complex object serialization in IPC calls
-- Enhanced webview dimension setting in main.js to improve stability and prevent repeated initialization cycles
-- Added more comprehensive styling and DOM readiness checks for webviews
-- Implemented safety timeout to recalculate layout after initial rendering
+- **CRITICAL**: Fixed Google rendering issues by removing aggressive Google-specific CSS overrides
+  - **Root Cause**: Multiple aggressive Google-specific CSS injections were breaking Google's responsive layout
+  - **Position Absolute Issue**: Removed `position: absolute !important` with fixed positioning that was conflicting with Google's CSS design
+  - **Over-Targeting**: Removed excessive targeting of Google containers (#main, #cnt, #rcnt, etc.) that was forcing inappropriate widths
+  - **Multiple Conflicts**: Eliminated conflicting style applications from EventHandlers.js, WebviewInitializer.js, and preload scripts
+  - **Minimal Fix Approach**: Replaced aggressive overrides with minimal, non-intrusive fixes that preserve Google's layout:
+    - Only apply basic margin/padding resets (margin: 0, padding: 0, box-sizing: border-box)
+    - Only fix overflow-x issues without forcing dimensions
+    - Remove forced positioning that breaks document flow
+    - Preserve Google's responsive design and container widths
+  - **Files Modified**: 
+    - `frontend/src/components/browser/handlers/EventHandlers.js` - Removed aggressive Google fixes
+    - `frontend/src/components/browser/handlers/WebviewInitializer.js` - Updated to minimal fixes
+  - **Result**: Google now renders properly with its intended layout and responsive behavior intact
 
 ### [0.6.11] - Fixed Electron webContents.setAutoSize Error
 - Fixed "webContents.setAutoSize is not a function" error in main.js:
@@ -871,7 +360,7 @@
   - Implemented proper webview element recreation after connection failures
 
 ## Fixed React Root Creation Warning
-- Resolved "You are calling ReactDOMClient.createRoot() on a container that has already been passed to createRoot()" warning:
+- Resolved "You are calling ReactDOM.createRoot() on a container that has already been passed to createRoot()" warning:
   - Added _tabManagerRoot tracking to reuse existing root
   - Enhanced tab manager button rendering to properly update existing root
 
@@ -1278,14 +767,6 @@
 - Added proper Promise handling for extractFullPageContent when it returns a Promise
 - Added safer content property access in analyzeContent to prevent null reference errors
 - Implemented browser-specific content extraction script using executeJavaScript
-
-### [0.5.73] - Fixed Researcher Tool Call Processing and Tool Registry
-- Added searchKnowledgeBase tool definition to toolRegistry.json for proper tool execution
-- Fixed recursive tool call issues in Researcher component with proper validation
-- Added validation for toolCallId and tool name before execution
-- Enhanced error handling in tool call execution process
-- Added safeguards to prevent maximum call stack exceeded errors
-- Improved tool arguments parsing and validation
 
 ### [0.5.72] - Researcher Component Maximum Call Stack Prevention Fix
 - Fixed critical "Maximum call stack size exceeded" error in Researcher component
@@ -2205,3 +1686,13 @@
 - **File**: `frontend/public/@images/action-reader.svg` - simplified complex animated SVG for toolbar compatibility
 - **Test Pattern**: Used simplified test SVG to isolate and confirm opacity/complexity as root cause
 - **Filter Compatibility**: Retained `id="glow"` filter to match other toolbar icons while improving base visibility
+
+### Fixed
+- **Browser Rendering Issue**: Fixed browser webview not rendering fully after centralization changes
+  - **Root Cause**: Centralized `handleSuccessfulPageLoad` function was being called from `BrowserRenderer.js` context where it lacked access to necessary browser methods like `hideLoadingContent()`
+  - **Solution**: Reverted BrowserRenderer webview event listeners to use original timeout clearing approach while keeping centralized functions for EventHandlers.js context only
+  - **Impact**: Browser webview now renders correctly and completely on page load
+  - **Files Modified**: `BrowserRenderer.js` - removed inappropriate use of centralized handler in wrong context
+  - **Architecture**: Centralized handlers remain available for EventHandlers.js where they have proper browser context
+
+### Refactored

@@ -4,312 +4,319 @@
  */
 
 .voyager-tab-bar-container {
-  display: flex !important;
-  align-items: center !important;
-  background-color: var(--browser-glass-bg, rgba(15, 23, 42, 0.85)) !important;
-  backdrop-filter: blur(12px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(180%) !important;
-  border-bottom: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.12)) !important;
-  height: 36px !important;
-  min-height: 36px !important;
-  max-height: 36px !important;
-  width: 100% !important;
-  position: relative !important;
-  /* Fixed z-index to work with new ordering system */
-  order: 1 !important; /* First component */
-  flex-shrink: 0 !important;
-  padding: 0 !important; /* Removed padding to allow tabs to align with edge */
-  box-sizing: border-box !important;
-  overflow: visible !important;
-  margin-bottom: 0 !important;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  height: 40px;
+  position: relative;
+  z-index: 100;
+  overflow: hidden;
 }
 
 .voyager-tab-bar {
-  display: flex !important;
-  align-items: center !important;
-  flex: 1 !important;
-  height: 100% !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  white-space: nowrap !important;
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE/Edge */
-  scroll-behavior: smooth !important;
-  padding: 0 !important; /* No padding to allow first tab to align with edge */
-  margin: 0 !important; /* No margin to allow first tab to align with edge */
-  box-sizing: border-box !important;
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scroll-behavior: smooth;
+  height: 100%;
 }
 
-/* Hide scrollbar for Chrome, Safari and Opera */
 .voyager-tab-bar::-webkit-scrollbar {
-  display: none !important;
+  display: none; /* Chrome, Safari, Opera */
 }
 
-.tab-item {
-  display: flex !important;
-  align-items: center !important;
-  height: 32px !important;
-  min-width: 100px !important; /* Reduced from 120px for better fit */
-  max-width: 180px !important; /* Reduced from 200px */
-  background-color: rgba(15, 23, 42, 0.4) !important;
-  border-radius: 8px 8px 0 0 !important;
-  margin: 0 1px !important; /* Reduced spacing between tabs */
-  padding: 0 10px !important; /* Reduced from 12px */
-  cursor: pointer !important;
-  user-select: none !important;
-  position: relative !important;
-  overflow: hidden !important;
-  transition: all 0.25s ease !important;
-  border: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.08)) !important;
-  border-bottom: none !important;
-  box-sizing: border-box !important;
-  flex-shrink: 0 !important;
-  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.12) !important;
-  margin-top: 4px !important;
-}
-
-/* First tab styling - align with left edge */
-.voyager-tab-bar .tab-item:first-child {
-  margin-left: 0 !important;
-  margin-right: 1px !important; /* Keep spacing with next tab */
-  border-left-width: 0 !important; /* Remove left border on first tab */
-  border-top-left-radius: 0 !important; /* Remove left radius on first tab */
-  border-bottom-left-radius: 0 !important; /* Remove left radius on first tab */
-}
-
-.tab-item::before {
-  content: "" !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  height: 1px !important;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent) !important;
-  opacity: 0 !important;
-  transition: opacity 0.3s ease !important;
-}
-
-.tab-item:hover {
-  background-color: rgba(15, 23, 42, 0.65) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.15) !important;
-}
-
-.tab-item:hover::before {
-  opacity: 1 !important;
-}
-
-.tab-item.active {
-  background-color: var(--browser-active-bg, rgba(37, 99, 235, 0.25)) !important;
-  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.4)) !important;
-  height: 35px !important;
-  margin-top: 1px !important;
-  z-index: 3 !important;
-  box-shadow: 0 -3px 7px rgba(0, 0, 0, 0.15) !important;
-  position: relative !important;
-}
-
-/* Active first tab styling */
-.voyager-tab-bar .tab-item.active:first-child {
-  border-left-width: 0 !important;
-  border-top-left-radius: 0 !important;
-}
-
-.tab-item.active::after {
-  content: "" !important;
-  position: absolute !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  height: 2px !important;
-  background: linear-gradient(90deg, var(--browser-accent-primary, rgba(37, 99, 235, 0.2)), var(--browser-accent-primary, rgba(37, 99, 235, 0.8)), var(--browser-accent-primary, rgba(37, 99, 235, 0.2))) !important;
-  border-radius: 2px !important;
-}
-
-.tab-favicon {
-  width: 16px !important;
-  height: 16px !important;
-  margin-right: 8px !important;
-  border-radius: 3px !important;
-  flex-shrink: 0 !important;
-  object-fit: contain !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
-  background-color: white !important;
-}
-
-.tab-favicon-placeholder {
-  width: 16px !important;
-  height: 16px !important;
-  margin-right: 8px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  color: var(--browser-text-secondary, #9ca3af) !important;
-  flex-shrink: 0 !important;
-  background-color: rgba(255, 255, 255, 0.08) !important;
-  border-radius: 3px !important;
-}
-
-.tab-title {
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  color: var(--browser-text-light, #f8fafc) !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  flex: 1 !important;
-  max-width: 130px !important; /* Reduced from 150px */
-  letter-spacing: 0.2px !important;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1) !important;
-}
-
-.tab-close-btn {
-  width: 18px !important;
-  height: 18px !important;
-  border-radius: 50% !important;
-  background-color: transparent !important;
-  border: none !important;
-  color: var(--browser-text-secondary, #9ca3af) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  cursor: pointer !important;
-  margin-left: 6px !important;
-  padding: 0 !important;
-  opacity: 0.4 !important;
-  transition: all 0.2s ease !important;
-  flex-shrink: 0 !important;
-}
-
-.tab-close-btn:hover {
-  opacity: 1 !important;
-  background-color: rgba(239, 68, 68, 0.3) !important;
-  color: var(--browser-text-light, #f8fafc) !important;
-  transform: scale(1.1) !important;
-}
-
-.tab-close-btn svg {
-  width: 12px !important;
-  height: 12px !important;
-  stroke-width: 2.5px !important;
-}
-
-.tab-item:hover .tab-close-btn {
-  opacity: 0.7 !important;
-}
-
-.tab-item.active .tab-close-btn {
-  opacity: 0.7 !important;
-}
-
-.new-tab-button {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 32px !important; /* Reduced from 34px */
-  height: 32px !important;
-  background-color: rgba(15, 23, 42, 0.3) !important;
-  border-radius: 8px 8px 0 0 !important;
-  margin: 0 1px !important;
-  cursor: pointer !important;
-  transition: all 0.25s ease !important;
-  flex-shrink: 0 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-bottom: none !important;
-  color: var(--text-light, #f8fafc) !important;
-  margin-top: 4px !important;
-  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1) !important;
-}
-
-.new-tab-button:hover {
-  background-color: rgba(15, 23, 42, 0.7) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.15) !important;
-}
-
-.new-tab-button svg {
-  width: 16px !important;
-  height: 16px !important;
-  stroke-width: 2.5px !important;
-  opacity: 0.8 !important;
-  transition: transform 0.2s ease !important;
-}
-
-.new-tab-button:hover svg {
-  transform: scale(1.1) !important;
-  opacity: 1 !important;
-}
-
+/* Tab scroll buttons */
 .tab-scroll-button {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 22px !important;
-  height: 32px !important;
-  background-color: rgba(15, 23, 42, 0.5) !important;
-  border-radius: 6px !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: var(--text-light, #f8fafc) !important;
-  cursor: pointer !important;
-  z-index: 5 !important;
-  position: relative !important;
-  transition: all 0.2s ease !important;
-  padding: 0 !important;
-  flex-shrink: 0 !important;
-  margin-top: 4px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tab-scroll-button:hover {
-  background-color: rgba(15, 23, 42, 0.8) !important;
-  transform: translateY(-1px) !important;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
-.tab-scroll-button svg {
-  width: 18px !important;
-  height: 18px !important;
-  stroke-width: 2.5px !important;
+.tab-scroll-button:active {
+  background: rgba(59, 130, 246, 0.2);
 }
 
 .tab-scroll-left {
-  margin-right: 6px !important;
-  margin-left: 0 !important; /* Ensure left button is flush with left edge */
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .tab-scroll-right {
-  margin-left: 6px !important;
-  margin-right: 0 !important; /* Ensure right button is flush with right edge */
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Responsive adjustments */
+/* Individual tab styling */
+.tab-item {
+  display: flex;
+  align-items: center;
+  min-width: 180px;
+  max-width: 240px;
+  height: 100%;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.tab-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tab-item.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-bottom: 2px solid #3b82f6;
+}
+
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+}
+
+.tab-item.loading {
+  position: relative;
+}
+
+.tab-item.loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+  animation: loading-sweep 2s infinite;
+}
+
+@keyframes loading-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.tab-item.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  z-index: 1000;
+}
+
+/* Tab favicon */
+.tab-favicon {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.tab-favicon-placeholder {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.tab-favicon-placeholder svg {
+  width: 12px;
+  height: 12px;
+  color: #94a3b8;
+}
+
+/* Loading spinner for tabs */
+.tab-loading-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Tab title */
+.tab-title {
+  flex: 1;
+  font-size: 13px;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.tab-item.active .tab-title {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* Tab close button */
+.tab-close-btn {
+  width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.tab-item:hover .tab-close-btn,
+.tab-item.active .tab-close-btn {
+  opacity: 1;
+}
+
+.tab-close-btn:hover {
+  background: rgba(239, 68, 68, 0.8);
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.tab-close-btn svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* New tab button */
+.new-tab-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.new-tab-button:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  transform: scale(1.1);
+}
+
+.new-tab-button:active {
+  transform: scale(0.95);
+}
+
+/* Responsive design */
 @media (max-width: 768px) {
-  .voyager-tab-bar-container {
-    height: 32px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
-  }
-  
   .tab-item {
-    min-width: 100px !important;
-    height: 26px !important;
-  }
-  
-  .tab-item.active {
-    height: 28px !important;
-  }
-  
-  .new-tab-button {
-    height: 26px !important;
-    width: 28px !important;
-  }
-  
-  .tab-scroll-button {
-    height: 26px !important;
-    width: 20px !important;
+    min-width: 120px;
+    max-width: 160px;
+    padding: 0 8px;
   }
   
   .tab-title {
-    font-size: 11px !important;
+    font-size: 12px;
+  }
+  
+  .tab-favicon,
+  .tab-favicon-placeholder {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+  }
+  
+  .tab-close-btn {
+    width: 18px;
+    height: 18px;
+    margin-left: 6px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .tab-item {
+    border-right: 2px solid #ffffff;
+  }
+  
+  .tab-item.active {
+    background: #0066cc;
+    color: #ffffff;
+  }
+  
+  .tab-title {
+    color: #ffffff;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .tab-item,
+  .tab-close-btn,
+  .new-tab-button,
+  .tab-scroll-button {
+    transition: none;
+  }
+  
+  .tab-loading-spinner {
+    animation: none;
+  }
+  
+  .tab-item.loading::before {
+    animation: none;
+  }
+}
+
+/* Dark mode optimizations */
+@media (prefers-color-scheme: dark) {
+  .voyager-tab-bar-container {
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+  }
+  
+  .tab-item {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  
+  .tab-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+  
+  .tab-item.active {
+    background: rgba(59, 130, 246, 0.2);
   }
 }
 
@@ -358,39 +365,6 @@ body.sidebar-collapsed .voyager-tab-bar-container {
 
 @keyframes tab-spinner {
   to { transform: rotate(360deg); }
-}
-
-/* Add tab loading spinner animation */
-@keyframes tab-spinner {
-  to { transform: rotate(360deg); }
-}
-
-.tab-loading-spinner {
-  width: 12px !important;
-  height: 12px !important;
-  border: 2px solid rgba(255, 255, 255, 0.1) !important;
-  border-top-color: var(--primary-color, #2563eb) !important;
-  border-radius: 50% !important;
-  animation: tab-spinner 0.8s linear infinite !important;
-  margin: auto !important;
-}
-
-/* Tab dragging styles */
-.tab-item.dragging {
-  opacity: 0.7 !important;
-  background-color: rgba(37, 99, 235, 0.2) !important;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4) !important;
-  cursor: grabbing !important;
-}
-
-/* Loading tab styles */
-.tab-item.loading .tab-title {
-  opacity: 0.7 !important;
-}
-
-/* Fix blank favicon fallback */
-.tab-favicon[style*="display: none"] + .tab-favicon-placeholder {
-  display: flex !important;
 }
 
 /* TabBar component styles */

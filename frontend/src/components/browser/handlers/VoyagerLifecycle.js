@@ -79,289 +79,470 @@ function resetBrowserState(browser) {
  * @param {Object} options - Initialization options
  */
 export function initialize(browser, options = {}) {
-  // EXTREME DEBUG - Guaranteed to show in console
-  console.error('🚨 EXTREME DEBUG: VoyagerLifecycle.initialize FUNCTION ENTRY POINT');
+  console.log('🚨 EXTREME DEBUG: VoyagerLifecycle.initialize FUNCTION ENTRY POINT');
   
-  // Use direct console.log for guaranteed visibility
-  console.log('🔍 VOYAGER LIFECYCLE: initializing browser ID:', browser ? browser.browserId : 'undefined browser');
-  lifecycleLogger.info(`Initializing Voyager browser ID: ${browser ? browser.browserId : 'undefined'}`);
+  console.log('🔍 VOYAGER LIFECYCLE: initializing browser ID:', browser.browserId);
+  lifecycleLogger.info('Initializing Voyager browser ID:', browser.browserId);
   
-  // Check if browser is null or undefined
-  if (!browser) {
-    console.error('🚨 EXTREME DEBUG: NULL/UNDEFINED BROWSER PASSED TO INITIALIZE!');
-    lifecycleLogger.error('NULL/UNDEFINED BROWSER PASSED TO INITIALIZE!');
-    return;
-  }
+  // Extract options with defaults
+  const { 
+    forceStateReset = false, 
+    skipWebviewCreation = false,
+    delayWebviewCreation = false 
+  } = options;
   
-  console.error('🚨 EXTREME DEBUG: Browser state and DOM readiness check');
+  console.log('🚨 EXTREME DEBUG: Browser state and DOM readiness check');
   
-  // CRITICAL FIX: Check DOM readiness regardless of state existence
-  const isDomReady = isDomReadyForBrowser(browser);
-  const hasTrackedState = browserStateTracker.has(browser.browserId);
+  // Comprehensive state and DOM readiness check
+  const isContainerReady = browser.containerRef && 
+                          browser.containerRef.current && 
+                          browser.containerRef.current.isConnected &&
+                          document.contains(browser.containerRef.current);
+                          
+  const isBrowserReady = browser.state && 
+                        browser.state.isMounted === true &&
+                        !browser._isUnloading;
   
   console.log('🔍 VOYAGER LIFECYCLE: DOM and state status:', {
-    browserId: browser.browserId,
-    isDomReady,
-    hasTrackedState,
-    hasReactState: !!browser.state,
-    isComponentMounted: browser.state?.isMounted
+    hasContainer: !!browser.containerRef,
+    hasContainerCurrent: !!(browser.containerRef && browser.containerRef.current),
+    isContainerConnected: browser.containerRef?.current?.isConnected || false,
+    isContainerInDOM: browser.containerRef?.current ? document.contains(browser.containerRef.current) : false,
+    hasBrowserState: !!browser.state,
+    isMounted: browser.state?.isMounted || false,
+    isUnloading: browser._isUnloading || false,
+    forceStateReset,
+    skipWebviewCreation,
+    containerReady: isContainerReady,
+    browserReady: isBrowserReady
   });
   
-  // If DOM is not ready, we must wait regardless of state
-  if (!isDomReady) {
-    console.error('🚨 EXTREME DEBUG: DOM NOT READY - scheduling retry');
-    console.log('🔍 VOYAGER LIFECYCLE: DOM not ready, scheduling retry');
-    lifecycleLogger.warn('DOM not ready for initialization, will retry');
-    
-    // Schedule a retry with exponential backoff
-    const retryCount = (browser._lifecycleRetryCount || 0) + 1;
-    browser._lifecycleRetryCount = retryCount;
-    
-    if (retryCount <= 10) {
-      const delay = Math.min(100 * Math.pow(1.2, retryCount), 2000);
-      console.log(`🔄 VOYAGER LIFECYCLE: Scheduling retry #${retryCount} in ${delay}ms`);
-      
-      setTimeout(() => {
-        // Double-check component is still mounted before retry
-        if (!browser._isUnloading && browser.state?.isMounted) {
-          initialize(browser, options);
-        } else {
-          console.log('🔍 VOYAGER LIFECYCLE: Component unmounted during retry, aborting');
-        }
-      }, delay);
-    } else {
-      console.error('🔍 VOYAGER LIFECYCLE: Max retries exceeded for DOM readiness');
-      lifecycleLogger.error('Max retries exceeded waiting for DOM readiness');
-    }
+  // Enhanced readiness validation
+  if (!isContainerReady) {
+    lifecycleLogger.warn('Container not ready for browser initialization');
+    console.log('⚠️ VOYAGER LIFECYCLE: Container not ready, aborting initialization');
     return;
   }
   
-  // Reset retry count on successful DOM check
-  browser._lifecycleRetryCount = 0;
-  
-  // Initialize state if not already initialized OR if this is a fresh mount
-  const needsStateInit = !browser.state || !hasTrackedState || options.forceStateReset;
-  
-  if (needsStateInit) {
-    console.error('🚨 EXTREME DEBUG: Initializing browser state');
-    console.log('🔍 VOYAGER LIFECYCLE: Initializing browser state (fresh or forced)');
-    lifecycleLogger.debug('Initializing browser state');
-    
-    // Mark this browser as tracked
-    browserStateTracker.set(browser.browserId, {
-      initialized: true,
-      timestamp: Date.now()
-    });
-    
-    // Only set state if browser doesn't have state or if forcing reset
-    if (!browser.state || options.forceStateReset) {
-      browser.setState({
-        isLoading: false,
-        url: browser.state?.url || '',
-        displayUrl: browser.state?.displayUrl || '',
-        title: browser.state?.title || '',
-        favicon: browser.state?.favicon || null,
-        error: browser.state?.error || null,
-        history: browser.state?.history || [],
-        currentHistoryIndex: browser.state?.currentHistoryIndex || -1,
-        isSearchMode: browser.state?.isSearchMode || false,
-        showSettings: browser.state?.showSettings || false,
-        scrollPosition: browser.state?.scrollPosition || 0,
-        isMounted: true // Ensure mounted state is set
-      });
-    }
-  } else {
-    console.error('🚨 EXTREME DEBUG: Browser state exists and DOM is ready - proceeding with initialization');
-    console.log('🔍 VOYAGER LIFECYCLE: Browser state exists and DOM ready, proceeding');
-    lifecycleLogger.debug('Browser state exists and DOM ready, proceeding with initialization');
-    
-    // Update tracking timestamp
-    browserStateTracker.set(browser.browserId, {
-      initialized: true,
-      timestamp: Date.now()
-    });
+  if (!isBrowserReady) {
+    lifecycleLogger.warn('Browser state not ready for initialization');
+    console.log('⚠️ VOYAGER LIFECYCLE: Browser state not ready, aborting initialization');
+    return;
   }
   
-  // Initialize sub-components and managers
+  // CRITICAL FIX: EXTENDED React reconciliation delay to prevent ALL DOM insertion conflicts
+  // This prevents conflicts between multiple React roots and webview creation
+  const waitForCompleteReactStabilization = () => {
+    return new Promise((resolve) => {
+      // Use MUCH longer delay sequence to ensure ALL React operations are complete
+      const stabilizationSteps = [
+        () => requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              // Wait for React to completely finish all operations
+              setTimeout(() => {
+                // Additional delay to ensure no pending React work
+                setTimeout(() => {
+                  // Final delay to ensure DOM is completely stable
+                  setTimeout(resolve, 50);
+                }, 50);
+              }, 100);
+            });
+          });
+        })
+      ];
+      
+      stabilizationSteps[0]();
+    });
+  };
+  
+  console.log('🚨 EXTREME DEBUG: Initializing browser state');
+  console.log('🔍 VOYAGER LIFECYCLE: Initializing browser state (fresh or forced)');
+  
+  // Initialize browser state
+  if (forceStateReset || !browser._lifecycleInitialized) {
+    lifecycleLogger.debug('Initializing fresh browser state');
+    
+    // Reset all initialization tracking
+    browser._isWebviewInitialized = false;
+    browser._webviewCreationAttempts = 0;
+    browser._maxWebviewCreationAttempts = 5;
+    browser._lifecycleRetryCount = 0;
+    browser._lifecycleInitialized = true;
+    
+    // CRITICAL FIX: Mark that React rendering should be deferred
+    browser._deferReactRendering = true;
+    
+    // Clear any existing timeouts
+    if (browser._navigationTimeout) {
+      clearTimeout(browser._navigationTimeout);
+      browser._navigationTimeout = null;
+    }
+    
+    if (browser._loadDetectionInterval) {
+      clearInterval(browser._loadDetectionInterval);
+      browser._loadDetectionInterval = null;
+    }
+    
+    if (browser._styleCheckTimeouts) {
+      browser._styleCheckTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+      browser._styleCheckTimeouts = [];
+    } else {
+      browser._styleCheckTimeouts = [];
+    }
+    
+    // Initialize periodic tasks
+    console.log('🔍 VOYAGER LIFECYCLE: Setting up periodic tasks');
+    browser._periodicTasks = setupPeriodicTasks(browser);
+    
+    lifecycleLogger.debug('Browser state initialized successfully');
+  }
+  
   console.log('🔍 VOYAGER LIFECYCLE: Initializing sub-managers');
-  lifecycleLogger.debug('Initializing sub-managers');
   initializeManagers(browser);
   
-  // Initialize event handlers
   console.log('🔍 VOYAGER LIFECYCLE: Setting up event handlers');
-  lifecycleLogger.debug('Setting up event handlers');
   setupEventHandlers(browser);
   
-  // Add ExtractorManager to browser instance for direct access
-  browser.extractorManager = ExtractorManager;
   console.log('🔍 VOYAGER LIFECYCLE: Added ExtractorManager to browser instance');
-  lifecycleLogger.debug('Added ExtractorManager to browser instance');
+  // Add ExtractorManager instance to browser for content extraction
+  browser.extractorManager = ExtractorManager;
   
-  // Set up interval timers for periodic tasks
-  console.log('🔍 VOYAGER LIFECYCLE: Setting up periodic tasks');
-  lifecycleLogger.debug('Setting up periodic tasks');
-  browser._periodicTasks = setupPeriodicTasks(browser);
-  
-  // Add window event listeners
   console.log('🔍 VOYAGER LIFECYCLE: Adding window event listeners');
-  lifecycleLogger.debug('Adding window event listeners');
   addWindowListeners(browser);
   
-  // Implement a more robust multi-attempt initialization sequence
-  browser._webviewCreationAttempts = 0;
-  browser._maxWebviewCreationAttempts = 5;
-  
-  // Track initialization status
-  browser._isWebviewInitialized = false;
-  
-  // Function to initialize or retry webview creation
-  const attemptWebviewCreation = () => {
-    const attemptNumber = ++browser._webviewCreationAttempts;
-    console.log(`🔥 VOYAGER LIFECYCLE: Attempting webview creation - attempt ${attemptNumber}/${browser._maxWebviewCreationAttempts}`);
-    lifecycleLogger.info(`Attempting webview creation - attempt ${attemptNumber}/${browser._maxWebviewCreationAttempts}`);
+  // CRITICAL FIX: Wait for COMPLETE React stabilization before ANY DOM operations
+  waitForCompleteReactStabilization().then(() => {
+    console.log('🔍 VOYAGER LIFECYCLE: Complete React stabilization achieved, proceeding with ALL operations');
     
-    // CRITICAL: Double-check DOM is still ready before each attempt
-    if (!isDomReadyForBrowser(browser)) {
-      console.log('🔥 VOYAGER LIFECYCLE: DOM no longer ready during webview creation attempt');
-      lifecycleLogger.warn('DOM no longer ready during webview creation attempt');
-      return false;
-    }
-    
-    // Check if we have direct vs. initBrowserContent method of creation
-    if (typeof browser.createWebviewElement === 'function') {
-      console.log('🔥 VOYAGER LIFECYCLE: Using direct createWebviewElement method');
-      lifecycleLogger.debug('Using direct createWebviewElement method');
-      const webview = browser.createWebviewElement();
-      
-      if (webview && document.body.contains(webview)) {
-        console.log('🎉 VOYAGER LIFECYCLE: Webview creation successful!', webview.id || 'no-id');
-        lifecycleLogger.info('Webview creation successful!', {
-          id: webview.id || 'no-id',
-          inDOM: true,
-          attempt: attemptNumber
-        });
-        browser._isWebviewInitialized = true;
-        return true;
-      } else {
-        console.log('⚠️ VOYAGER LIFECYCLE: Direct webview creation failed or webview not in DOM');
-        lifecycleLogger.warn('Direct webview creation failed or webview not in DOM');
-      }
-    } else {
-      console.log('⚠️ VOYAGER LIFECYCLE: createWebviewElement method not available');
-      lifecycleLogger.warn('createWebviewElement method not available');
-    }
-    
-    // Try initBrowserContent as an alternative
-    if (typeof browser.initBrowserContent === 'function') {
-      console.log('🔥 VOYAGER LIFECYCLE: Trying initBrowserContent as alternative');
-      lifecycleLogger.debug('Trying initBrowserContent as alternative');
-      try {
-        browser.initBrowserContent();
+    // PHASE 1: Create webview first (if not skipping)
+    if (!skipWebviewCreation) {
+      console.log('🔍 VOYAGER LIFECYCLE: Phase 1 - Creating webview');
+      createWebviewWithTiming(browser, delayWebviewCreation).then(() => {
+        console.log('🔍 VOYAGER LIFECYCLE: Webview creation completed, proceeding to React rendering');
         
-        // Check if this was successful
-        if (browser.webview && document.body.contains(browser.webview)) {
-          console.log('🎉 VOYAGER LIFECYCLE: Webview initialization via initBrowserContent successful!', browser.webview.id || 'no-id');
-          lifecycleLogger.info('Webview initialization via initBrowserContent successful!', {
-            id: browser.webview.id || 'no-id',
-            inDOM: true,
-            attempt: attemptNumber
-          });
-          browser._isWebviewInitialized = true;
-          return true;
-        } else {
-          console.log('⚠️ VOYAGER LIFECYCLE: initBrowserContent did not create a valid webview in DOM');
-          lifecycleLogger.warn('initBrowserContent did not create a valid webview in DOM');
-        }
-      } catch (error) {
-        console.log('❌ VOYAGER LIFECYCLE: Error in initBrowserContent:', error.message);
-        lifecycleLogger.error('Error in initBrowserContent:', error);
-      }
-    } else {
-      console.log('⚠️ VOYAGER LIFECYCLE: initBrowserContent method not available');
-      lifecycleLogger.warn('initBrowserContent method not available');
-    }
-    
-    // Try forceInitBrowser as a last resort
-    if (typeof browser.forceInitBrowser === 'function') {
-      console.log('🔥 VOYAGER LIFECYCLE: Trying forceInitBrowser as last resort');
-      lifecycleLogger.debug('Trying forceInitBrowser as last resort');
-      try {
-        browser.forceInitBrowser();
+        // PHASE 2: Now it's safe to create React components
+        initializeReactComponents(browser);
         
-        // Check if this was successful
-        if (browser.webview && document.body.contains(browser.webview)) {
-          console.log('🎉 VOYAGER LIFECYCLE: Webview initialization via forceInitBrowser successful!', browser.webview.id || 'no-id');
-          lifecycleLogger.info('Webview initialization via forceInitBrowser successful!', {
-            id: browser.webview.id || 'no-id',
-            inDOM: true,
-            attempt: attemptNumber
-          });
-          browser._isWebviewInitialized = true;
-          return true;
-        } else {
-          console.log('⚠️ VOYAGER LIFECYCLE: forceInitBrowser did not create a valid webview in DOM');
-          lifecycleLogger.warn('forceInitBrowser did not create a valid webview in DOM');
-        }
-      } catch (error) {
-        console.log('❌ VOYAGER LIFECYCLE: Error in forceInitBrowser:', error.message);
-        lifecycleLogger.error('Error in forceInitBrowser:', error);
-      }
+      }).catch(error => {
+        console.error('🔍 VOYAGER LIFECYCLE: Error in webview creation:', error);
+        // Still try React components even if webview fails
+        initializeReactComponents(browser);
+      });
     } else {
-      console.log('⚠️ VOYAGER LIFECYCLE: forceInitBrowser method not available');
-      lifecycleLogger.warn('forceInitBrowser method not available');
+      console.log('🔍 VOYAGER LIFECYCLE: Skipping webview creation, proceeding to React rendering');
+      // Skip webview but still initialize React components
+      initializeReactComponents(browser);
     }
+  }).catch(error => {
+    console.error('🔍 VOYAGER LIFECYCLE: Error during React stabilization:', error);
     
-    // If we get here, all methods failed
-    return false;
-  };
-  
-  // Start the initialization process with multiple attempts
-  const scheduleNextAttempt = () => {
-    if (browser._webviewCreationAttempts >= browser._maxWebviewCreationAttempts) {
-      console.log(`❌ VOYAGER LIFECYCLE: Failed to create webview after ${browser._maxWebviewCreationAttempts} attempts`);
-      lifecycleLogger.error(`Failed to create webview after ${browser._maxWebviewCreationAttempts} attempts`);
-      return;
-    }
-    
-    // Calculate delay with backoff
-    const delay = Math.min(100 * Math.pow(1.5, browser._webviewCreationAttempts), 2000);
-    
-    console.log(`🔄 VOYAGER LIFECYCLE: Scheduling next webview creation attempt in ${delay}ms`);
-    lifecycleLogger.info(`Scheduling next webview creation attempt in ${delay}ms`);
-    
-    // Schedule next attempt with a delay
+    // Fallback: proceed anyway but with additional delay
     setTimeout(() => {
-      // Check if component is still mounted before next attempt
       if (!browser._isUnloading && browser.state?.isMounted) {
-        const result = attemptWebviewCreation();
-        
-        // If failed, schedule next attempt
-        if (!result) {
-          scheduleNextAttempt();
-        }
-      } else {
-        console.log('🔄 VOYAGER LIFECYCLE: Component unmounted during webview creation retry, aborting');
-        lifecycleLogger.info('Component unmounted during webview creation retry, aborting');
+        createWebviewWithTiming(browser, true).then(() => {
+          initializeReactComponents(browser);
+        }).catch(() => {
+          initializeReactComponents(browser);
+        });
       }
-    }, delay);
-  };
-  
-  // Start first attempt with a short initial delay
-  console.log('🚀 VOYAGER LIFECYCLE: Starting webview creation sequence...');
-  lifecycleLogger.info('Starting webview creation sequence...');
-  setTimeout(() => {
-    console.log('🚀 VOYAGER LIFECYCLE: Executing first webview creation attempt now');
-    const result = attemptWebviewCreation();
-    
-    // If first attempt fails, start retry sequence
-    if (!result) {
-      console.log('🔄 VOYAGER LIFECYCLE: First attempt failed, scheduling retry sequence');
-      scheduleNextAttempt();
-    }
-  }, 50); // Reduced initial delay for faster startup
+    }, 200);
+  });
   
   console.log('🏁 VOYAGER LIFECYCLE: Voyager browser initialization sequence started');
   lifecycleLogger.info('Voyager browser initialization complete');
+}
+
+/**
+ * Initialize React components after main browser setup is complete
+ * This prevents React root conflicts during initial setup
+ * @param {Object} browser - Voyager browser instance
+ */
+function initializeReactComponents(browser) {
+  console.log('🔍 VOYAGER LIFECYCLE: Initializing React components after main setup');
+  
+  try {
+    // CRITICAL FIX: Clean up any placeholders before enabling React rendering
+    if (browser._tabManagerPlaceholder && browser._tabManagerPlaceholder.parentNode) {
+      console.log('🔍 VOYAGER LIFECYCLE: Removing TabManagerButton placeholder');
+      browser._tabManagerPlaceholder.parentNode.removeChild(browser._tabManagerPlaceholder);
+      browser._tabManagerPlaceholder = null;
+    }
+    
+    // Remove the defer flag AFTER cleaning up placeholders
+    browser._deferReactRendering = false;
+    console.log('🔍 VOYAGER LIFECYCLE: React rendering enabled, defer flag removed');
+    
+    // Initialize TabBar React rendering if setup function exists
+    if (browser._setupTabBarReactRendering && typeof browser._setupTabBarReactRendering === 'function') {
+      console.log('🔍 VOYAGER LIFECYCLE: Setting up TabBar React rendering');
+      try {
+        browser._setupTabBarReactRendering();
+      } catch (err) {
+        console.error('🔍 VOYAGER LIFECYCLE: Error setting up TabBar React rendering:', err);
+      }
+    }
+    
+    // Now it's safe to render TabBar if render function exists
+    if (browser._renderTabBar && typeof browser._renderTabBar === 'function') {
+      console.log('🔍 VOYAGER LIFECYCLE: Rendering TabBar React component');
+      try {
+        browser._renderTabBar();
+      } catch (err) {
+        console.error('🔍 VOYAGER LIFECYCLE: Error rendering TabBar:', err);
+      }
+    }
+    
+    // Initialize TabManagerButton if needed
+    if (browser._initializeTabManagerButton && typeof browser._initializeTabManagerButton === 'function') {
+      console.log('🔍 VOYAGER LIFECYCLE: Initializing TabManagerButton React component');
+      try {
+        browser._initializeTabManagerButton();
+      } catch (err) {
+        console.error('🔍 VOYAGER LIFECYCLE: Error initializing TabManagerButton:', err);
+        // Create fallback button if React rendering fails
+        createFallbackTabManagerButton(browser);
+      }
+    }
+    
+    // Initialize any other deferred React components
+    if (browser._setupDeferredReactComponents && typeof browser._setupDeferredReactComponents === 'function') {
+      console.log('🔍 VOYAGER LIFECYCLE: Setting up other deferred React components');
+      try {
+        browser._setupDeferredReactComponents();
+      } catch (err) {
+        console.error('🔍 VOYAGER LIFECYCLE: Error setting up other deferred React components:', err);
+      }
+    }
+    
+    console.log('🔍 VOYAGER LIFECYCLE: React component initialization complete');
+    
+  } catch (error) {
+    console.error('🔍 VOYAGER LIFECYCLE: Error initializing React components:', error);
+    
+    // Create fallback UI if React components fail
+    createFallbackUI(browser);
+  }
+}
+
+/**
+ * Create fallback UI when React components fail
+ * @param {Object} browser - Voyager browser instance
+ */
+function createFallbackUI(browser) {
+  console.log('🔍 VOYAGER LIFECYCLE: Creating fallback UI for React component failures');
+  
+  try {
+    // Find tab bar container and create basic tab if React failed
+    const tabBarContainer = browser.containerRef.current?.querySelector('.voyager-tab-bar-react-container');
+    if (tabBarContainer && !tabBarContainer.hasChildNodes()) {
+      const fallbackTab = document.createElement('div');
+      fallbackTab.className = 'tab-item active fallback';
+      fallbackTab.innerHTML = `<span>🌐 Browser</span>`;
+      fallbackTab.style.cssText = `
+        display: flex; align-items: center; height: 32px; padding: 0 10px;
+        background: rgba(37, 99, 235, 0.25); border-radius: 8px 8px 0 0;
+        margin: 4px; color: white; font-size: 12px;
+      `;
+      tabBarContainer.appendChild(fallbackTab);
+    }
+  } catch (error) {
+    console.warn('🔍 VOYAGER LIFECYCLE: Error creating fallback UI:', error);
+  }
+}
+
+/**
+ * Create webview with proper timing to avoid React conflicts
+ * @param {Object} browser - Voyager browser instance
+ * @param {boolean} forceDelay - Whether to force additional delay
+ * @returns {Promise} Promise that resolves when webview creation is complete
+ */
+function createWebviewWithTiming(browser, forceDelay = false) {
+  // Return a Promise for proper sequencing
+  return new Promise((resolve, reject) => {
+    // Calculate delay based on whether we need extra time
+    const baseDelay = forceDelay ? 200 : 50;
+    
+    console.log('🚀 VOYAGER LIFECYCLE: Starting webview creation sequence...');
+    lifecycleLogger.info('Starting webview creation sequence...');
+    
+    // CRITICAL FIX: Add error boundary around webview creation
+    const createWebviewSafely = () => {
+      try {
+        // Double-check component is still mounted before proceeding
+        if (browser._isUnloading || !browser.state?.isMounted) {
+          console.log('🔍 VOYAGER LIFECYCLE: Component unmounted before webview creation, aborting');
+          reject(new Error('Component unmounted during webview creation'));
+          return false;
+        }
+        
+        // Verify container is still available and connected
+        if (!browser.containerRef?.current?.isConnected) {
+          console.log('🔍 VOYAGER LIFECYCLE: Container no longer connected, aborting webview creation');
+          reject(new Error('Container no longer connected'));
+          return false;
+        }
+        
+        return attemptWebviewCreation();
+      } catch (error) {
+        console.error('🔍 VOYAGER LIFECYCLE: Error in createWebviewSafely:', error);
+        lifecycleLogger.error('Error in createWebviewSafely:', error);
+        reject(error);
+        return false;
+      }
+    };
+    
+    // The actual webview creation function with retry logic
+    const attemptWebviewCreation = () => {
+      const attemptNumber = ++browser._webviewCreationAttempts;
+      console.log(`🔥 VOYAGER LIFECYCLE: Attempting webview creation - attempt ${attemptNumber}/${browser._maxWebviewCreationAttempts}`);
+      lifecycleLogger.info(`Attempting webview creation - attempt ${attemptNumber}/${browser._maxWebviewCreationAttempts}`);
+      
+      // CRITICAL: Double-check DOM is still ready before each attempt
+      if (!isDomReadyForBrowser(browser)) {
+        console.log('🔥 VOYAGER LIFECYCLE: DOM no longer ready during webview creation attempt');
+        lifecycleLogger.warn('DOM no longer ready during webview creation attempt');
+        return false;
+      }
+      
+      // Check if we have direct vs. initBrowserContent method of creation
+      if (typeof browser.createWebviewElement === 'function') {
+        console.log('🔥 VOYAGER LIFECYCLE: Using direct createWebviewElement method');
+        lifecycleLogger.debug('Using direct createWebviewElement method');
+        const webview = browser.createWebviewElement();
+        
+        if (webview && document.body.contains(webview)) {
+          console.log('🎉 VOYAGER LIFECYCLE: Webview creation successful!', webview.id || 'no-id');
+          lifecycleLogger.info('Webview creation successful!', {
+            id: webview.id || 'no-id',
+            inDOM: true,
+            attempt: attemptNumber
+          });
+          browser._isWebviewInitialized = true;
+          resolve(); // Resolve the Promise on success
+          return true;
+        } else {
+          console.log('⚠️ VOYAGER LIFECYCLE: Direct webview creation failed or webview not in DOM');
+          lifecycleLogger.warn('Direct webview creation failed or webview not in DOM');
+        }
+      } else {
+        console.log('⚠️ VOYAGER LIFECYCLE: createWebviewElement method not available');
+        lifecycleLogger.warn('createWebviewElement method not available');
+      }
+      
+      // Try initBrowserContent as an alternative
+      if (typeof browser.initBrowserContent === 'function') {
+        console.log('🔥 VOYAGER LIFECYCLE: Trying initBrowserContent as alternative');
+        lifecycleLogger.debug('Trying initBrowserContent as alternative');
+        try {
+          browser.initBrowserContent();
+          
+          // Check if this was successful
+          if (browser.webview && document.body.contains(browser.webview)) {
+            console.log('🎉 VOYAGER LIFECYCLE: Webview initialization via initBrowserContent successful!', browser.webview.id || 'no-id');
+            lifecycleLogger.info('Webview initialization via initBrowserContent successful!', {
+              id: browser.webview.id || 'no-id',
+              inDOM: true,
+              attempt: attemptNumber
+            });
+            browser._isWebviewInitialized = true;
+            resolve(); // Resolve the Promise on success
+            return true;
+          } else {
+            console.log('⚠️ VOYAGER LIFECYCLE: initBrowserContent did not create a valid webview in DOM');
+            lifecycleLogger.warn('initBrowserContent did not create a valid webview in DOM');
+          }
+        } catch (error) {
+          console.log('❌ VOYAGER LIFECYCLE: Error in initBrowserContent:', error.message);
+          lifecycleLogger.error('Error in initBrowserContent:', error);
+        }
+      } else {
+        console.log('⚠️ VOYAGER LIFECYCLE: initBrowserContent method not available');
+        lifecycleLogger.warn('initBrowserContent method not available');
+      }
+      
+      // Try forceInitBrowser as a last resort
+      if (typeof browser.forceInitBrowser === 'function') {
+        console.log('🔥 VOYAGER LIFECYCLE: Trying forceInitBrowser as last resort');
+        lifecycleLogger.debug('Trying forceInitBrowser as last resort');
+        try {
+          browser.forceInitBrowser();
+          
+          // Check if this was successful
+          if (browser.webview && document.body.contains(browser.webview)) {
+            console.log('🎉 VOYAGER LIFECYCLE: Webview initialization via forceInitBrowser successful!', browser.webview.id || 'no-id');
+            lifecycleLogger.info('Webview initialization via forceInitBrowser successful!', {
+              id: browser.webview.id || 'no-id',
+              inDOM: true,
+              attempt: attemptNumber
+            });
+            browser._isWebviewInitialized = true;
+            resolve(); // Resolve the Promise on success
+            return true;
+          } else {
+            console.log('⚠️ VOYAGER LIFECYCLE: forceInitBrowser did not create a valid webview in DOM');
+            lifecycleLogger.warn('forceInitBrowser did not create a valid webview in DOM');
+          }
+        } catch (error) {
+          console.log('❌ VOYAGER LIFECYCLE: Error in forceInitBrowser:', error.message);
+          lifecycleLogger.error('Error in forceInitBrowser:', error);
+        }
+      } else {
+        console.log('⚠️ VOYAGER LIFECYCLE: forceInitBrowser method not available');
+        lifecycleLogger.warn('forceInitBrowser method not available');
+      }
+      
+      // If we get here, all methods failed
+      return false;
+    };
+    
+    // Start the initialization process with multiple attempts
+    const scheduleNextAttempt = () => {
+      if (browser._webviewCreationAttempts >= browser._maxWebviewCreationAttempts) {
+        console.log(`❌ VOYAGER LIFECYCLE: Failed to create webview after ${browser._maxWebviewCreationAttempts} attempts`);
+        lifecycleLogger.error(`Failed to create webview after ${browser._maxWebviewCreationAttempts} attempts`);
+        reject(new Error(`Failed to create webview after ${browser._maxWebviewCreationAttempts} attempts`));
+        return;
+      }
+      
+      // Calculate delay with backoff
+      const delay = Math.min(100 * Math.pow(1.5, browser._webviewCreationAttempts), 2000);
+      
+      console.log(`🔄 VOYAGER LIFECYCLE: Scheduling next webview creation attempt in ${delay}ms`);
+      lifecycleLogger.info(`Scheduling next webview creation attempt in ${delay}ms`);
+      
+      // Schedule next attempt with a delay
+      setTimeout(() => {
+        // Check if component is still mounted before next attempt
+        if (!browser._isUnloading && browser.state?.isMounted) {
+          const result = attemptWebviewCreation();
+          
+          // If failed, schedule next attempt
+          if (!result) {
+            scheduleNextAttempt();
+          }
+        } else {
+          console.log('🔄 VOYAGER LIFECYCLE: Component unmounted during webview creation retry, aborting');
+          lifecycleLogger.info('Component unmounted during webview creation retry, aborting');
+          reject(new Error('Component unmounted during retry'));
+        }
+      }, delay);
+    };
+    
+    // Start first attempt with a short initial delay
+    console.log('🚀 VOYAGER LIFECYCLE: Starting webview creation sequence...');
+    lifecycleLogger.info('Starting webview creation sequence...');
+    setTimeout(() => {
+      console.log('🚀 VOYAGER LIFECYCLE: Executing first webview creation attempt now');
+      const result = attemptWebviewCreation();
+      
+      // If first attempt fails, start retry sequence
+      if (!result) {
+        console.log('🔄 VOYAGER LIFECYCLE: First attempt failed, scheduling retry sequence');
+        scheduleNextAttempt();
+      }
+    }, baseDelay);
+  });
 }
 
 /**
@@ -642,7 +823,9 @@ function cleanupWebview(browser) {
     let webviewInfo = {
       id: browser.webview.id || 'no-id',
       src: browser.webview.getAttribute('src') || 'no-src',
-      inDOM: !!browser.webview.parentNode
+      inDOM: !!browser.webview.parentNode,
+      isConnected: browser.webview.isConnected || false,
+      hasGetWebContentsId: typeof browser.webview.getWebContentsId === 'function'
     };
     lifecycleLogger.debug('Webview details before cleanup:', webviewInfo);
     
@@ -684,27 +867,52 @@ function cleanupWebview(browser) {
       }
     });
     
-    // Stop loading and destroy webview if possible
-    try {
-      lifecycleLogger.debug('Stopping webview loading');
-      if (typeof browser.webview.stop === 'function') {
-        browser.webview.stop();
+    // CRITICAL FIX: Only attempt webview operations if it's properly attached and ready
+    const isWebviewOperational = browser.webview.isConnected && 
+                                 browser.webview.parentNode &&
+                                 document.contains(browser.webview) &&
+                                 typeof browser.webview.getWebContentsId === 'function';
+    
+    if (isWebviewOperational) {
+      try {
+        // Test if webview is actually ready for operations
+        const webContentsId = browser.webview.getWebContentsId();
+        lifecycleLogger.debug(`Webview is operational (WebContents ID: ${webContentsId}), attempting graceful stop`);
+        
+        if (typeof browser.webview.stop === 'function') {
+          browser.webview.stop();
+          lifecycleLogger.debug('Webview stopped successfully');
+        }
+      } catch (stopError) {
+        // This is the error we're trying to fix - webview operations on detached elements
+        lifecycleLogger.warn('Error during webview cleanup:', stopError);
+        console.log('Webview stop failed (expected if detached):', stopError.message);
       }
-      
-      // Remove the webview from DOM if possible
-      if (browser.webview.parentNode) {
+    } else {
+      lifecycleLogger.debug('Webview not operational, skipping stop operation', {
+        isConnected: browser.webview.isConnected,
+        hasParent: !!browser.webview.parentNode,
+        inDocument: browser.webview.parentNode ? document.contains(browser.webview) : false,
+        hasGetWebContentsId: typeof browser.webview.getWebContentsId === 'function'
+      });
+    }
+    
+    // Remove the webview from DOM if possible
+    try {
+      if (browser.webview.parentNode && document.contains(browser.webview)) {
         lifecycleLogger.debug('Removing webview from DOM');
         browser.webview.parentNode.removeChild(browser.webview);
+        lifecycleLogger.debug('Webview removed from DOM successfully');
       } else {
-        lifecycleLogger.debug('Webview not in DOM, nothing to remove');
+        lifecycleLogger.debug('Webview not in DOM or no parent, skipping DOM removal');
       }
-      
-      // Clear reference
-      lifecycleLogger.debug('Clearing webview reference');
-      browser.webview = null;
-    } catch (err) {
-      lifecycleLogger.warn('Error during webview cleanup:', err);
+    } catch (removeErr) {
+      lifecycleLogger.warn('Error removing webview from DOM:', removeErr);
     }
+    
+    // Clear reference
+    lifecycleLogger.debug('Clearing webview reference');
+    browser.webview = null;
   } else {
     lifecycleLogger.debug('No webview found, skipping webview cleanup');
   }
@@ -744,6 +952,66 @@ function cleanupWebview(browser) {
     browser.iframe = null;
   } else {
     lifecycleLogger.debug('No iframe found, skipping iframe cleanup');
+  }
+}
+
+/**
+ * Create fallback TabManagerButton when React rendering fails
+ * @param {Object} browser - Voyager browser instance
+ */
+function createFallbackTabManagerButton(browser) {
+  console.log('🔍 VOYAGER LIFECYCLE: Creating fallback TabManagerButton');
+  
+  try {
+    // Find action buttons container
+    const actionButtonsContainer = browser.containerRef.current?.querySelector('.browser-action-buttons');
+    if (!actionButtonsContainer) {
+      console.warn('🔍 VOYAGER LIFECYCLE: No action buttons container found for fallback TabManagerButton');
+      return;
+    }
+    
+    // Create fallback button
+    const fallbackButton = document.createElement('button');
+    fallbackButton.className = 'tab-manager-button fallback';
+    fallbackButton.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="9" y1="3" x2="9" y2="21"></line>
+      </svg>
+    `;
+    fallbackButton.style.cssText = `
+      display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+      background: transparent; border: none; border-radius: 4px; cursor: pointer;
+      color: #cccccc; margin: 0 4px; transition: all 0.2s ease;
+    `;
+    
+    // Add click handler
+    fallbackButton.addEventListener('click', () => {
+      console.log('Fallback TabManagerButton clicked');
+      // Open simple tab list or create new tab
+      if (browser && typeof browser.handleNewTab === 'function') {
+        browser.handleNewTab();
+      }
+    });
+    
+    // Add hover effects
+    fallbackButton.addEventListener('mouseenter', () => {
+      fallbackButton.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+      fallbackButton.style.color = '#ffffff';
+    });
+    
+    fallbackButton.addEventListener('mouseleave', () => {
+      fallbackButton.style.backgroundColor = 'transparent';
+      fallbackButton.style.color = '#cccccc';
+    });
+    
+    actionButtonsContainer.appendChild(fallbackButton);
+    browser._fallbackTabManagerButton = fallbackButton;
+    
+    console.log('🔍 VOYAGER LIFECYCLE: Fallback TabManagerButton created successfully');
+    
+  } catch (error) {
+    console.error('🔍 VOYAGER LIFECYCLE: Error creating fallback TabManagerButton:', error);
   }
 }
 

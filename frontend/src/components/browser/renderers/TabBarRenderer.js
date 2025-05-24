@@ -54,115 +54,158 @@ export function createTabBarContainer(browser, tabManager) {
 
 /**
  * Set up React rendering for the TabBar component
+ * CRITICAL FIX: Defer React root creation to prevent DOM insertion conflicts
  * @param {Object} browser - Browser instance
  * @param {Object} tabManager - Tab manager instance
  * @param {HTMLElement} container - React container element
  */
 function setupTabBarRendering(browser, tabManager, container) {
-  // Create React root for the tab bar
-  let reactRoot = null;
-  
-  try {
-    // Use createRoot for React 18 compatibility
-    reactRoot = ReactDOM.createRoot(container);
-    container._reactRoot = reactRoot;
-    console.log('TabBar React root created successfully');
-  } catch (error) {
-    console.error('Error creating TabBar React root:', error);
-    createFallbackTabBar(browser, container);
-    return;
-  }
-  
-  // Render function that properly delegates to TabBar component
-  const renderTabBar = () => {
-    if (!reactRoot || !tabManager) return;
+  // Store rendering setup for later execution
+  const setupReactRendering = () => {
+    // Create React root for the tab bar
+    let reactRoot = null;
     
     try {
-      // Get the internal TabManager if we have a VoyagerTabManager
-      const internalTabManager = (typeof tabManager.getTabManager === 'function') 
-        ? tabManager.getTabManager() 
-        : tabManager;
-      
-      // Create handlers that delegate to browser methods
-      const handleTabClick = (tabId) => {
-        try {
-          if (typeof browser.setActiveTab === 'function') {
-            browser.setActiveTab(tabId);
-          } else if (internalTabManager && typeof internalTabManager.setActiveTab === 'function') {
-            internalTabManager.setActiveTab(tabId);
-          }
-        } catch (err) {
-          console.warn('Error in tab click handler:', err);
-        }
-      };
-      
-      const handleTabClose = (tabId) => {
-        try {
-          if (typeof browser.closeTab === 'function') {
-            browser.closeTab(tabId);
-          } else if (internalTabManager && typeof internalTabManager.closeTab === 'function') {
-            internalTabManager.closeTab(tabId);
-          }
-        } catch (err) {
-          console.warn('Error in tab close handler:', err);
-        }
-      };
-      
-      const handleNewTab = () => {
-        try {
-          if (typeof browser.addTab === 'function') {
-            browser.addTab();
-          } else if (internalTabManager && typeof internalTabManager.createTab === 'function') {
-            internalTabManager.createTab({
-              url: 'https://www.google.com',
-              title: 'New Tab',
-              active: true
-            });
-          }
-        } catch (err) {
-          console.warn('Error in new tab handler:', err);
-        }
-      };
-      
-      // Get current active tab ID
-      const activeTabId = browser?.activeTabId || internalTabManager?.getActiveTabId() || null;
-      
-      // Render TabBar component with proper delegation
-      reactRoot.render(
-        React.createElement(TabBar, {
-          tabManager: internalTabManager,
-          activeTabId: activeTabId,
-          onTabClick: handleTabClick,
-          onTabClose: handleTabClose,
-          onNewTab: handleNewTab
-        })
-      );
-      
-      console.log('TabBar component rendered successfully via delegation');
-      
+      // Use createRoot for React 18 compatibility
+      reactRoot = ReactDOM.createRoot(container);
+      container._reactRoot = reactRoot;
+      console.log('TabBar React root created successfully');
     } catch (error) {
-      console.error('Error rendering TabBar component:', error);
+      console.error('Error creating TabBar React root:', error);
       createFallbackTabBar(browser, container);
+      return;
+    }
+    
+    // Render function that properly delegates to TabBar component
+    const renderTabBar = () => {
+      if (!reactRoot || !tabManager) return;
+      
+      try {
+        // Get the internal TabManager if we have a VoyagerTabManager
+        const internalTabManager = (typeof tabManager.getTabManager === 'function') 
+          ? tabManager.getTabManager() 
+          : tabManager;
+        
+        // Create handlers that delegate to browser methods
+        const handleTabClick = (tabId) => {
+          try {
+            if (typeof browser.setActiveTab === 'function') {
+              browser.setActiveTab(tabId);
+            } else if (internalTabManager && typeof internalTabManager.setActiveTab === 'function') {
+              internalTabManager.setActiveTab(tabId);
+            }
+          } catch (err) {
+            console.warn('Error in tab click handler:', err);
+          }
+        };
+        
+        const handleTabClose = (tabId) => {
+          try {
+            if (typeof browser.closeTab === 'function') {
+              browser.closeTab(tabId);
+            } else if (internalTabManager && typeof internalTabManager.closeTab === 'function') {
+              internalTabManager.closeTab(tabId);
+            }
+          } catch (err) {
+            console.warn('Error in tab close handler:', err);
+          }
+        };
+        
+        const handleNewTab = () => {
+          try {
+            if (typeof browser.addTab === 'function') {
+              browser.addTab();
+            } else if (internalTabManager && typeof internalTabManager.createTab === 'function') {
+              internalTabManager.createTab({
+                url: 'https://www.google.com',
+                title: 'New Tab',
+                active: true
+              });
+            }
+          } catch (err) {
+            console.warn('Error in new tab handler:', err);
+          }
+        };
+        
+        // Get current active tab ID
+        const activeTabId = browser?.activeTabId || internalTabManager?.getActiveTabId() || null;
+        
+        // Render TabBar component with proper delegation
+        reactRoot.render(
+          React.createElement(TabBar, {
+            tabManager: internalTabManager,
+            activeTabId: activeTabId,
+            onTabClick: handleTabClick,
+            onTabClose: handleTabClose,
+            onNewTab: handleNewTab
+          })
+        );
+        
+        console.log('TabBar component rendered successfully via delegation');
+        
+      } catch (error) {
+        console.error('Error rendering TabBar component:', error);
+        createFallbackTabBar(browser, container);
+      }
+    };
+    
+    // Set up tab manager event listener for updates
+    // Support both VoyagerTabManager and direct TabManager
+    const internalTabManager = (typeof tabManager.getTabManager === 'function') 
+      ? tabManager.getTabManager() 
+      : tabManager;
+      
+    if (internalTabManager && typeof internalTabManager.addListener === 'function') {
+      internalTabManager.addListener(() => {
+        renderTabBar();
+      });
+    }
+    
+    // Store render function for manual updates
+    browser._renderTabBar = renderTabBar;
+    
+    // CRITICAL FIX: Only render immediately if React rendering is not deferred
+    if (!browser._deferReactRendering) {
+      // Initial render (only if not deferred)
+      renderTabBar();
+    } else {
+      console.log('TabBar rendering deferred until main browser setup completes');
     }
   };
   
-  // Set up tab manager event listener for updates
-  // Support both VoyagerTabManager and direct TabManager
-  const internalTabManager = (typeof tabManager.getTabManager === 'function') 
-    ? tabManager.getTabManager() 
-    : tabManager;
+  // CRITICAL FIX: Check if React rendering should be deferred
+  if (browser._deferReactRendering) {
+    // Store the setup function for later execution
+    browser._setupTabBarReactRendering = setupReactRendering;
+    console.log('TabBar React rendering setup stored for later execution');
     
-  if (internalTabManager && typeof internalTabManager.addListener === 'function') {
-    internalTabManager.addListener(() => {
-      renderTabBar();
-    });
+    // Create placeholder content
+    createTabBarPlaceholder(container);
+  } else {
+    // Execute immediately if not deferred
+    setupReactRendering();
   }
+}
+
+/**
+ * Create placeholder content for tab bar while React is deferred
+ * @param {HTMLElement} container - Container element
+ */
+function createTabBarPlaceholder(container) {
+  // Clear container
+  container.innerHTML = '';
   
-  // Initial render
-  renderTabBar();
+  // Create placeholder tab
+  const placeholderTab = document.createElement('div');
+  placeholderTab.className = 'tab-item placeholder';
+  placeholderTab.innerHTML = `<span>⏳ Initializing...</span>`;
+  placeholderTab.style.cssText = `
+    display: flex; align-items: center; height: 32px; padding: 0 10px;
+    background: rgba(100, 100, 100, 0.3); border-radius: 8px 8px 0 0;
+    margin: 4px; color: #ccc; font-size: 12px; font-style: italic;
+  `;
   
-  // Store render function for manual updates
-  browser._renderTabBar = renderTabBar;
+  container.appendChild(placeholderTab);
 }
 
 /**

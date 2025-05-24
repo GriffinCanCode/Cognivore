@@ -16,6 +16,7 @@ import DOMPurify from 'dompurify';
 // Import tab management system
 import VoyagerTabManager from './tabs/VoyagerTabManager';
 import TabManagerButton from './tabs/TabManagerButton';
+import TabBar from './tabs/TabBar';
 
 // Import browser component utilities from centralized BrowserEnv
 import { 
@@ -47,7 +48,6 @@ import {
 import { setupCompleteBrowserLayout } from './renderers/BrowserLayoutManager';
 import { updateAddressBar } from './renderers/AddressBarRenderer';
 import { updateLoadingControls } from './renderers/NavigationControlsRenderer';
-import { createWebview, enforceWebviewStyles } from './renderers/BrowserRenderer';
 
 import { toggleReaderMode, setReaderMode, getReaderMode, isReaderModeActive as checkReaderModeActive } from './handlers/ReaderModeManager';
 import ExtractorManager from './extraction/ExtractorManager';
@@ -55,367 +55,177 @@ import WorkerManager from './utils/WorkerManager';
 import cssLoader from '../../utils/cssLoader';
 
 // Import specific event handlers
-const { 
-  handleLoadStart, 
-  handleLoadStop, 
-  handlePageNavigation, 
-  handleWebviewLoad, 
-  handleWebviewError,
-  updateNavigationButtons
-} = EventHandlers;
+import { handleWebviewLoad as handleWebviewLoadCentral } from './handlers/EventHandlers.js';
+import { handleSuccessfulPageLoad } from './handlers/EventHandlers.js';
+import { clearNavigationTimeout } from './handlers/NavigationService.js';
 
-// Initialize the worker system as early as possible
-const initWorkerSystem = () => {
-  // Set initial state while we attempt initialization
-  if (!WorkerManager.isInitializing) {
-    WorkerManager.isInitializing = true;
-    WorkerManager.initAttempts = 0;
-    WorkerManager.isAvailable = false;
-    WorkerManager.isInitialized = false;
-    
-    // Initialize storage for webview references
-    if (!WorkerManager.webviewRef) {
-      WorkerManager.webviewRef = null;
-      WorkerManager.hasWebview = false;
-    }
-    
-    // Add utility method to update webview references
-    if (typeof WorkerManager.updateWebviewReference !== 'function') {
-      WorkerManager.updateWebviewReference = function(webview) {
-        if (webview) {
-          this.webviewRef = webview;
-          this.hasWebview = true;
-          console.log('Worker system webview reference updated');
-          return true;
-        }
-        return false;
-      };
-    }
-  }
-  
-  // Find all webviews in the document and use the first valid one for worker system
-  try {
-    if (!WorkerManager.webviewRef) {
-      const allWebviews = document.querySelectorAll('webview');
-      if (allWebviews.length > 0) {
-        for (let i = 0; i < allWebviews.length; i++) {
-          if (allWebviews[i].isConnected || document.contains(allWebviews[i])) {
-            console.log('Found connected webview in document, storing reference');
-            WorkerManager.webviewRef = allWebviews[i];
-            WorkerManager.hasWebview = true;
-            break;
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Error finding webview references:', err);
-  }
-  
-  // Prevent excessive init attempts
-  WorkerManager.initAttempts = (WorkerManager.initAttempts || 0) + 1;
-  if (WorkerManager.initAttempts > 3) {
-    console.warn(`Worker system initialization failed after ${WorkerManager.initAttempts} attempts, using fallback extraction`);
-    WorkerManager.isInitializing = false;
-    WorkerManager.isAvailable = false;
-    WorkerManager.isInitialized = false;
-    return;
-  }
+import logger from '../../utils/logger';
 
-  console.log(`Attempting worker system initialization (attempt #${WorkerManager.initAttempts})`);
-  
-  // First check if WorkerManager already has initialize method
-  if (!WorkerManager || typeof WorkerManager.initialize !== 'function') {
-    console.error('WorkerManager not available or missing initialize method - checking for global version');
-    
-    // Try to find WorkerManager in global scope
-    if (window.WorkerManager && typeof window.WorkerManager.initialize === 'function') {
-      console.log('Found WorkerManager in global scope, using window.WorkerManager');
-      // Use the global WorkerManager and make it available in the current scope
-      window.WorkerManager = window.WorkerManager;
-    } else {
-      console.error('No WorkerManager available in any scope, worker system unavailable');
-      WorkerManager.isInitializing = false;
-      WorkerManager.isAvailable = false;
-      WorkerManager.isInitialized = false;
-      return;
-    }
-  }
-  
-  // Track initialization time for debugging
-  const startTime = Date.now();
-  
-  // Initialize with enhanced error handling
-  try {
-    const initPromise = WorkerManager.initialize();
-    
-    // Ensure we have a valid promise
-    if (!initPromise || typeof initPromise.then !== 'function') {
-      console.error('WorkerManager.initialize did not return a valid promise');
-      WorkerManager.isInitializing = false;
-      WorkerManager.isAvailable = false;
-      WorkerManager.isInitialized = false;
-      return;
-    }
-    
-    initPromise.then(success => {
-      const initTime = Date.now() - startTime;
-      console.log(`Worker system initialization ${success ? 'succeeded' : 'failed'} in ${initTime}ms`);
-      
-      // Set global flags for worker availability
-      WorkerManager.isAvailable = success;
-      WorkerManager.isInitialized = success;
-      WorkerManager.initialized = success;
-      WorkerManager.available = success;
-      WorkerManager.isInitializing = false;
-      
-      // Log initialization details
-      console.log('Worker system status:', {
-        isAvailable: WorkerManager.isAvailable,
-        isInitialized: WorkerManager.isInitialized,
-        hasExecuteTask: typeof WorkerManager.executeTask === 'function',
-        hasWebviewRef: Boolean(WorkerManager.webviewRef)
-      });
-      
-      // If initialization succeeded, try to register content extraction handler
-      if (success && typeof WorkerManager.registerHandler === 'function') {
-        try {
-          WorkerManager.registerHandler('extract-content', (url, options) => {
-            console.log('Worker handling content extraction for', url);
-            
-            // Use the stored webview reference if possible
-            if (WorkerManager.webviewRef && typeof WorkerManager.webviewRef.executeJavaScript === 'function') {
-              return WorkerManager.webviewRef.executeJavaScript(`
-                (function() {
-                  try {
-                    return {
-                      title: document.title || 'Unknown Page',
-                      url: window.location.href,
-                      html: document.documentElement.outerHTML || '',
-                      text: document.body ? document.body.innerText : '',
-                      success: true
-                    };
-                  } catch (e) {
-                    return { error: e.message, success: false };
-                  }
-                })()
-              `);
-            }
-            
-            // Implementation would go here
-            return { success: true, url, content: 'Content extracted by worker' };
-          });
-          console.log('Successfully registered extract-content handler');
-        } catch (regError) {
-          console.warn('Failed to register extract-content handler:', regError);
-        }
-      }
-      
-      // If initialization failed, try again with a delay
-      if (!success && WorkerManager.initAttempts < 3) {
-        console.log(`Scheduling worker system retry in ${WorkerManager.initAttempts * 1000}ms`);
-        setTimeout(initWorkerSystem, WorkerManager.initAttempts * 1000);
-      }
-    }).catch(err => {
-      console.error('Worker system initialization error:', err);
-      
-      // Ensure the availability flag is set to false on error
-      WorkerManager.isAvailable = false;
-      WorkerManager.isInitialized = false;
-      WorkerManager.initialized = false;
-      WorkerManager.available = false;
-      WorkerManager.isInitializing = false;
-      
-      // Try again with a delay if we haven't exceeded retry attempts
-      if (WorkerManager.initAttempts < 3) {
-        console.log(`Scheduling worker system retry after error in ${WorkerManager.initAttempts * 1000}ms`);
-        setTimeout(initWorkerSystem, WorkerManager.initAttempts * 1000);
-      } else {
-        console.error('Worker system initialization failed after all retry attempts');
-      }
-    });
-  } catch (initError) {
-    console.error('Critical error during worker system initialization:', initError);
-    WorkerManager.isInitializing = false;
-    WorkerManager.isAvailable = false;
-    WorkerManager.isInitialized = false;
-  }
-};
-
-// Call initialization with a timeout to ensure it completes
-setTimeout(initWorkerSystem, 500);
-
-// Setting up a cache for content extraction
-const extractionCache = new Map();
-
-// Add a helper function to check if workers are available
-const isWorkerSystemAvailable = (instance) => {
-  // First check if WorkerManager is available and initialized
-  const workerAvailable = WorkerManager && 
-         typeof WorkerManager === 'object' &&
-         (WorkerManager.isInitialized === true || WorkerManager.initialized === true) && 
-         (WorkerManager.isAvailable === true || WorkerManager.available === true) && 
-         typeof WorkerManager.executeTask === 'function';
-  
-  // If instance is provided, check if webview and URL are available
-  if (instance && workerAvailable) {
-    // Check for the webview in multiple places to improve reliability
-    const instanceWebview = instance.webview || 
-                          (instance.webviewContainer && instance.webviewContainer.querySelector('webview')) ||
-                          WorkerManager.webviewRef;
-    
-    // Mark the existence of webview directly in the WorkerManager object for future checks
-    if (instanceWebview && !WorkerManager.webviewRef) {
-      WorkerManager.webviewRef = instanceWebview;
-      WorkerManager.hasWebview = true;
-    }
-    
-    const webviewAvailable = instanceWebview && 
-           (instanceWebview.isConnected || instanceWebview._isAttached || document.contains(instanceWebview)) && 
-           instance.state && 
-           instance.state.url;
-           
-    if (!webviewAvailable) {
-      console.log('Webview not available for worker-based extraction:', {
-        hasWebview: Boolean(instanceWebview),
-        isConnected: instanceWebview?.isConnected,
-        isAttached: instanceWebview?._isAttached,
-        isInDOM: instanceWebview ? document.contains(instanceWebview) : false,
-        hasState: Boolean(instance.state),
-        hasURL: Boolean(instance.state?.url),
-        managerHasWebview: Boolean(WorkerManager.webviewRef)
-      });
-    }
-    
-    return webviewAvailable;
-  }
-  
-  // Debug log to help troubleshoot worker availability issues
-  if (!workerAvailable && instance) {
-    console.log('Worker system not available:', {
-      hasWorkerManager: Boolean(WorkerManager),
-      isObject: typeof WorkerManager === 'object',
-      isInitialized: WorkerManager?.isInitialized || WorkerManager?.initialized,
-      isAvailable: WorkerManager?.isAvailable || WorkerManager?.available,
-      hasExecuteTask: typeof WorkerManager?.executeTask === 'function'
-    });
-  }
-  
-  return workerAvailable;
-};
+// Create a logger instance for this module
+const workerLogger = logger.scope('WorkerManager');
 
 /**
- * Safe wrapper for calling applyAllCriticalStyles on webview
- * @param {HTMLElement} webview - The webview element
- * @param {boolean} show - Whether to show or hide the webview
- * @returns {boolean} Success state
+ * Check if the worker system is available for the given browser instance
+ * @param {Object} browser - Browser instance to check
+ * @returns {boolean} True if worker system is available
  */
-function safeApplyCriticalStyles(webview, show = true) {
-  if (!webview) return false;
-  
+function isWorkerSystemAvailable(browser) {
   try {
-    // First try to use StyleManager's safeApplyStyles method
-    try {
-      const StyleManager = require('./handlers/StyleManager').default;
-      if (StyleManager && typeof StyleManager.safeApplyStyles === 'function') {
-        return StyleManager.safeApplyStyles(webview, show);
-      }
-    } catch (styleManagerError) {
-      console.warn('StyleManager not available:', styleManagerError);
-    }
-    
-    // If StyleManager fails, ensure the method exists via direct approach
-    if (typeof webview.applyAllCriticalStyles !== 'function') {
-      // Try to add the method for better resilience
-      webview.applyAllCriticalStyles = function(showParam) {
-        if (showParam) {
-          // Apply comprehensive styling directly 
-          this.style.cssText = `
-            visibility: visible !important;
-            opacity: 1 !important;
-            display: flex !important;
-            position: absolute !important;
-            z-index: 10 !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background-color: white !important;
-            overflow: hidden !important; 
-            pointer-events: auto !important;
-          `;
-          
-          // Force a DOM reflow to ensure styles are applied
-          void this.offsetHeight;
-        } else {
-          this.style.visibility = 'hidden';
-          this.style.opacity = '0';
-        }
-        return true;
-      };
-    }
-    
-    // Now call the method if it exists
-    if (typeof webview.applyAllCriticalStyles === 'function') {
-      return webview.applyAllCriticalStyles(show);
-    } else {
-      // Manual fallback if method couldn't be added
-      if (show) {
-        webview.style.cssText = `
-          visibility: visible !important;
-          opacity: 1 !important;
-          display: flex !important;
-          position: absolute !important;
-          z-index: 10 !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: 100% !important;
-          border: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background-color: white !important;
-          overflow: hidden !important;
-          pointer-events: auto !important;
-        `;
-        
-        // Force a DOM reflow to ensure styles are applied
-        void webview.offsetHeight;
-      } else {
-        webview.style.visibility = 'hidden';
-        webview.style.opacity = '0';
-      }
-      return true;
-    }
-  } catch (err) {
-    console.error('Error applying critical styles:', err);
-    
-    // Final fallback - direct style setting
-    try {
-      if (show) {
-        // Apply minimum needed styles to ensure visibility
-        webview.style.visibility = 'visible';
-        webview.style.opacity = '1';
-        webview.style.display = 'flex';
-        webview.style.zIndex = '10';
-      } else {
-        webview.style.visibility = 'hidden';
-        webview.style.opacity = '0';
-      }
-      return true;
-    } catch (finalErr) {
-      console.error('Final fallback for critical styles failed:', finalErr);
+    // Check if WorkerManager is available and initialized
+    if (!WorkerManager || typeof WorkerManager.initialize !== 'function') {
       return false;
     }
+
+    // Check if the worker system is initialized and available
+    if (!WorkerManager.isInitialized || !WorkerManager.isAvailable) {
+      return false;
+    }
+
+    // Check if the browser instance has the necessary properties
+    if (!browser || !browser.webview || !browser.state?.url) {
+      return false;
+    }
+
+    // Check if webview is connected and ready
+    if (browser.webview && (
+      !browser.webview.isConnected && 
+      !browser.webview._isAttached && 
+      !document.contains(browser.webview)
+    )) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('Error checking worker system availability:', error);
+    return false;
+  }
+}
+
+// Create extraction cache for optimized content extraction
+const extractionCache = new Map();
+
+/**
+ * Error Boundary Component for Voyager Browser
+ * Catches and handles React errors to prevent crashes
+ */
+class VoyagerErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { 
+      hasError: false, 
+      error: null, 
+      errorInfo: null,
+      retryCount: 0 
+    };
+  }
+
+  static getDerivedStateFromError(error) {
+    // Update state so the next render will show the fallback UI
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('VoyagerErrorBoundary caught an error:', error, errorInfo);
+    
+    this.setState({ 
+      error, 
+      errorInfo,
+      hasError: true 
+    });
+    
+    // Report error to monitoring service if available
+    if (window.errorTracker && typeof window.errorTracker.captureException === 'function') {
+      window.errorTracker.captureException(error, {
+        tags: { component: 'Voyager', browserId: this.props.browserId },
+        extra: errorInfo
+      });
+    }
+  }
+
+  handleRetry = () => {
+    const newRetryCount = this.state.retryCount + 1;
+    
+    // Limit retries to prevent infinite loops
+    if (newRetryCount > 3) {
+      console.warn('Max retries exceeded for Voyager error boundary');
+      return;
+    }
+    
+    console.log(`Retrying Voyager component (attempt ${newRetryCount})`);
+    
+    this.setState({ 
+      hasError: false, 
+      error: null, 
+      errorInfo: null,
+      retryCount: newRetryCount
+    });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      // Render fallback UI with retry option
+      return (
+        <div className="voyager-error-boundary" style={{
+          padding: '20px',
+          textAlign: 'center',
+          backgroundColor: '#f8f9fa',
+          border: '1px solid #dee2e6',
+          borderRadius: '8px',
+          margin: '20px'
+        }}>
+          <h2 style={{ color: '#dc3545', marginBottom: '16px' }}>
+            Browser Component Error
+          </h2>
+          <p style={{ marginBottom: '16px', color: '#6c757d' }}>
+            The browser component encountered an error and needs to be restarted.
+          </p>
+          {this.state.retryCount < 3 && (
+            <button 
+              onClick={this.handleRetry}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginRight: '8px'
+              }}
+            >
+              Retry ({3 - this.state.retryCount} attempts left)
+            </button>
+          )}
+          <details style={{ marginTop: '16px', textAlign: 'left' }}>
+            <summary style={{ cursor: 'pointer', marginBottom: '8px' }}>
+              Error Details
+            </summary>
+            <pre style={{ 
+              backgroundColor: '#f8f9fa', 
+              padding: '8px', 
+              borderRadius: '4px',
+              fontSize: '12px',
+              overflow: 'auto',
+              maxHeight: '200px'
+            }}>
+              {this.state.error && this.state.error.toString()}
+              {this.state.errorInfo && this.state.errorInfo.componentStack}
+            </pre>
+          </details>
+        </div>
+      );
+    }
+
+    return this.props.children;
   }
 }
 
 class Voyager extends Component {
   constructor(props) {
     super(props);
+    
+    // CRITICAL FIX: Set defer flag IMMEDIATELY to prevent React rendering conflicts
+    this._deferReactRendering = true;
     
     this.state = {
       url: props?.initialUrl || 'https://www.google.com',
@@ -432,11 +242,20 @@ class Voyager extends Component {
       // Environment detection results
       environment: detectEnvironment(),
       // Research mode state - explicitly set to false to prevent toggle issues
-      researchMode: false
+      researchMode: false,
+      // Tab management state
+      tabs: [],
+      activeTabId: null
     };
     
     // Create unique ID for component
     this.browserId = nanoid();
+    
+    // CRITICAL FIX: Initialize defer flag and tracking variables immediately
+    this._isInitialized = false;
+    this._isInitializing = false;
+    this._isUnloading = false;
+    this._deferReactRendering = true; // Double-set for safety
     
     // References
     this.containerRef = React.createRef();
@@ -445,7 +264,7 @@ class Voyager extends Component {
     this.addressInput = null;
     this.researcher = null;
     
-    // Initialize tab manager
+    // Initialize tab manager with cleaner integration
     this.tabManager = null;
     
     // Create research panel reference if it doesn't exist
@@ -457,9 +276,6 @@ class Voyager extends Component {
     
     // Track if we've already done the initial navigation
     this.hasNavigatedInitially = false;
-    
-    // Track if the component has been initialized
-    this._isInitialized = false;
     
     // Bind methods
     this.navigate = this.navigate.bind(this);
@@ -482,6 +298,11 @@ class Voyager extends Component {
     this.preloadPageResources = this.preloadPageResources.bind(this);
     this.processPageInParallel = this.processPageInParallel.bind(this);
     this.enhanceExtractedContent = this.enhanceExtractedContent.bind(this);
+    
+    // Tab management methods
+    this.handleTabClick = this.handleTabClick.bind(this);
+    this.handleTabClose = this.handleTabClose.bind(this);
+    this.handleNewTab = this.handleNewTab.bind(this);
   }
   
   componentDidMount() {
@@ -499,25 +320,91 @@ class Voyager extends Component {
   }
   
   componentWillUnmount() {
+    // CRITICAL FIX: Mark as unloading immediately to prevent any new operations
     this._isUnloading = true;
+    
+    console.log('Voyager componentWillUnmount - preventing race conditions');
+    
+    // CRITICAL FIX: Schedule cleanup asynchronously to avoid conflicts with React's unmounting
+    // This prevents the "Cannot unmount while React is rendering" warning
+    setTimeout(() => {
+      try {
+        // Double-check that we should still clean up (component might have been remounted)
+        if (this._isUnloading) {
+          this.performAsyncCleanup();
+        }
+      } catch (error) {
+        console.warn('Error during async cleanup:', error);
+      }
+    }, 0);
+    
+    // Immediately clear timeouts to prevent operations during unmounting
+    this.clearAllTimeouts();
+    
+    // Set isMounted to false immediately to prevent any state updates
+    if (this.state && this.state.isMounted) {
+      // Use a try-catch to prevent errors if setState is not available
+      try {
+        this.setState({ isMounted: false }, null); // No callback to avoid complexity
+      } catch (err) {
+        console.warn('Could not update isMounted state during unmount:', err);
+      }
+    }
+  }
+  
+  /**
+   * Perform cleanup asynchronously to avoid React rendering conflicts
+   */
+  performAsyncCleanup() {
+    console.log('Performing async Voyager cleanup');
     
     // CRITICAL FIX: Reset VoyagerLifecycle state before cleanup to prevent race conditions
     try {
       const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
       if (VoyagerLifecycle && typeof VoyagerLifecycle.resetBrowserState === 'function') {
-        console.log('Resetting VoyagerLifecycle state before component unmount');
+        console.log('Resetting VoyagerLifecycle state before component cleanup');
         VoyagerLifecycle.resetBrowserState(this);
       }
     } catch (err) {
       console.warn('Error resetting VoyagerLifecycle state:', err);
     }
     
+    // Call the main cleanup method
     this.cleanup();
-    
-    // Set isMounted to false to prevent any further state updates
-    this.setState({
-      isMounted: false
-    });
+  }
+  
+  /**
+   * Clear all timeouts and intervals to prevent operations during cleanup
+   */
+  clearAllTimeouts() {
+    try {
+      if (this._navigationTimeout) {
+        clearTimeout(this._navigationTimeout);
+        this._navigationTimeout = null;
+      }
+      
+      if (this._loadDetectionInterval) {
+        clearInterval(this._loadDetectionInterval);
+        this._loadDetectionInterval = null;
+      }
+      
+      if (this._handlingNavigationTimeout) {
+        this._handlingNavigationTimeout = false;
+      }
+      
+      // Clear any other timeouts that might be running
+      if (this._initRetryTimeout) {
+        clearTimeout(this._initRetryTimeout);
+        this._initRetryTimeout = null;
+      }
+      
+      if (this._styleCheckTimeout) {
+        clearTimeout(this._styleCheckTimeout);
+        this._styleCheckTimeout = null;
+      }
+    } catch (error) {
+      console.warn('Error clearing timeouts:', error);
+    }
   }
   
   componentDidUpdate(prevProps) {
@@ -586,6 +473,14 @@ class Voyager extends Component {
     
     // Set current URL for tracking
     this.currentUrl = formattedUrl;
+    
+    // Emit navigation event for tab manager
+    if (this.tabManager) {
+      this.tabManager.emitEvent('navigation', {
+        url: formattedUrl,
+        title: this.state.title
+      });
+    }
     
     // Create a more reliable navigation timeout with progressive fallbacks
     // Use a longer timeout period (10 seconds instead of 8) to give more time for initial page load
@@ -873,27 +768,14 @@ class Voyager extends Component {
             
             // Make webview fully visible
             if (this.webview) {
-              safeApplyCriticalStyles(this.webview, true);
+              StyleManager.safeApplyStyles(this.webview, true);
             }
             
             // Capture content
             this.capturePageContent();
             
-            // Clear navigation timeout
-            if (this._navigationTimeout) {
-              clearTimeout(this._navigationTimeout);
-              this._navigationTimeout = null;
-              console.log('Navigation timeout cleared in checkIfPageIsLoaded');
-            }
-            
-            // Clear detection interval
-            if (this._loadDetectionInterval) {
-              clearInterval(this._loadDetectionInterval);
-              this._loadDetectionInterval = null;
-            }
-            
-            // Clear handling timeout flag
-            this._handlingNavigationTimeout = false;
+            // Use centralized navigation timeout clearing
+            clearNavigationTimeout(this, 'checkIfPageIsLoaded - successful navigation');
           }
           
           if (callback) callback();
@@ -1066,28 +948,12 @@ class Voyager extends Component {
   handleWebviewLoad(event) {
     console.log('Webview loaded:', this.state.url);
     
-    // CRITICAL FIX: Clear navigation timeout to prevent timeout message
-    if (this._navigationTimeout) {
-      clearTimeout(this._navigationTimeout);
-      this._navigationTimeout = null;
-      console.log('Navigation timeout cleared - page loaded successfully');
-    }
-    
-    // Also clear any detection intervals
-    if (this._loadDetectionInterval) {
-      clearInterval(this._loadDetectionInterval);
-      this._loadDetectionInterval = null;
-    }
-    
-    // Clear handling timeout flag
-    this._handlingNavigationTimeout = false;
-    
-    // Force loading state to false to ensure UI updates
-    this.isLoading = false;
-    
-    // Update UI state
-    this.setState({ isLoading: false });
-    updateLoadingControls(this, false);
+    // Use centralized successful page load handler for consistent timeout clearing
+    handleSuccessfulPageLoad(this, 'Voyager.handleWebviewLoad', {
+      hideDelay: 200,
+      applyStyles: true,
+      updateState: true
+    });
     
     // Update address bar with the actual URL from the webview
     try {
@@ -1095,7 +961,7 @@ class Voyager extends Component {
         const currentURL = this.webview.getURL();
         if (currentURL && currentURL !== 'about:blank') {
           // Update URL in state
-          this.setState({ url: currentURL });
+          this.setState({ url: currentURL, title: this.state.title || 'Loading...' });
           
           // Update address bar input
           if (this.addressInput) {
@@ -1104,6 +970,14 @@ class Voyager extends Component {
           
           // Update current URL tracking
           this.currentUrl = currentURL;
+          
+          // Emit navigation event for tab manager
+          if (this.tabManager) {
+            this.tabManager.emitEvent('navigation', {
+              url: currentURL,
+              title: this.state.title
+            });
+          }
           
           console.log(`Address bar updated to actual URL: ${currentURL}`);
         }
@@ -1116,7 +990,7 @@ class Voyager extends Component {
     if (this.webview) {
       try {
         // Use StyleManager for consistent styling (this is the primary styling method)
-        safeApplyCriticalStyles(this.webview, true);
+        StyleManager.safeApplyStyles(this.webview, true);
         
         // Force browser to recalculate webview layout
         void this.webview.offsetHeight;
@@ -1135,8 +1009,12 @@ class Voyager extends Component {
       console.warn('Error preloading page resources:', err);
     });
     
-    // Capture page content and title for memory
-    this.capturePageContent().catch(err => {
+    // Capture page content and emit event
+    this.capturePageContent().then(content => {
+      if (this.tabManager && content) {
+        this.tabManager.emitEvent('contentCaptured', content);
+      }
+    }).catch(err => {
       console.warn('Error in capturePageContent during load:', err);
     });
     
@@ -1903,7 +1781,14 @@ class Voyager extends Component {
         },
         onResearchItemClick: (item) => {
           if (item && item.url) {
-            this.navigate(item.url);
+            // CRITICAL FIX: Prevent automatic navigation that was causing unwanted navigation to wikipedia.com
+            // Instead of immediately navigating, ask user for confirmation
+            const userConfirmed = confirm(`Navigate to ${item.url}?\n\nThis will leave the current page.`);
+            if (userConfirmed) {
+              this.navigate(item.url);
+            } else {
+              console.log('User cancelled navigation to:', item.url);
+            }
           }
         }
       });
@@ -2069,25 +1954,52 @@ class Voyager extends Component {
                                     browserHeaderElement.querySelector('.browser-action-toolbar');
       
       if (actionButtonsContainer) {
-        try {
-          // Create tab manager container in the action buttons area
-          const tabManagerContainer = document.createElement('div');
-          tabManagerContainer.className = 'tab-manager-container';
-          actionButtonsContainer.appendChild(tabManagerContainer);
+        // CRITICAL FIX: Defer TabManagerButton React root creation to prevent DOM conflicts
+        const setupTabManagerButton = () => {
+          try {
+            // Create tab manager container in the action buttons area
+            const tabManagerContainer = document.createElement('div');
+            tabManagerContainer.className = 'tab-manager-container';
+            actionButtonsContainer.appendChild(tabManagerContainer);
+            
+            // Create React root for tab manager button
+            this._tabManagerRoot = ReactDOM.createRoot(tabManagerContainer);
+            
+            // Render tab manager button
+            this._tabManagerRoot.render(
+              <TabManagerButton 
+                voyager={this} 
+                tabManager={this.tabManager.getTabManager()} 
+              />
+            );
+            console.log('Tab manager button rendered successfully in action buttons container');
+          } catch (err) {
+            console.error('Failed to render tab manager button:', err);
+          }
+        };
+        
+        // CRITICAL FIX: Check if React rendering should be deferred
+        if (this._deferReactRendering) {
+          // Store the setup function for later execution
+          this._initializeTabManagerButton = setupTabManagerButton;
+          console.log('TabManagerButton React rendering deferred until main browser setup completes');
           
-          // Create React root for tab manager button
-          this._tabManagerRoot = ReactDOM.createRoot(tabManagerContainer);
+          // Create placeholder button
+          const placeholderButton = document.createElement('div');
+          placeholderButton.className = 'tab-manager-button-placeholder';
+          placeholderButton.innerHTML = '⏳';
+          placeholderButton.style.cssText = `
+            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            background: rgba(100, 100, 100, 0.3); border-radius: 4px; color: #ccc;
+            font-size: 14px; margin: 0 4px; cursor: default;
+          `;
+          actionButtonsContainer.appendChild(placeholderButton);
           
-          // Render tab manager button
-          this._tabManagerRoot.render(
-            <TabManagerButton 
-              voyager={this} 
-              tabManager={this.tabManager.getTabManager()} 
-            />
-          );
-          console.log('Tab manager button rendered successfully in action buttons container');
-        } catch (err) {
-          console.error('Failed to render tab manager button:', err);
+          // Store reference to placeholder for later removal
+          this._tabManagerPlaceholder = placeholderButton;
+        } else {
+          // Execute immediately if not deferred
+          setupTabManagerButton();
         }
       } else {
         console.warn('Could not find action buttons container to add tab manager button');
@@ -2150,7 +2062,7 @@ class Voyager extends Component {
         this.webview.addEventListener('did-start-loading', this.handleLoadStart);
         this.webview.addEventListener('did-stop-loading', this.handleLoadStop);
         this.webview.addEventListener('did-navigate', this.handlePageNavigation);
-        this.webview.addEventListener('did-finish-load', event => handleWebviewLoad(this, event));
+        this.webview.addEventListener('did-finish-load', event => handleWebviewLoadCentral(this, event));
         this.webview.addEventListener('did-fail-load', this.handleDidFailLoad);
         this.webview.addEventListener('certificate-error', this.handleCertificateError);
         
@@ -2177,6 +2089,11 @@ class Voyager extends Component {
     // Initialize researcher component if needed
     if (!this.researcher && this.props && this.props.enableResearch !== false) {
       this.initializeResearcher();
+    }
+    
+    // Initialize tab manager with cleaner integration
+    if (!this.tabManager) {
+      this.initializeTabManager();
     }
   }
   
@@ -2257,6 +2174,9 @@ class Voyager extends Component {
     // CRITICAL FIX: Mark component as unmounted for future initialization
     this._wasUnmounted = true;
     
+    // Clear all timeouts first to prevent operations during cleanup
+    this.clearAllTimeouts();
+    
     // Use VoyagerLifecycle cleanup for proper system cleanup
     try {
       const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
@@ -2273,19 +2193,11 @@ class Voyager extends Component {
     this._isInitializing = false;
     this.hasNavigatedInitially = false;
     
-    // Clear any active intervals first to prevent them from running during cleanup
+    // Clean up tab manager and its event listeners BEFORE webview cleanup
+    this.cleanupTabManager();
     
-    if (this._navigationTimeout) {
-      clearTimeout(this._navigationTimeout);
-      this._navigationTimeout = null;
-    }
-    
-    if (this._loadDetectionInterval) {
-      clearInterval(this._loadDetectionInterval);
-      this._loadDetectionInterval = null;
-    }
-    
-
+    // Clean up tab manager button if it exists
+    this.cleanupTabManagerButton();
     
     // Remove destruction prevention listener if it exists
     if (this._destructionListener && this.webview) {
@@ -2297,144 +2209,45 @@ class Voyager extends Component {
       }
     }
     
-    // Remove any event listeners from webview
-    if (this.webview) {
-      try {
-        // Standard events
-        this.webview.removeEventListener('did-start-loading', this.handleLoadStart);
-        this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
-        this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
-        this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
-        this.webview.removeEventListener('did-fail-load', this.handleDidFailLoad);
-        this.webview.removeEventListener('certificate-error', this.handleCertificateError);
-        
-        // Additional events that might have been added
-        this.webview.removeEventListener('dom-ready', this.handleDomReady);
-        this.webview.removeEventListener('destroyed', this.handleDestroyed);
-      } catch (err) {
-        console.warn('Error removing event listeners from webview:', err);
-      }
-    }
-  
+    // Remove any event listeners from webview BEFORE attempting to clean it up
+    this.cleanupWebviewEventListeners();
     
     // Clean up sidebar observer if it exists
     if (this._sidebarObserver) {
-      this._sidebarObserver.disconnect();
-      this._sidebarObserver = null;
-    }
-    
-    // Clean up tab manager button if it exists
-    const actionButtonsContainer = document.querySelector('.browser-action-buttons');
-    if (actionButtonsContainer) {
       try {
-        const tabManagerContainer = actionButtonsContainer.querySelector('.tab-manager-container');
-        if (tabManagerContainer && tabManagerContainer.parentNode) {
-          tabManagerContainer.parentNode.removeChild(tabManagerContainer);
-          console.log('Tab manager container removed successfully');
-        }
+        this._sidebarObserver.disconnect();
+        this._sidebarObserver = null;
       } catch (err) {
-        console.warn('Error cleaning up tab manager button:', err);
+        console.warn('Error disconnecting sidebar observer:', err);
       }
     }
     
-    // Hide and clean up webview if it exists
-    if (this.webview) {
-      try {
-        // Hide webview first
-        this.webview.style.visibility = 'hidden';
-        this.webview.style.opacity = '0';
-        this.webview.style.display = 'none';
-        
-        // Use applyWebviewStyles for hiding
-        if (this.applyWebviewStyles) {
-          try {
-            // Custom method to apply "hidden" styles
-            this.webview.style.visibility = 'hidden';
-            this.webview.style.opacity = '0';
-            this.webview.style.display = 'none';
-          } catch (styleErr) {
-            console.warn('Error applying hidden styles to webview:', styleErr);
-          }
-        }
-        
-        // Remove webview from DOM if possible
-        if (this.webview.parentNode) {
-          try {
-            this.webview.parentNode.removeChild(this.webview);
-          } catch (removeErr) {
-            console.warn('Error removing webview from DOM:', removeErr);
-          }
-        }
-      } catch (err) {
-        console.warn('Error cleaning up webview element:', err);
-      }
-    }
+    // Hide and clean up webview if it exists (improved error handling)
+    this.cleanupWebview();
     
     // Handle iframe cleanup if used
-    if (this.iframe) {
-      try {
-        this.iframe.style.visibility = 'hidden';
-        this.iframe.style.opacity = '0';
-        this.iframe.style.display = 'none';
-        
-        if (this.iframe.parentNode) {
-          this.iframe.parentNode.removeChild(this.iframe);
-        }
-      } catch (err) {
-        console.warn('Error cleaning up iframe element:', err);
-      }
-    }
+    this.cleanupIframe();
     
-    // Clean up container contents if available
-    if (this.containerRef && this.containerRef.current) {
-      try {
-        // Clear container contents
-        while (this.containerRef.current.firstChild) {
-          this.containerRef.current.removeChild(this.containerRef.current.firstChild);
-        }
-      } catch (err) {
-        console.warn('Error cleaning up container contents:', err);
-      }
-    }
+    // Clean up container contents if available (with improved error handling)
+    this.cleanupContainer();
     
     // Clean up research panel if it exists
-    if (this.researchPanel && this.researchPanel.isConnected) {
-      try {
-        this.researchPanel.remove();
-        this.researchPanel = null;
-      } catch (err) {
-        console.warn('Error removing research panel:', err);
-      }
-    }
-    
-    // Remove any stand-alone research panels that might be in the body
-    const researchPanels = document.querySelectorAll('body > .browser-research-panel');
-    researchPanels.forEach(panel => {
-      try {
-        if (panel.parentNode) {
-          panel.parentNode.removeChild(panel);
-        }
-      } catch (err) {
-        console.warn('Error removing research panel:', err);
-      }
-    });
+    this.cleanupResearchPanel();
     
     // Reset loading state if needed
     if (this.state?.isLoading) {
-      this.setState({ isLoading: false });
-      if (typeof updateLoadingControls === 'function') {
-        updateLoadingControls(this, false);
+      try {
+        this.setState({ isLoading: false });
+        if (typeof updateLoadingControls === 'function') {
+          updateLoadingControls(this, false);
+        }
+      } catch (err) {
+        console.warn('Error resetting loading state:', err);
       }
     }
     
     // Clean up worker system if we're the last browser component
-    const otherInstances = document.querySelectorAll('.voyager-browser');
-    if (otherInstances.length <= 1) {
-      console.log('Last browser instance closing, cleaning up worker system');
-      if (WorkerManager && typeof WorkerManager.cleanup === 'function') {
-        WorkerManager.cleanup();
-      }
-    }
+    this.cleanupWorkerSystem();
     
     // Final nullification of critical references
     this.webview = null;
@@ -2442,6 +2255,209 @@ class Voyager extends Component {
     this.webviewContainer = null;
     
     console.log('Voyager browser component cleanup completed');
+  }
+
+  /**
+   * Clean up webview event listeners safely
+   */
+  cleanupWebviewEventListeners() {
+    if (!this.webview) return;
+    
+    try {
+      // Standard events
+      if (this.handleLoadStart) {
+        this.webview.removeEventListener('did-start-loading', this.handleLoadStart);
+      }
+      if (this.handleLoadStop) {
+        this.webview.removeEventListener('did-stop-loading', this.handleLoadStop);
+      }
+      if (this.handlePageNavigation) {
+        this.webview.removeEventListener('did-navigate', this.handlePageNavigation);
+      }
+      if (this.handleWebviewLoad) {
+        this.webview.removeEventListener('did-finish-load', this.handleWebviewLoad);
+      }
+      if (this.handleDidFailLoad) {
+        this.webview.removeEventListener('did-fail-load', this.handleDidFailLoad);
+      }
+      if (this.handleCertificateError) {
+        this.webview.removeEventListener('certificate-error', this.handleCertificateError);
+      }
+      
+      // Additional events that might have been added
+      if (this.handleDomReady) {
+        this.webview.removeEventListener('dom-ready', this.handleDomReady);
+      }
+      if (this.handleDestroyed) {
+        this.webview.removeEventListener('destroyed', this.handleDestroyed);
+      }
+      
+      console.log('Webview event listeners cleaned up successfully');
+    } catch (err) {
+      console.warn('Error removing event listeners from webview:', err);
+    }
+  }
+
+  /**
+   * Clean up webview element safely
+   */
+  cleanupWebview() {
+    if (!this.webview) return;
+    
+    try {
+      console.log('Cleaning up webview element...');
+      
+      // Hide webview first to prevent visual glitches
+      this.webview.style.visibility = 'hidden';
+      this.webview.style.opacity = '0';
+      this.webview.style.display = 'none';
+      
+      // Only attempt to stop if webview is properly attached and ready
+      const isWebviewReady = this.webview.isConnected && 
+                            (this.webview.readyState === 'complete' || 
+                             this.webview.dataset.domReady === 'true' ||
+                             this.webview._domReady === true);
+      
+      if (isWebviewReady) {
+        try {
+          // Try to stop the webview gracefully
+          if (typeof this.webview.stop === 'function') {
+            this.webview.stop();
+          }
+        } catch (stopError) {
+          // Log the error but don't throw - this is expected if webview isn't ready
+          console.log('Webview stop not available (expected if not ready):', stopError.message);
+        }
+      } else {
+        console.log('Skipping webview stop - webview not ready or not attached');
+      }
+      
+      // Remove webview from DOM if possible and if it has a parent
+      if (this.webview.parentNode && document.contains(this.webview)) {
+        try {
+          this.webview.parentNode.removeChild(this.webview);
+          console.log('Webview removed from DOM successfully');
+        } catch (removeErr) {
+          console.warn('Error removing webview from DOM:', removeErr);
+        }
+      }
+      
+    } catch (err) {
+      console.warn('Error cleaning up webview element:', err);
+    }
+  }
+
+  /**
+   * Clean up iframe element safely
+   */
+  cleanupIframe() {
+    if (!this.iframe) return;
+    
+    try {
+      this.iframe.style.visibility = 'hidden';
+      this.iframe.style.opacity = '0';
+      this.iframe.style.display = 'none';
+      
+      if (this.iframe.parentNode) {
+        this.iframe.parentNode.removeChild(this.iframe);
+      }
+      console.log('Iframe cleaned up successfully');
+    } catch (err) {
+      console.warn('Error cleaning up iframe element:', err);
+    }
+  }
+
+  /**
+   * Clean up container contents safely
+   */
+  cleanupContainer() {
+    if (!this.containerRef || !this.containerRef.current) return;
+    
+    try {
+      // Only clear container if it's still connected to the DOM
+      if (this.containerRef.current.isConnected) {
+        while (this.containerRef.current.firstChild) {
+          this.containerRef.current.removeChild(this.containerRef.current.firstChild);
+        }
+        console.log('Container contents cleaned up successfully');
+      }
+    } catch (err) {
+      console.warn('Error cleaning up container contents:', err);
+    }
+  }
+
+  /**
+   * Clean up research panel safely
+   */
+  cleanupResearchPanel() {
+    try {
+      // Clean up research panel if it exists
+      if (this.researchPanel && this.researchPanel.isConnected) {
+        this.researchPanel.remove();
+        this.researchPanel = null;
+      }
+      
+      // Remove any stand-alone research panels that might be in the body
+      const researchPanels = document.querySelectorAll('body > .browser-research-panel');
+      researchPanels.forEach(panel => {
+        try {
+          if (panel.parentNode) {
+            panel.parentNode.removeChild(panel);
+          }
+        } catch (err) {
+          console.warn('Error removing research panel:', err);
+        }
+      });
+      
+      console.log('Research panel cleaned up successfully');
+    } catch (err) {
+      console.warn('Error cleaning up research panel:', err);
+    }
+  }
+
+  /**
+   * Clean up tab manager button safely
+   */
+  cleanupTabManagerButton() {
+    try {
+      const actionButtonsContainer = document.querySelector('.browser-action-buttons');
+      if (actionButtonsContainer) {
+        const tabManagerContainer = actionButtonsContainer.querySelector('.tab-manager-container');
+        if (tabManagerContainer && tabManagerContainer.parentNode) {
+          tabManagerContainer.parentNode.removeChild(tabManagerContainer);
+          console.log('Tab manager container removed successfully');
+        }
+      }
+      
+      // Clean up React root if it exists
+      if (this._tabManagerRoot) {
+        try {
+          this._tabManagerRoot.unmount();
+          this._tabManagerRoot = null;
+        } catch (err) {
+          console.warn('Error unmounting tab manager React root:', err);
+        }
+      }
+    } catch (err) {
+      console.warn('Error cleaning up tab manager button:', err);
+    }
+  }
+
+  /**
+   * Clean up worker system if this is the last browser instance
+   */
+  cleanupWorkerSystem() {
+    try {
+      const otherInstances = document.querySelectorAll('.voyager-browser');
+      if (otherInstances.length <= 1) {
+        console.log('Last browser instance closing, cleaning up worker system');
+        if (WorkerManager && typeof WorkerManager.cleanup === 'function') {
+          WorkerManager.cleanup();
+        }
+      }
+    } catch (err) {
+      console.warn('Error cleaning up worker system:', err);
+    }
   }
   
   handleDidFailLoad = (e) => {
@@ -2573,6 +2589,12 @@ class Voyager extends Component {
   }
   
   render() {
+    // Early return if component is unloading to prevent rendering during cleanup
+    if (this._isUnloading) {
+      console.log('Voyager render called during unloading, returning null');
+      return null;
+    }
+    
     // Destructure props for easier access and defaults
     const { 
       className = '',
@@ -2589,6 +2611,27 @@ class Voyager extends Component {
     const isReaderModeActive = checkReaderModeActive(this);
     const readerMode = getReaderMode(this);
     
+    // Get tab data for rendering with error handling
+    let tabData;
+    try {
+      tabData = this.tabManager ? this.tabManager.getSerializedTabData() : {
+        tabs: [],
+        activeTabId: null,
+        onTabClick: this.handleTabClick,
+        onTabClose: this.handleTabClose,
+        onNewTab: this.handleNewTab
+      };
+    } catch (error) {
+      console.warn('Error getting tab data:', error);
+      tabData = {
+        tabs: [],
+        activeTabId: null,
+        onTabClick: this.handleTabClick,
+        onTabClose: this.handleTabClose,
+        onNewTab: this.handleNewTab
+      };
+    }
+    
     // Compute container styles
     const containerStyle = {
       display: 'flex',
@@ -2601,206 +2644,207 @@ class Voyager extends Component {
     };
     
     return (
-      <div 
-        className={`voyager-browser ${className}`} 
-        style={containerStyle}
-        ref={this.containerRef}
-        id={`voyager-${this.browserId}`}
-      >
-        {/* Note: Address bar is now created by BrowserRenderer.createBrowserHeader */}
-        {/* and is positioned at the top of the component */}
+      <VoyagerErrorBoundary browserId={this.browserId}>
+        <div 
+          className={`voyager-browser ${className}`} 
+          style={containerStyle}
+          ref={this.containerRef}
+          id={`voyager-${this.browserId}`}
+        >
+          {/* CRITICAL FIX: Remove TabBar from here - it's already rendered by TabBarRenderer */}
+          {/* TabBar is now handled exclusively by TabBarRenderer.js to prevent dual rendering conflicts */}
 
-        {/* Browser chrome (toolbar) */}
-        {showToolbar && (
-          <div className="voyager-toolbar" style={{
-            display: 'flex',
-            padding: '8px',
-            backgroundColor: '#f5f5f5',
-            borderBottom: '1px solid #ddd'
-          }}>
-            {/* Navigation buttons */}
-            <button onClick={this.handleBackAction} style={{ marginRight: '4px' }}>◀</button>
-            <button onClick={this.handleForwardAction} style={{ marginRight: '8px' }}>▶</button>
-            <button onClick={this.refreshPage} style={{ marginRight: '8px' }}>↻</button>
-            <button onClick={this.stopLoading} style={{ marginRight: '8px' }}>✕</button>
-            
-            {/* Reader mode toggle */}
-            <button onClick={this.toggleReaderMode} style={{ marginLeft: '8px' }}>
-              <span className="material-icons" title="Toggle reader mode">
-                {isReaderModeActive ? 'chrome_reader_mode' : 'view_headline'}
-              </span>
-            </button>
-            
-            {/* Bookmark button */}
-            <button onClick={this.addBookmark} style={{ marginLeft: '8px' }}>
-              🔖
-            </button>
-          </div>
-        )}
-        
-        {/* Browser content area */}
-        <div className="voyager-content" style={{
-          flex: 1,
-          display: 'flex',
-          position: 'relative'
-        }}>
-          {/* Main browser view */}
-          <div 
-            className="voyager-browser-container"
-            style={{
-              flex: readerMode === 'reader' ? 0 : (readerMode === 'split' ? 1 : 1),
-              display: readerMode === 'reader' ? 'none' : 'block',
-              height: '100%',
+          {/* Note: Address bar is now created by BrowserRenderer.createBrowserHeader */}
+          {/* and is positioned at the top of the component */}
+
+          {/* Browser chrome (toolbar) */}
+          {showToolbar && (
+            <VoyagerErrorBoundary browserId={`${this.browserId}-toolbar`}>
+              <div className="voyager-toolbar" style={{
+                display: 'flex',
+                padding: '8px',
+                backgroundColor: '#f5f5f5',
+                borderBottom: '1px solid #ddd'
+              }}>
+                {/* Navigation buttons */}
+                <button onClick={this.handleBackAction} style={{ marginRight: '4px' }}>◀</button>
+                <button onClick={this.handleForwardAction} style={{ marginRight: '8px' }}>▶</button>
+                <button onClick={this.refreshPage} style={{ marginRight: '8px' }}>↻</button>
+                <button onClick={this.stopLoading} style={{ marginRight: '8px' }}>✕</button>
+                
+                {/* Reader mode toggle */}
+                <button onClick={this.toggleReaderMode} style={{ marginLeft: '8px' }}>
+                  <span className="material-icons" title="Toggle reader mode">
+                    {isReaderModeActive ? 'chrome_reader_mode' : 'view_headline'}
+                  </span>
+                </button>
+                
+                {/* Bookmark button */}
+                <button onClick={this.addBookmark} style={{ marginLeft: '8px' }}>
+                  🔖
+                </button>
+              </div>
+            </VoyagerErrorBoundary>
+          )}
+          
+          {/* Browser content area */}
+          <VoyagerErrorBoundary browserId={`${this.browserId}-content`}>
+            <div className="voyager-content" style={{
+              flex: 1,
+              display: 'flex',
               position: 'relative'
-            }}
-          >
-            {/* This div will be populated with webview or iframe */}
-          </div>
-          
-          {/* Reader view */}
-          {isReaderModeActive && (
-            <div 
-              className="voyager-reader-view"
-              style={{
-                flex: readerMode === 'browser' ? 0 : (readerMode === 'split' ? 1 : 1),
-                display: readerMode === 'browser' ? 'none' : 'block',
-                padding: '20px',
-                height: '100%',
-                overflow: 'auto',
-                backgroundColor: '#fff'
-              }}
-            >
-              <h1>{this.state.title}</h1>
+            }}>
+              {/* Main browser view */}
               <div 
-                className="reader-content"
-                dangerouslySetInnerHTML={{ 
-                  __html: DOMPurify.sanitize(this.state.readerContent || '<p>No content available for reader view</p>') 
+                className="voyager-browser-container"
+                style={{
+                  flex: readerMode === 'reader' ? 0 : (readerMode === 'split' ? 1 : 1),
+                  display: readerMode === 'reader' ? 'none' : 'block',
+                  height: '100%',
+                  position: 'relative'
                 }}
-              />
+              >
+                {/* This div will be populated with webview or iframe */}
+              </div>
+              
+              {/* Reader view */}
+              {isReaderModeActive && (
+                <div 
+                  className="voyager-reader-view"
+                  style={{
+                    flex: readerMode === 'browser' ? 0 : (readerMode === 'split' ? 1 : 1),
+                    display: readerMode === 'browser' ? 'none' : 'block',
+                    padding: '20px',
+                    height: '100%',
+                    overflow: 'auto',
+                    backgroundColor: '#fff'
+                  }}
+                >
+                  <h1>{this.state?.title || 'Loading...'}</h1>
+                  <div 
+                    className="reader-content"
+                    dangerouslySetInnerHTML={{ 
+                      __html: DOMPurify.sanitize(this.state?.readerContent || '<p>No content available for reader view</p>') 
+                    }}
+                  />
+                </div>
+              )}
+              
+              {/* Loading indicator */}
+              {this.state?.isLoading && (
+                <div className="voyager-loading-indicator" style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  backgroundColor: 'rgba(255,255,255,0.8)',
+                  padding: '10px 20px',
+                  borderRadius: '20px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}>
+                  Loading...
+                </div>
+              )}
+              
+              {/* Error state - Using centralized ErrorHandler for error display */}
+              {this.state?.errorState && (
+                <div className="voyager-error-container" style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: '#f8f8f8',
+                  padding: '20px',
+                  overflow: 'auto'
+                }}>
+                  {/* Render error page using the centralized ErrorHandler */}
+                  {(() => {
+                    try {
+                      ErrorHandler.renderErrorPage(this, {
+                        code: this.state.errorState.code,
+                        description: this.state.errorState.message || this.state.errorState.description,
+                        url: this.state.errorState.url,
+                        type: ErrorHandler.getErrorType(this.state.errorState.code),
+                        onRetry: () => this.navigate(this.state.url),
+                        onBack: () => {
+                          ErrorHandler.clearError(this);
+                          this.goBack();
+                        }
+                      });
+                    } catch (err) {
+                      console.warn('Error rendering error page:', err);
+                    }
+                    return null; // Error page is rendered through the ErrorHandler
+                  })()}
+                </div>
+              )}
             </div>
-          )}
+          </VoyagerErrorBoundary>
           
-          {/* Loading indicator */}
-          {this.state.isLoading && (
-            <div className="voyager-loading-indicator" style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              backgroundColor: 'rgba(255,255,255,0.8)',
-              padding: '10px 20px',
-              borderRadius: '20px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-            }}>
-              Loading...
-            </div>
+          {/* Status bar */}
+          {showStatusBar && (
+            <VoyagerErrorBoundary browserId={`${this.browserId}-statusbar`}>
+              <div className="voyager-status-bar" style={{
+                padding: '4px 8px',
+                backgroundColor: '#f5f5f5',
+                borderTop: '1px solid #ddd',
+                fontSize: '12px',
+                display: 'flex',
+                justifyContent: 'space-between'
+              }}>
+                <div>{this.state?.url || ''}</div>
+                <div>
+                  {this.state?.isLoading ? 'Loading...' : 'Ready'}
+                  {tabData.tabs.length > 1 && (
+                    <span style={{ marginLeft: '10px' }}>
+                      {tabData.tabs.length} tabs
+                    </span>
+                  )}
+                </div>
+              </div>
+            </VoyagerErrorBoundary>
           )}
-          
-          {/* Error state - Using centralized ErrorHandler for error display */}
-          {this.state.errorState && (
-            <div className="voyager-error-container" style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: '#f8f8f8',
-              padding: '20px',
-              overflow: 'auto'
-            }}>
-              {/* Render error page using the centralized ErrorHandler */}
-              {(() => {
-                ErrorHandler.renderErrorPage(this, {
-                  code: this.state.errorState.code,
-                  description: this.state.errorState.message || this.state.errorState.description,
-                  url: this.state.errorState.url,
-                  type: ErrorHandler.getErrorType(this.state.errorState.code),
-                  onRetry: () => this.navigate(this.state.url),
-                  onBack: () => {
-                    ErrorHandler.clearError(this);
-                    this.goBack();
-                  }
-                });
-                return null; // Error page is rendered through the ErrorHandler
-              })()}
-            </div>
-          )}
-        </div>
-        
-        {/* Status bar */}
-        {showStatusBar && (
-          <div className="voyager-status-bar" style={{
-            padding: '4px 8px',
-            backgroundColor: '#f5f5f5',
-            borderTop: '1px solid #ddd',
-            fontSize: '12px',
-            display: 'flex',
-            justifyContent: 'space-between'
-          }}>
-            <div>{this.state.url}</div>
-            <div>{this.state.isLoading ? 'Loading...' : 'Ready'}</div>
-          </div>
-        )}
 
-        {/* Research component initialization */}
-        {/* Note: Researcher is initialized programmatically in initializeResearcher() method */}
-        {/* It manages its own DOM and doesn't need to be rendered through React */}
-      </div>
+          {/* Research component initialization */}
+          {/* Note: Researcher is initialized programmatically in initializeResearcher() method */}
+          {/* It manages its own DOM and doesn't need to be rendered through React */}
+        </div>
+      </VoyagerErrorBoundary>
     );
   }
 
   /**
-   * Create webview element using BrowserRenderer
+   * Create webview element using ONLY WebviewInitializer (centralized approach)
    * This method is called by VoyagerLifecycle during initialization
    */
   createWebviewElement() {
     try {
-      const { createWebviewElement } = require('./renderers/BrowserRenderer');
+      // CRITICAL FIX: Use ONLY WebviewInitializer to prevent conflicts
+      const WebviewInitializer = require('./handlers/WebviewInitializer');
       
-      if (typeof createWebviewElement === 'function') {
-        console.log('Creating webview element via BrowserRenderer');
-        const webview = createWebviewElement(this);
+      if (WebviewInitializer && typeof WebviewInitializer.default?.createWebview === 'function') {
+        console.log('Creating webview via centralized WebviewInitializer');
+        const webview = WebviewInitializer.default.createWebview(this);
         
-        if (webview) {
-          // Find the webview container to insert the webview
-          const webviewContainer = this.containerRef.current?.querySelector('.browser-webview-container') ||
-                                   this.containerRef.current?.querySelector('.browser-content') ||
-                                   this.containerRef.current;
+        if (webview && (webview.isConnected || document.contains(webview))) {
+          this.webview = webview;
           
-          if (webviewContainer) {
-            // Clear any existing content in the container
-            webviewContainer.innerHTML = '';
-            
-            // Insert the webview into the container
-            webviewContainer.appendChild(webview);
-            
-            // Now check if it's connected to the DOM
-            if (webview.isConnected || document.contains(webview)) {
-              this.webview = webview;
-              
-              // Update WorkerManager reference
-              if (WorkerManager && !WorkerManager.webviewRef) {
-                WorkerManager.webviewRef = this.webview;
-                WorkerManager.hasWebview = true;
-                console.log('Updated WorkerManager webview reference');
-              }
-              
-              console.log('Webview element created and inserted into DOM successfully');
-              return webview;
-            } else {
-              console.warn('Webview was inserted but is not connected to DOM');
-              return null;
-            }
-          } else {
-            console.error('No webview container found to insert webview');
-            return null;
+          // Update WorkerManager reference ONCE
+          if (WorkerManager && !WorkerManager.webviewRef) {
+            WorkerManager.webviewRef = this.webview;
+            WorkerManager.hasWebview = true;
+            console.log('Updated WorkerManager webview reference');
           }
+          
+          console.log('Webview created successfully via WebviewInitializer');
+          return webview;
         } else {
-          console.warn('createWebviewElement returned null webview');
+          console.warn('WebviewInitializer returned disconnected webview');
           return null;
         }
       } else {
-        console.error('createWebviewElement function not found in BrowserRenderer');
+        console.error('WebviewInitializer not available');
         return null;
       }
     } catch (err) {
@@ -2888,6 +2932,109 @@ class Voyager extends Component {
       console.error('Error in forceInitBrowser:', err);
       return false;
     }
+  }
+
+  /**
+   * Handle tab click from tab bar
+   * @param {string} tabId - ID of tab to switch to
+   */
+  handleTabClick(tabId) {
+    if (this.tabManager) {
+      this.tabManager.switchToTab(tabId);
+    }
+  }
+  
+  /**
+   * Handle tab close from tab bar
+   * @param {string} tabId - ID of tab to close
+   */
+  handleTabClose(tabId) {
+    if (this.tabManager) {
+      this.tabManager.closeTab(tabId);
+    }
+  }
+  
+  /**
+   * Handle new tab creation from tab bar
+   */
+  handleNewTab() {
+    if (this.tabManager) {
+      this.tabManager.createTab();
+    }
+  }
+
+  /**
+   * Initialize tab manager with cleaner integration
+   */
+  initializeTabManager() {
+    if (this.tabManager) {
+      console.log('Tab manager already initialized, skipping');
+      return;
+    }
+
+    try {
+      // Create tab manager instance
+      this.tabManager = new VoyagerTabManager(this);
+      
+      // Set up event listeners with proper cleanup tracking
+      this._tabEventListeners = [];
+      
+      // Subscribe to tab manager events with cleanup tracking
+      const tabsUpdatedHandler = (event) => {
+        const { tabs, activeTabId } = event.detail;
+        this.setState({ tabs, activeTabId });
+      };
+      
+      const tabSwitchedHandler = (event) => {
+        const { tab } = event.detail;
+        console.log('Switching to tab:', tab.title);
+        // Navigation is handled by the tab manager itself
+      };
+      
+      // Add listeners and track them for cleanup
+      this.tabManager.addEventListener('tabsUpdated', tabsUpdatedHandler);
+      this.tabManager.addEventListener('tabSwitched', tabSwitchedHandler);
+      
+      // Store references for cleanup
+      this._tabEventListeners.push(
+        { type: 'tabsUpdated', handler: tabsUpdatedHandler },
+        { type: 'tabSwitched', handler: tabSwitchedHandler }
+      );
+      
+      console.log('Tab manager initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize tab manager:', error);
+      // Create a minimal fallback
+      this.tabManager = null;
+    }
+  }
+
+  /**
+   * Clean up tab manager and its event listeners
+   */
+  cleanupTabManager() {
+    if (this._tabEventListeners && this.tabManager) {
+      // Remove all tracked event listeners
+      this._tabEventListeners.forEach(({ type, handler }) => {
+        try {
+          this.tabManager.removeEventListener?.(type, handler);
+        } catch (error) {
+          console.warn(`Failed to remove ${type} listener:`, error);
+        }
+      });
+      this._tabEventListeners = [];
+    }
+    
+    // Clean up tab manager instance
+    if (this.tabManager && typeof this.tabManager.cleanup === 'function') {
+      try {
+        this.tabManager.cleanup();
+      } catch (error) {
+        console.warn('Error cleaning up tab manager:', error);
+      }
+    }
+    
+    this.tabManager = null;
   }
 }
 

@@ -12,12 +12,17 @@ class VoyagerTabManager {
     this.voyager = voyager;
     this.tabManager = new TabManager();
     this.initialized = false;
+    this.isCleaningUp = false; // Track cleanup state to prevent race conditions
+    this.isSwitchingTabs = false; // Track tab switching state
     
-    // Create a callbacks object to store event handlers instead of modifying props
-    this.callbacks = {
-      onPageLoad: null,
-      onContentCapture: null
-    };
+    // Event emitter for tab changes
+    this.eventListeners = new Map();
+    
+    // Content processing queue to prevent overloading
+    this.contentQueue = [];
+    this.isProcessingContent = false;
+    this.maxConcurrentProcessing = 2;
+    this.processingCount = 0;
     
     // Initialize the tab manager
     this.init();
@@ -27,174 +32,135 @@ class VoyagerTabManager {
    * Initialize the tab manager and set up event listeners
    */
   init() {
-    if (this.initialized) return;
+    if (this.initialized || this.isCleaningUp) return;
     
-    // Get initial tab data from current page or create default Google tab
-    if (this.voyager) {
-      const url = this.voyager.state?.url || 'https://www.google.com';
-      const title = this.voyager.state?.title || 'Google';
+    try {
+      // Get initial tab data from current page or create default Google tab
+      if (this.voyager) {
+        const url = this.voyager.state?.url || 'https://www.google.com';
+        const title = this.voyager.state?.title || 'Google';
+        
+        // Always create initial tab (either with current data or default Google)
+        this.tabManager.addTab({
+          url,
+          title,
+          favicon: this.getFaviconFromUrl(url),
+          isActive: true
+        });
+        
+        // Set up clean event listeners
+        this.setupEventListeners();
+      }
       
-      // Always create initial tab (either with current data or default Google)
-      this.tabManager.addTab({
-        url,
-        title,
-        favicon: this.getFaviconFromUrl(url)
+      this.initialized = true;
+    } catch (error) {
+      console.error('Error initializing VoyagerTabManager:', error);
+    }
+  }
+  
+  /**
+   * Set up event listeners using a clean event-based approach
+   */
+  setupEventListeners() {
+    if (this.isCleaningUp) return;
+    
+    try {
+      // Listen for Voyager navigation events
+      this.addEventListener('navigation', (event) => {
+        if (!this.isCleaningUp && !this.isSwitchingTabs) {
+          this.handlePageNavigation(event.detail);
+        }
       });
       
-      // Set up event listeners
-      this.setupEvents();
-    }
-    
-    this.initialized = true;
-  }
-  
-  /**
-   * Set up event listeners for Voyager browser events
-   */
-  setupEvents() {
-    // Check if props exist and are extensible before trying to modify them
-    const propsExist = this.voyager.props && typeof this.voyager.props === 'object';
-    const propsExtensible = propsExist ? Object.isExtensible(this.voyager.props) : false;
-    
-    // Handle page load - use callbacks object instead of modifying props
-    if (propsExist && typeof this.voyager.props.onPageLoad === 'function') {
-      // Store reference to original handler
-      this.callbacks.onPageLoad = this.voyager.props.onPageLoad;
+      // Listen for content capture events
+      this.addEventListener('contentCaptured', (event) => {
+        if (!this.isCleaningUp) {
+          this.handleContentCapture(event.detail);
+        }
+      });
       
-      // If props are extensible, we can wrap the original handler
-      if (propsExtensible) {
-        const originalOnPageLoad = this.voyager.props.onPageLoad;
-        this.voyager.props.onPageLoad = (historyRecord) => {
-          // Call original handler
-          originalOnPageLoad(historyRecord);
-          
-          // Update or add tab in tab manager
-          this.handlePageNavigation(historyRecord);
-        };
-      } else {
-        // If props are not extensible, we'll handle this through the Voyager component directly
-        console.log('Props are not extensible, setting up alternative event handling');
-        this.setupAlternativeEventHandling();
-      }
-    } else {
-      // Set up our own page load handler
-      this.callbacks.onPageLoad = (historyRecord) => {
-        this.handlePageNavigation(historyRecord);
-      };
-      
-      // Try to add to props only if they're extensible
-      if (propsExtensible) {
-        this.voyager.props.onPageLoad = this.callbacks.onPageLoad;
-      } else {
-        // Use alternative method when props aren't extensible
-        this.setupAlternativeEventHandling();
-      }
-    }
-    
-    // Handle content capture - use same approach
-    if (propsExist && typeof this.voyager.props.onContentCapture === 'function') {
-      this.callbacks.onContentCapture = this.voyager.props.onContentCapture;
-      
-      if (propsExtensible) {
-        const originalOnContentCapture = this.voyager.props.onContentCapture;
-        this.voyager.props.onContentCapture = (content) => {
-          // Call original handler
-          originalOnContentCapture(content);
-          
-          // Update tab content
-          this.handleContentCapture(content);
-        };
-      }
-    } else {
-      // Set up our own content capture handler
-      this.callbacks.onContentCapture = (content) => {
-        this.handleContentCapture(content);
-      };
-      
-      if (propsExtensible) {
-        this.voyager.props.onContentCapture = this.callbacks.onContentCapture;
-      }
+      // Subscribe to tab manager changes
+      this.tabManager.subscribe((state) => {
+        if (!this.isCleaningUp) {
+          this.handleTabManagerUpdate(state);
+        }
+      });
+    } catch (error) {
+      console.error('Error setting up event listeners:', error);
     }
   }
   
   /**
-   * Set up alternative event handling when props cannot be modified
+   * Add event listener
+   * @param {string} eventType - Event type
+   * @param {Function} handler - Event handler
    */
-  setupAlternativeEventHandling() {
-    // Instead of modifying props, we'll hook into the Voyager component's methods directly
-    if (this.voyager && typeof this.voyager.setState === 'function') {
-      // Store original methods if they exist
-      const originalNavigate = this.voyager.navigate;
-      const originalHandleWebviewLoad = this.voyager.handleWebviewLoad;
-      
-      // Wrap the navigate method to track page loads
-      if (typeof originalNavigate === 'function') {
-        this.voyager.navigate = (url, ...args) => {
-          // Call original navigate
-          const result = originalNavigate.call(this.voyager, url, ...args);
-          
-          // Track navigation in tab manager
-          this.handlePageNavigation({ url, title: url });
-          
-          return result;
-        };
+  addEventListener(eventType, handler) {
+    if (this.isCleaningUp) return;
+    
+    try {
+      if (!this.eventListeners.has(eventType)) {
+        this.eventListeners.set(eventType, []);
       }
-      
-      // Wrap webview load handler to track content
-      if (typeof originalHandleWebviewLoad === 'function') {
-        this.voyager.handleWebviewLoad = (event, ...args) => {
-          // Call original handler
-          const result = originalHandleWebviewLoad.call(this.voyager, event, ...args);
-          
-          // Extract content if possible
-          if (event && event.target && event.target.src) {
-            this.handlePageNavigation({ 
-              url: event.target.src, 
-              title: this.voyager.state?.title || event.target.src 
-            });
-          }
-          
-          return result;
-        };
-      }
-      
-      console.log('Alternative event handling set up successfully');
+      this.eventListeners.get(eventType).push(handler);
+    } catch (error) {
+      console.error('Error adding event listener:', error);
+    }
+  }
+  
+  /**
+   * Emit event to listeners
+   * @param {string} eventType - Event type
+   * @param {Object} detail - Event detail
+   */
+  emitEvent(eventType, detail) {
+    if (this.isCleaningUp) return;
+    
+    try {
+      const listeners = this.eventListeners.get(eventType) || [];
+      const event = new CustomEvent(eventType, { detail });
+      listeners.forEach(handler => {
+        try {
+          handler(event);
+        } catch (error) {
+          console.error('Error in event handler:', error);
+        }
+      });
+    } catch (error) {
+      console.error('Error emitting event:', error);
     }
   }
   
   /**
    * Handle page navigation in Voyager to update tab state
-   * @param {Object} historyRecord - Page navigation record
+   * @param {Object} navigationData - Page navigation data
    */
-  handlePageNavigation(historyRecord) {
-    if (!historyRecord || !historyRecord.url) return;
+  handlePageNavigation(navigationData) {
+    if (!navigationData || !navigationData.url || this.isCleaningUp || this.isSwitchingTabs) return;
     
-    const { url, title } = historyRecord;
-    
-    // Check if tab already exists
-    const existingTab = this.findTabByUrl(url);
-    
-    if (existingTab) {
-      // Update existing tab
-      this.tabManager.updateTab(existingTab.id, {
-        title: title || existingTab.title,
-        url,
-        lastVisited: new Date().toISOString()
-      });
+    try {
+      const { url, title } = navigationData;
+      const activeTab = this.tabManager.getActiveTab();
       
-      // Set as active tab
-      this.tabManager.setActiveTab(existingTab.id);
-    } else {
-      // Create new tab
-      const newTab = this.tabManager.addTab({
-        url,
-        title: title || url,
-        favicon: this.getFaviconFromUrl(url),
-        lastVisited: new Date().toISOString()
-      });
-      
-      // Set as active tab
-      this.tabManager.setActiveTab(newTab.id);
+      if (activeTab) {
+        // Update existing active tab
+        this.tabManager.updateTab(activeTab.id, {
+          url,
+          title: title || activeTab.title,
+          lastVisited: new Date().toISOString()
+        });
+      } else {
+        // Create new tab if none exists
+        const newTab = this.tabManager.addTab({
+          url,
+          title: title || url,
+          favicon: this.getFaviconFromUrl(url),
+          isActive: true
+        });
+        this.tabManager.setActiveTab(newTab.id);
+      }
+    } catch (error) {
+      console.error('Error handling page navigation:', error);
     }
   }
   
@@ -203,37 +169,215 @@ class VoyagerTabManager {
    * @param {Object} content - Captured page content
    */
   handleContentCapture(content) {
-    if (!content || !content.url) return;
+    if (!content || !content.url || this.isCleaningUp) return;
     
-    // Find tab by URL
-    const tab = this.findTabByUrl(content.url);
-    
-    if (tab) {
-      // Update tab with extracted content
-      this.tabManager.updateTabContent(tab.id, {
-        summary: content.mainContent?.substring(0, 1000) || '',
-        paragraphs: this.extractParagraphs(content.mainContent),
-        keywords: this.extractKeywords(content.title, content.mainContent),
-        html: content.html,
-        text: content.text,
-        title: content.title,
-        capturedAt: content.capturedAt || new Date().toISOString()
-      });
+    try {
+      const activeTab = this.tabManager.getActiveTab();
+      if (activeTab && activeTab.url === content.url) {
+        // Queue content processing instead of processing immediately
+        this.queueContentProcessing(activeTab.id, content);
+      }
+    } catch (error) {
+      console.error('Error handling content capture:', error);
     }
   }
   
   /**
-   * Find a tab by URL
-   * @param {string} url - URL to search for
-   * @returns {Object|null} - Tab object or null if not found
+   * Queue content processing to prevent system overload
+   * @param {string} tabId - Tab ID
+   * @param {Object} content - Content to process
    */
-  findTabByUrl(url) {
-    // Normalize URL for comparison
-    const normalizedUrl = this.normalizeUrl(url);
+  queueContentProcessing(tabId, content) {
+    if (this.isCleaningUp) return;
     
-    return this.tabManager.getTabs().find(tab => {
-      return this.normalizeUrl(tab.url) === normalizedUrl;
-    });
+    try {
+      this.contentQueue.push({ tabId, content, timestamp: Date.now() });
+      this.processContentQueue();
+    } catch (error) {
+      console.error('Error queuing content processing:', error);
+    }
+  }
+  
+  /**
+   * Process content queue efficiently
+   */
+  async processContentQueue() {
+    // Prevent concurrent processing beyond limit or during cleanup
+    if (this.processingCount >= this.maxConcurrentProcessing || this.isCleaningUp) {
+      return;
+    }
+
+    // Get next item from queue
+    const item = this.contentQueue.shift();
+    if (!item) return;
+
+    this.processingCount++;
+
+    try {
+      await this.processTabContent(item.tabId, item.content);
+    } catch (error) {
+      console.error('Error processing tab content:', error);
+    } finally {
+      this.processingCount--;
+      
+      // Process next item if queue has items and not cleaning up
+      if (this.contentQueue.length > 0 && !this.isCleaningUp) {
+        // Small delay to prevent overwhelming the system
+        setTimeout(() => {
+          if (!this.isCleaningUp) {
+            this.processContentQueue();
+          }
+        }, 100);
+      }
+    }
+  }
+  
+  /**
+   * Process individual tab content
+   * @param {string} tabId - Tab ID
+   * @param {Object} content - Content to process
+   */
+  async processTabContent(tabId, content) {
+    if (this.isCleaningUp) return;
+    
+    try {
+      const extractedContent = {
+        title: content.title,
+        text: content.text || '',
+        html: content.processedContent || '',
+        summary: content.text?.substring(0, 1000) || '',
+        paragraphs: this.extractParagraphs(content.text),
+        keywords: this.extractKeywords(content.title, content.text),
+        capturedAt: content.timestamp || new Date().toISOString()
+      };
+
+      // Update tab content only if not cleaning up
+      if (!this.isCleaningUp) {
+        this.tabManager.updateTabContent(tabId, { extractedContent });
+      }
+    } catch (error) {
+      console.error('Error processing tab content:', error);
+    }
+  }
+  
+  /**
+   * Handle tab manager state updates
+   * @param {Object} state - New tab manager state
+   */
+  handleTabManagerUpdate(state) {
+    if (this.isCleaningUp) return;
+    
+    try {
+      // Emit event for UI components to update
+      this.emitEvent('tabsUpdated', state);
+      
+      // Update Voyager if active tab changed and not currently switching tabs
+      if (!this.isSwitchingTabs) {
+        const activeTab = state.tabs.find(tab => tab.id === state.activeTabId);
+        if (activeTab && this.voyager) {
+          // Only navigate if URL is different from current
+          if (activeTab.url !== this.voyager.state?.url) {
+            this.emitEvent('tabSwitched', { tab: activeTab });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error handling tab manager update:', error);
+    }
+  }
+  
+  /**
+   * Switch to a specific tab
+   * @param {string} tabId - Tab ID to switch to
+   */
+  switchToTab(tabId) {
+    if (this.isCleaningUp || this.isSwitchingTabs) return;
+    
+    // Set flag to prevent race conditions
+    this.isSwitchingTabs = true;
+    
+    try {
+      const tab = this.tabManager.getTabById(tabId);
+      if (tab) {
+        this.tabManager.setActiveTab(tabId);
+        
+        // Navigate Voyager to the tab's URL
+        if (this.voyager && tab.url) {
+          // Use setTimeout to avoid blocking the UI during navigation
+          setTimeout(() => {
+            try {
+              if (!this.isCleaningUp && this.voyager) {
+                this.voyager.navigate(tab.url);
+              }
+            } catch (error) {
+              console.error('Error navigating to tab URL:', error);
+            } finally {
+              // Clear the switching flag after navigation
+              this.isSwitchingTabs = false;
+            }
+          }, 10);
+        } else {
+          this.isSwitchingTabs = false;
+        }
+      } else {
+        this.isSwitchingTabs = false;
+      }
+    } catch (error) {
+      console.error('Error switching to tab:', error);
+      this.isSwitchingTabs = false;
+    }
+  }
+  
+  /**
+   * Create a new tab
+   * @param {Object} tabData - Tab data
+   * @returns {Object} - Created tab
+   */
+  createTab(tabData = {}) {
+    if (this.isCleaningUp) return null;
+    
+    try {
+      const newTab = this.tabManager.addTab({
+        url: tabData.url || 'https://www.google.com',
+        title: tabData.title || 'New Tab',
+        favicon: tabData.favicon || this.getFaviconFromUrl(tabData.url),
+        ...tabData
+      });
+      
+      // Switch to new tab
+      this.switchToTab(newTab.id);
+      
+      return newTab;
+    } catch (error) {
+      console.error('Error creating tab:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Close a tab
+   * @param {string} tabId - Tab ID to close
+   */
+  closeTab(tabId) {
+    if (this.isCleaningUp) return;
+    
+    try {
+      const tabs = this.tabManager.getTabs();
+      
+      // Prevent closing the last tab
+      if (tabs.length <= 1) {
+        // Instead of closing, navigate to Google
+        this.switchToTab(tabId);
+        if (this.voyager) {
+          this.voyager.navigate('https://www.google.com');
+        }
+        return;
+      }
+      
+      this.tabManager.closeTab(tabId);
+    } catch (error) {
+      console.error('Error closing tab:', error);
+    }
   }
   
   /**
@@ -356,13 +500,110 @@ class VoyagerTabManager {
   }
   
   /**
+   * Get serialized tab data for React components
+   * @returns {Object} - Serialized tab data
+   */
+  getSerializedTabData() {
+    const state = this.tabManager.getState();
+    return {
+      tabs: state.tabs.map(tab => ({
+        id: tab.id,
+        title: tab.title,
+        url: tab.url,
+        favicon: tab.favicon,
+        isActive: tab.id === state.activeTabId
+      })),
+      activeTabId: state.activeTabId,
+      onTabClick: (tabId) => this.switchToTab(tabId),
+      onTabClose: (tabId) => this.closeTab(tabId),
+      onNewTab: () => this.createTab()
+    };
+  }
+  
+  /**
    * Analyze tabs using the specified clustering method
    * @param {string} method - Clustering method ('dbscan' or 'kmeans')
    * @param {Object} options - Clustering options
    * @returns {Promise<Object>} - Clustering results
    */
-  analyzeTabs(method = 'dbscan', options = {}) {
+  async analyzeTabs(method = 'dbscan', options = {}) {
     return this.tabManager.analyzeTabs(method, options);
+  }
+  
+  /**
+   * Remove event listener
+   * @param {string} eventType - Event type
+   * @param {Function} handler - Event handler to remove
+   */
+  removeEventListener(eventType, handler) {
+    if (this.isCleaningUp) return;
+    
+    try {
+      if (!this.eventListeners.has(eventType)) return;
+      
+      const listeners = this.eventListeners.get(eventType);
+      const index = listeners.indexOf(handler);
+      if (index !== -1) {
+        listeners.splice(index, 1);
+      }
+      
+      // Clean up empty listener arrays
+      if (listeners.length === 0) {
+        this.eventListeners.delete(eventType);
+      }
+    } catch (error) {
+      console.error('Error removing event listener:', error);
+    }
+  }
+
+  /**
+   * Clean up VoyagerTabManager resources and event listeners
+   */
+  cleanup() {
+    // Prevent multiple cleanup calls and race conditions
+    if (this.isCleaningUp) {
+      console.log('VoyagerTabManager cleanup already in progress, skipping');
+      return;
+    }
+    
+    this.isCleaningUp = true;
+    
+    try {
+      console.log('VoyagerTabManager cleaning up...');
+      
+      // Stop any ongoing tab switching
+      this.isSwitchingTabs = false;
+      
+      // Clear content processing queue
+      this.contentQueue = [];
+      this.isProcessingContent = false;
+      this.processingCount = 0;
+      
+      // Clear all event listeners safely
+      try {
+        this.eventListeners.clear();
+      } catch (error) {
+        console.warn('Error clearing event listeners:', error);
+      }
+      
+      // Clean up tab manager
+      if (this.tabManager && typeof this.tabManager.cleanup === 'function') {
+        try {
+          this.tabManager.cleanup();
+        } catch (error) {
+          console.warn('Error cleaning up tab manager:', error);
+        }
+      }
+      
+      // Clear references
+      this.voyager = null;
+      this.tabManager = null;
+      this.initialized = false;
+      
+      console.log('VoyagerTabManager cleaned up successfully');
+    } catch (error) {
+      console.error('Error during VoyagerTabManager cleanup:', error);
+    }
   }
 }
 
