@@ -5,8 +5,10 @@
  * handling synchronization of tab state, content extraction, and event handling.
  */
 
-import TabManager from './TabManager';
+import TabManager from './TabManager.js';
 import webviewStateManager from './WebviewStateManager.js';
+import StyleManager from '../handlers/StyleManager.js';
+import MetadataProcessor from '../extraction/processors/MetadataProcessor.js';
 
 class VoyagerTabManager {
   constructor(voyager) {
@@ -15,6 +17,15 @@ class VoyagerTabManager {
     this.initialized = false;
     this.isCleaningUp = false; // Track cleanup state to prevent race conditions
     this.isSwitchingTabs = false; // Track tab switching state
+    this._refreshInProgress = false; // Track UI refresh state to prevent recursion
+    
+    // CIRCUIT BREAKER: Add recursion prevention and rate limiting
+    this._navigationEventCount = 0;
+    this._lastNavigationEventTime = 0;
+    this._tabSwitchQueue = [];
+    this._isProcessingQueue = false;
+    this._maxQueueSize = 3; // Limit queue size to prevent infinite queueing
+    this._eventCooldownPeriod = 1000; // 1 second cooldown between rapid events
     
     // Event emitter for tab changes
     this.eventListeners = new Map();
@@ -32,7 +43,7 @@ class VoyagerTabManager {
   /**
    * Initialize the tab manager and set up event listeners
    */
-  init() {
+  async init() {
     if (this.initialized || this.isCleaningUp) return;
     
     try {
@@ -61,7 +72,7 @@ class VoyagerTabManager {
           });
         }
         
-        // Create initial tab with guaranteed valid URL
+        // Create initial tab with guaranteed valid URL - use basic favicon for now
         const initialTab = this.tabManager.addTab({
           url: initialUrl,
           title: initialTitle,
@@ -158,51 +169,389 @@ class VoyagerTabManager {
   }
   
   /**
+   * Extract metadata from webview page content
+   * @param {string} tabId - Tab ID to update
+   * @param {HTMLElement} webview - Webview element
+   * @returns {Promise<Object>} - Extracted metadata
+   */
+  async extractPageMetadata(tabId, webview) {
+    if (!webview || !tabId) {
+      console.warn('extractPageMetadata: Missing webview or tabId');
+      return null;
+    }
+    
+    try {
+      console.log(`🔍 Starting metadata extraction for tab ${tabId}`);
+      
+      // Check if webview is ready
+      if (!webview.getWebContents || typeof webview.executeJavaScript !== 'function') {
+        console.warn('Webview not ready for JavaScript execution, using fallback');
+        this.extractBasicPageInfo(tabId);
+        return null;
+      }
+      
+      // Get page content from webview with enhanced error handling
+      const pageData = await webview.executeJavaScript(`
+        (function() {
+          console.log('🚀 Executing metadata extraction script');
+          try {
+            // Check if document is ready
+            if (document.readyState !== 'complete') {
+              console.log('Document not ready, readyState:', document.readyState);
+              return {
+                error: 'Document not ready',
+                readyState: document.readyState,
+                url: window.location.href,
+                title: document.title || 'Loading...'
+              };
+            }
+            
+            console.log('📄 Document ready, extracting metadata from:', window.location.href);
+            
+            // Extract metadata from page
+            const metaTags = {};
+            try {
+              document.querySelectorAll('meta').forEach(meta => {
+                const name = meta.getAttribute('name') || meta.getAttribute('property') || meta.getAttribute('http-equiv');
+                const content = meta.getAttribute('content');
+                if (name && content) {
+                  metaTags[name.toLowerCase()] = content;
+                }
+              });
+              console.log('📋 Extracted', Object.keys(metaTags).length, 'meta tags');
+            } catch (metaError) {
+              console.warn('Error extracting meta tags:', metaError);
+            }
+            
+            // Get favicon URLs with enhanced detection
+            let faviconUrl = null;
+            const faviconSelectors = [
+              'link[rel="icon"]',
+              'link[rel="shortcut icon"]', 
+              'link[rel="apple-touch-icon"]',
+              'link[rel="apple-touch-icon-precomposed"]',
+              'link[rel="mask-icon"]'
+            ];
+            
+            console.log('🎨 Searching for favicon...');
+            for (const selector of faviconSelectors) {
+              try {
+                const link = document.querySelector(selector);
+                if (link && link.href) {
+                  faviconUrl = link.href;
+                  console.log('✅ Found favicon via', selector, ':', faviconUrl);
+                  break;
+                }
+              } catch (selectorError) {
+                console.warn('Error checking selector', selector, ':', selectorError);
+              }
+            }
+            
+            // Fallback to default favicon if none found
+            if (!faviconUrl) {
+              faviconUrl = window.location.origin + '/favicon.ico';
+              console.log('🔄 Using fallback favicon:', faviconUrl);
+            }
+            
+            const result = {
+              url: window.location.href,
+              title: document.title || 'Untitled',
+              favicon: faviconUrl,
+              metaTags: metaTags,
+              html: document.documentElement ? document.documentElement.outerHTML : '',
+              readyState: document.readyState,
+              timestamp: Date.now()
+            };
+            
+            console.log('✨ Metadata extraction successful:', {
+              title: result.title,
+              favicon: result.favicon,
+              url: result.url,
+              metaTagCount: Object.keys(result.metaTags).length
+            });
+            
+            return result;
+          } catch (error) {
+            console.error('❌ Error in metadata extraction script:', error);
+            return {
+              error: error.message,
+              url: window.location.href,
+              title: document.title || 'Error',
+              favicon: window.location.origin + '/favicon.ico',
+              fallback: true
+            };
+          }
+        })()
+      `);
+      
+      console.log('📦 Webview script execution result:', pageData ? 'Success' : 'Failed');
+      
+      if (pageData && pageData.url) {
+        // Check for document readiness error
+        if (pageData.error === 'Document not ready') {
+          console.log(`⏳ Document not ready for tab ${tabId}, scheduling retry`);
+          // Retry after a longer delay
+          setTimeout(() => {
+            if (!this.isCleaningUp && !this.isSwitchingTabs) {
+              console.log(`🔄 Retrying metadata extraction for tab ${tabId}`);
+              this.extractPageMetadata(tabId, webview);
+            }
+          }, 2000);
+          return null;
+        }
+        
+        // If this is a fallback result, update tab with basic info
+        if (pageData.fallback) {
+          console.log(`🛡️ Using fallback metadata for tab ${tabId}:`, pageData.title);
+          
+          // Get current tab data before update for comparison
+          const beforeUpdate = this.tabManager.getTabById(tabId);
+          console.log(`📊 Tab ${tabId} BEFORE fallback update:`, {
+            title: beforeUpdate?.title,
+            favicon: beforeUpdate?.favicon,
+            url: beforeUpdate?.url
+          });
+          
+          const updatedTab = this.tabManager.updateTab(tabId, {
+            title: pageData.title,
+            favicon: pageData.favicon
+          });
+          
+          // Verify the update was successful
+          const afterUpdate = this.tabManager.getTabById(tabId);
+          console.log(`📝 Tab ${tabId} AFTER fallback update:`, {
+            title: afterUpdate?.title,
+            favicon: afterUpdate?.favicon,
+            url: afterUpdate?.url,
+            updateResult: updatedTab ? 'SUCCESS' : 'FAILED'
+          });
+          
+          // ENHANCED: Force UI refresh after fallback metadata update
+          this.forceTabUIRefresh();
+          
+          // Emit event for any additional UI components that need to know about metadata updates
+          this.emitEvent('tabMetadataUpdated', {
+            tabId,
+            title: pageData.title,
+            favicon: pageData.favicon
+          });
+          
+          return pageData;
+        }
+        
+        // Process metadata using MetadataProcessor
+        try {
+          console.log(`🧠 Processing metadata with MetadataProcessor for tab ${tabId}`);
+          const processedMetadata = await MetadataProcessor.process(pageData.metaTags, {
+            url: pageData.url,
+            title: pageData.title,
+            html: pageData.html
+          });
+          
+          const finalTitle = processedMetadata.title || pageData.title;
+          const finalFavicon = processedMetadata.favicon || pageData.favicon;
+          
+          console.log(`✅ Metadata processing complete for tab ${tabId}:`, {
+            title: finalTitle,
+            favicon: finalFavicon,
+            url: pageData.url
+          });
+          
+          // Get current tab data before update for comparison
+          const beforeUpdate = this.tabManager.getTabById(tabId);
+          console.log(`📊 Tab ${tabId} BEFORE metadata update:`, {
+            title: beforeUpdate?.title,
+            favicon: beforeUpdate?.favicon,
+            url: beforeUpdate?.url
+          });
+          
+          // Update tab with processed metadata
+          const updatedTab = this.tabManager.updateTab(tabId, {
+            title: finalTitle,
+            favicon: finalFavicon,
+            metadata: processedMetadata
+          });
+          
+          // Verify the update was successful
+          const afterUpdate = this.tabManager.getTabById(tabId);
+          console.log(`📝 Tab ${tabId} AFTER metadata update:`, {
+            title: afterUpdate?.title,
+            favicon: afterUpdate?.favicon,
+            url: afterUpdate?.url,
+            updateResult: updatedTab ? 'SUCCESS' : 'FAILED',
+            hasMetadata: !!afterUpdate?.metadata
+          });
+          
+          // Emit event for any additional UI components that need to know about metadata updates
+          this.emitEvent('tabMetadataUpdated', {
+            tabId,
+            title: finalTitle,
+            favicon: finalFavicon
+          });
+          
+          return processedMetadata;
+        } catch (metaError) {
+          console.warn(`⚠️ MetadataProcessor failed for tab ${tabId}, using basic metadata:`, metaError);
+          
+          // Fallback to basic metadata
+          this.tabManager.updateTab(tabId, {
+            title: pageData.title,
+            favicon: pageData.favicon
+          });
+          
+          console.log(`📝 Tab ${tabId} updated with fallback metadata:`, {
+            title: pageData.title,
+            favicon: pageData.favicon,
+            currentTabData: this.tabManager.getTabById(tabId)
+          });
+          
+          // Emit event for any additional UI components that need to know about metadata updates
+          this.emitEvent('tabMetadataUpdated', {
+            tabId,
+            title: pageData.title,
+            favicon: pageData.favicon
+          });
+          
+          return pageData;
+        }
+      } else {
+        console.warn(`❌ No valid page data received for tab ${tabId}`);
+        // Try basic page info extraction as last resort
+        this.extractBasicPageInfo(tabId);
+      }
+    } catch (error) {
+      console.error(`💥 Failed to extract page metadata for tab ${tabId}:`, error);
+      // Always try basic page info as fallback
+      this.extractBasicPageInfo(tabId);
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Extract basic page info when full metadata extraction fails
+   * @param {string} tabId - Tab ID to update
+   */
+  extractBasicPageInfo(tabId) {
+    if (!this.voyager || !this.voyager.webview) return;
+    
+    try {
+      console.log(`Extracting basic page info for tab ${tabId} as fallback`);
+      
+      // Try to get basic title from webContents
+      if (this.voyager.webview.getWebContents) {
+        const webContents = this.voyager.webview.getWebContents();
+        if (webContents && typeof webContents.getTitle === 'function') {
+          const pageTitle = webContents.getTitle();
+          if (pageTitle && pageTitle !== 'Loading...' && pageTitle !== '' && pageTitle !== 'about:blank') {
+            console.log(`Got basic page title for tab ${tabId}: ${pageTitle}`);
+            this.tabManager.updateTab(tabId, {
+              title: pageTitle
+            });
+            
+            console.log(`📝 Tab ${tabId} updated with basic title:`, {
+              title: pageTitle,
+              currentTabData: this.tabManager.getTabById(tabId)
+            });
+            
+            return;
+          }
+        }
+      }
+      
+      // Fallback: try simple JavaScript execution
+      this.voyager.webview.executeJavaScript(`document.title`)
+        .then(title => {
+          if (title && title !== 'Loading...' && title !== '' && title !== 'about:blank') {
+            console.log(`Got fallback page title for tab ${tabId}: ${title}`);
+            this.tabManager.updateTab(tabId, {
+              title: title
+            });
+            
+            console.log(`📝 Tab ${tabId} updated with JS title:`, {
+              title: title,
+              currentTabData: this.tabManager.getTabById(tabId)
+            });
+          }
+        })
+        .catch(error => {
+          console.warn('Failed to get basic page title:', error);
+        });
+        
+    } catch (error) {
+      console.warn('Error in extractBasicPageInfo:', error);
+    }
+  }
+  
+  /**
    * Handle page navigation in Voyager to update tab state
    * @param {Object} navigationData - Page navigation data
    */
   handlePageNavigation(navigationData) {
-    // CRITICAL FIX: More robust checks to prevent navigation event interference during tab switching
-    if (!navigationData || !navigationData.url || this.isCleaningUp) return;
+    // CIRCUIT BREAKER: Prevent navigation event storms
+    const now = Date.now();
     
-    // CRITICAL FIX: Ignore ALL navigation events during tab switching operations
-    if (this.isSwitchingTabs) {
-      console.log('Ignoring navigation event during tab switching:', navigationData.url, 'source:', navigationData.source);
+    // Basic validation
+    if (!navigationData || !navigationData.url || this.isCleaningUp) {
       return;
     }
     
-    // CRITICAL FIX: Enhanced filtering based on navigation source and timing
+    // CIRCUIT BREAKER: Rate limiting - prevent more than 5 events per second
+    this._navigationEventCount++;
+    if (now - this._lastNavigationEventTime < 200) { // Less than 200ms since last event
+      if (this._navigationEventCount > 5) {
+        console.warn('🛑 CIRCUIT BREAKER: Navigation event storm detected, throttling events');
+        return;
+      }
+    } else {
+      // Reset counter after cooldown period
+      this._navigationEventCount = 1;
+      this._lastNavigationEventTime = now;
+    }
+    
+    // CRITICAL FIX: Ignore ALL navigation events during tab switching operations
+    if (this.isSwitchingTabs) {
+      console.log('🚫 Ignoring navigation event during tab switching:', navigationData.url, 'source:', navigationData.source);
+      return;
+    }
+    
+    // Enhanced filtering based on navigation source and timing
     const { url, title, source } = navigationData;
     
     // CRITICAL FIX: More aggressive filtering for webview events near tab switches
     if (source === 'webview_load' || source === 'webview_navigation') {
-      // Check if we just finished a tab switch recently (within 3 seconds)
-      if (this._lastTabSwitchTime && (Date.now() - this._lastTabSwitchTime) < 3000) {
-        console.log(`Ignoring ${source} event - too close to recent tab switch:`, url);
+      // Check if we just finished a tab switch recently (extended to 5 seconds)
+      if (this._lastTabSwitchTime && (now - this._lastTabSwitchTime) < 5000) {
+        console.log(`🚫 Ignoring ${source} event - too close to recent tab switch:`, url);
         return;
       }
     }
     
     // CRITICAL FIX: Validate URL before processing
     if (!url || url === '' || url === 'about:blank' || url === null || url === undefined) {
-      console.log('Ignoring navigation event with invalid URL:', url);
+      console.log('🚫 Ignoring navigation event with invalid URL:', url);
+      return;
+    }
+    
+    // CIRCUIT BREAKER: Prevent duplicate rapid navigation to same URL
+    const activeTab = this.tabManager.getActiveTab();
+    if (activeTab && activeTab.url === url && (now - this._lastNavigationEventTime) < this._eventCooldownPeriod) {
+      console.log('🚫 Ignoring duplicate navigation event to same URL:', url);
       return;
     }
     
     // CRITICAL FIX: Check if this is a tab switch navigation by comparing with existing tab URLs
     const existingTab = this.tabManager.getTabs().find(tab => tab.url === url);
     if (existingTab && existingTab.id !== this.tabManager.getActiveTabId()) {
-      console.log('Navigation appears to be a tab switch, ignoring to prevent URL corruption:', url);
+      console.log('🚫 Navigation appears to be a tab switch, ignoring to prevent URL corruption:', url);
       return;
     }
     
     try {
-      const activeTab = this.tabManager.getActiveTab();
-      
       if (activeTab) {
         // CRITICAL FIX: Better URL validation and comparison
         if (!activeTab.url || activeTab.url === '' || activeTab.url === null) {
-          console.log('Active tab has invalid URL, updating with navigation URL:', url);
+          console.log('📝 Active tab has invalid URL, updating with navigation URL:', url);
           this.tabManager.updateTab(activeTab.id, {
             url,
             title: title || activeTab.title || url,
@@ -217,11 +566,11 @@ class VoyagerTabManager {
         
         // Don't update if URLs are essentially the same (prevents unnecessary updates)
         if (normalizedCurrentUrl === normalizedNewUrl) {
-          console.log('URL unchanged, skipping navigation update:', url);
+          console.log('🔄 URL unchanged, skipping navigation update:', url);
           return;
         }
         
-        console.log(`Page navigation detected: ${activeTab.url} -> ${url} (source: ${source || 'unknown'})`);
+        console.log(`🌐 Page navigation detected: ${activeTab.url} -> ${url} (source: ${source || 'unknown'})`);
         
         // CRITICAL FIX: Capture current state BEFORE updating URL to preserve the previous page state
         if (this.voyager && this.voyager.webview) {
@@ -236,6 +585,63 @@ class VoyagerTabManager {
           lastVisited: new Date().toISOString()
         });
 
+        // ENHANCED: Extract proper metadata after page loads - but with rate limiting
+        if (this.voyager && this.voyager.webview && !this._metadataExtractionInProgress) {
+          console.log(`⏰ Scheduling metadata extraction for tab ${activeTab.id} after navigation (source: ${source})`);
+          
+          this._metadataExtractionInProgress = true;
+          
+          // Clear any existing metadata extraction timeout
+          if (this._metadataExtractionTimeout) {
+            clearTimeout(this._metadataExtractionTimeout);
+          }
+          
+          // Schedule metadata extraction with progressive delays based on source
+          let delay = 1500; // Default delay
+          if (source === 'webview_load') {
+            delay = 2000; // Longer delay for webview_load to ensure page is fully loaded
+          } else if (source === 'user_navigation') {
+            delay = 3000; // Even longer for user navigation to allow full page load
+          }
+          
+          this._metadataExtractionTimeout = setTimeout(async () => {
+            if (!this.isCleaningUp && !this.isSwitchingTabs) {
+              try {
+                console.log(`🚀 EXECUTING metadata extraction for tab ${activeTab.id} after ${delay}ms delay`);
+                const extractionResult = await this.extractPageMetadata(activeTab.id, this.voyager.webview);
+                
+                // ENHANCED: Add retry logic for failed extractions (but limit retries)
+                if (!extractionResult && !this.isCleaningUp && !this.isSwitchingTabs && !this._metadataRetryAttempted) {
+                  console.log(`⚠️ Metadata extraction failed for tab ${activeTab.id}, retrying once...`);
+                  this._metadataRetryAttempted = true;
+                  setTimeout(async () => {
+                    if (!this.isCleaningUp && !this.isSwitchingTabs) {
+                      try {
+                        console.log(`🔄 RETRY: Executing metadata extraction for tab ${activeTab.id}`);
+                        await this.extractPageMetadata(activeTab.id, this.voyager.webview);
+                      } catch (retryError) {
+                        console.warn('Retry metadata extraction failed:', retryError);
+                        // Final fallback: try to get at least the page title
+                        this.extractBasicPageInfo(activeTab.id);
+                      } finally {
+                        this._metadataRetryAttempted = false;
+                      }
+                    }
+                  }, 2000);
+                }
+              } catch (error) {
+                console.warn('Failed to extract metadata after page load:', error);
+                // Fallback: try to get at least the page title from webview
+                this.extractBasicPageInfo(activeTab.id);
+              } finally {
+                this._metadataExtractionInProgress = false;
+              }
+            } else {
+              this._metadataExtractionInProgress = false;
+            }
+          }, delay);
+        }
+
         // CRITICAL FIX: Enhanced state capture after navigation with better timing
         if (this.voyager && this.voyager.webview) {
           // Clear any existing capture timeout to prevent overlapping captures
@@ -246,13 +652,13 @@ class VoyagerTabManager {
           this._navigationCaptureTimeout = setTimeout(async () => {
             if (!this.isCleaningUp && !this.isSwitchingTabs) {
               try {
-                console.log(`Capturing state for tab ${activeTab.id} after navigation to ${url}`);
+                console.log(`📸 Capturing state for tab ${activeTab.id} after navigation to ${url}`);
                 await webviewStateManager.captureState(activeTab.id, this.voyager.webview);
               } catch (error) {
                 console.warn('Failed to capture state after navigation:', error);
               }
             }
-          }, 2000); // Increased delay to ensure page is fully loaded
+          }, 4000); // Delay state capture to after metadata extraction
         }
       } else {
         // Create new tab if none exists - but ensure it has a valid URL
@@ -263,7 +669,21 @@ class VoyagerTabManager {
           isActive: true
         });
         this.tabManager.setActiveTab(newTab.id);
-        console.log('Created new tab for navigation:', newTab);
+        console.log('🆕 Created new tab for navigation:', newTab);
+        
+        // Schedule metadata extraction for new tab too
+        if (this.voyager && this.voyager.webview) {
+          setTimeout(async () => {
+            if (!this.isCleaningUp) {
+              try {
+                console.log(`🔍 Extracting metadata for new tab ${newTab.id}`);
+                await this.extractPageMetadata(newTab.id, this.voyager.webview);
+              } catch (error) {
+                console.warn('Failed to extract metadata for new tab:', error);
+              }
+            }
+          }, 2000);
+        }
       }
     } catch (error) {
       console.error('Error handling page navigation:', error);
@@ -374,6 +794,8 @@ class VoyagerTabManager {
     if (this.isCleaningUp) return;
     
     try {
+      console.log('🔄 Tab manager state updated:', state);
+      
       // Emit event for UI components to update
       this.emitEvent('tabsUpdated', state);
       
@@ -393,26 +815,85 @@ class VoyagerTabManager {
   }
   
   /**
+   * Force the tab UI to refresh by notifying all listeners
+   */
+  forceTabUIRefresh() {
+    // CRITICAL FIX: Add recursion protection
+    if (this.isCleaningUp || this._refreshInProgress) {
+      console.log('🚫 Skipping UI refresh - cleanup in progress or refresh already running');
+      return;
+    }
+    
+    this._refreshInProgress = true;
+    
+    try {
+      console.log('🎨 Forcing tab UI refresh');
+      
+      // Force the internal TabManager to notify all its listeners
+      if (this.tabManager && typeof this.tabManager.notifyListeners === 'function') {
+        this.tabManager.notifyListeners();
+        console.log('✅ TabManager listeners notified successfully');
+      } else {
+        console.warn('⚠️ TabManager notifyListeners method not available');
+      }
+      
+      // Also emit our own event for VoyagerTabManager listeners
+      const currentState = this.tabManager ? this.tabManager.getState() : null;
+      if (currentState) {
+        this.emitEvent('tabsUpdated', currentState);
+        this.emitEvent('forceUIRefresh', currentState);
+        console.log('✅ VoyagerTabManager events emitted successfully');
+      } else {
+        console.warn('⚠️ Unable to get current TabManager state for UI refresh');
+      }
+      
+      // CRITICAL FIX: Remove the problematic retry mechanism that was causing recursion
+      // The retry logic was calling notifyListeners() again after a timeout, which could trigger
+      // more updates and cause infinite loops. TabManager already handles proper notifications.
+      
+    } catch (error) {
+      console.warn('Error forcing tab UI refresh:', error);
+    } finally {
+      // Reset flag after a small delay to prevent rapid successive calls
+      setTimeout(() => {
+        this._refreshInProgress = false;
+      }, 50);
+    }
+  }
+  
+  /**
    * Switch to a specific tab with state preservation
    * @param {string} tabId - Tab ID to switch to
    */
   async switchToTab(tabId) {
     if (this.isCleaningUp) {
-      console.log('Component cleaning up, skipping tab switch');
+      console.log('🧹 Component cleaning up, skipping tab switch');
       return;
     }
     
-    // CRITICAL FIX: Prevent overlapping tab switches with better locking
+    // CIRCUIT BREAKER: Prevent infinite queue and overlapping switches
     if (this.isSwitchingTabs) {
-      console.log('Tab switch already in progress, queueing request for tab:', tabId);
+      // Check if this tab is already queued to prevent duplicates
+      const isAlreadyQueued = this._tabSwitchQueue.some(queuedTabId => queuedTabId === tabId);
       
-      // Queue the tab switch for later execution instead of ignoring it
-      setTimeout(() => {
-        if (!this.isCleaningUp && !this.isSwitchingTabs) {
-          console.log('Executing queued tab switch to:', tabId);
-          this.switchToTab(tabId);
-        }
-      }, 600); // Wait for current switch to complete
+      if (isAlreadyQueued) {
+        console.log('🔄 Tab switch already queued, ignoring duplicate request for tab:', tabId);
+        return;
+      }
+      
+      // Check queue size limit
+      if (this._tabSwitchQueue.length >= this._maxQueueSize) {
+        console.warn('🛑 CIRCUIT BREAKER: Tab switch queue full, dropping oldest request');
+        this._tabSwitchQueue.shift(); // Remove oldest request
+      }
+      
+      console.log(`⏳ Tab switch in progress, queueing request for tab: ${tabId} (queue size: ${this._tabSwitchQueue.length + 1})`);
+      this._tabSwitchQueue.push(tabId);
+      
+      // Start processing queue if not already processing
+      if (!this._isProcessingQueue) {
+        this._processTabSwitchQueue();
+      }
       return;
     }
     
@@ -426,26 +907,28 @@ class VoyagerTabManager {
       const currentActiveTab = this.tabManager.getActiveTab();
       
       if (!targetTab) {
-        console.warn(`Cannot switch to tab ${tabId}: tab not found`);
+        console.warn(`❌ Cannot switch to tab ${tabId}: tab not found`);
         this.isSwitchingTabs = false;
+        this._processTabSwitchQueue(); // Process next in queue
         return;
       }
 
       // CRITICAL FIX: Validate target tab has a valid URL
       if (!targetTab.url || targetTab.url === '' || targetTab.url === null || targetTab.url === undefined) {
-        console.warn(`Target tab ${tabId} has invalid URL, setting default`);
+        console.warn(`🚨 Target tab ${tabId} has invalid URL, setting default`);
         targetTab.url = 'https://www.google.com';
         this.tabManager.updateTab(tabId, { url: targetTab.url, title: 'Google' });
       }
 
       // Skip if already the active tab
       if (currentActiveTab && currentActiveTab.id === tabId) {
-        console.log('Target tab is already active, no switch needed');
+        console.log('✅ Target tab is already active, no switch needed');
         this.isSwitchingTabs = false;
+        this._processTabSwitchQueue(); // Process next in queue
         return;
       }
 
-      console.log(`Switching from tab ${currentActiveTab?.id || 'none'} to tab ${tabId}`, {
+      console.log(`🔀 Switching from tab ${currentActiveTab?.id || 'none'} to tab ${tabId}`, {
         currentUrl: currentActiveTab?.url,
         targetUrl: targetTab.url,
         timestamp: new Date().toISOString()
@@ -456,10 +939,10 @@ class VoyagerTabManager {
         try {
           // CRITICAL FIX: Only capture state if current tab has a valid URL
           if (currentActiveTab.url && currentActiveTab.url !== '' && currentActiveTab.url !== null) {
-            console.log(`Capturing state for current tab ${currentActiveTab.id} (${currentActiveTab.url})`);
+            console.log(`💾 Capturing state for current tab ${currentActiveTab.id} (${currentActiveTab.url})`);
             await webviewStateManager.captureState(currentActiveTab.id, this.voyager.webview);
           } else {
-            console.log(`Skipping state capture for tab ${currentActiveTab.id} - invalid URL`);
+            console.log(`⏭️ Skipping state capture for tab ${currentActiveTab.id} - invalid URL`);
           }
         } catch (error) {
           console.warn('Failed to capture current tab state:', error);
@@ -479,7 +962,7 @@ class VoyagerTabManager {
           if (savedState && savedState.url && this.voyager.webview) {
             // CRITICAL FIX: Validate saved state URL before restoration
             if (savedState.url !== 'about:blank' && savedState.url !== '' && savedState.url !== null) {
-              console.log(`Restoring saved state for tab ${tabId} (${savedState.url})`);
+              console.log(`🔄 Restoring saved state for tab ${tabId} (${savedState.url})`);
               const restored = await webviewStateManager.restoreState(
                 tabId, 
                 this.voyager.webview, 
@@ -487,19 +970,19 @@ class VoyagerTabManager {
               );
               
               if (restored) {
-                console.log(`Successfully restored state for tab ${tabId}`);
+                console.log(`✅ Successfully restored state for tab ${tabId}`);
               } else {
-                console.log(`State restoration failed for tab ${tabId}, navigating normally`);
+                console.log(`⚠️ State restoration failed for tab ${tabId}, navigating normally`);
                 // Fallback to normal navigation
                 await this.safeNavigate(targetTab.url);
               }
             } else {
-              console.log(`Saved state has invalid URL for tab ${tabId}, navigating normally`);
+              console.log(`🔍 Saved state has invalid URL for tab ${tabId}, navigating normally`);
               await this.safeNavigate(targetTab.url);
             }
           } else {
             // No saved state, just navigate normally
-            console.log(`No saved state for tab ${tabId}, navigating to ${targetTab.url}`);
+            console.log(`🌐 No saved state for tab ${tabId}, navigating to ${targetTab.url}`);
             await this.safeNavigate(targetTab.url);
           }
         } catch (error) {
@@ -512,13 +995,51 @@ class VoyagerTabManager {
       // CRITICAL FIX: Extended delay to ensure navigation completes before clearing flag
       setTimeout(() => {
         this.isSwitchingTabs = false;
-        console.log(`Tab switch to ${tabId} completed at ${new Date().toISOString()}`);
+        console.log(`✅ Tab switch to ${tabId} completed at ${new Date().toISOString()}`);
+        
+        // Process next item in queue
+        this._processTabSwitchQueue();
       }, 700); // Increased delay to prevent race conditions
 
     } catch (error) {
       console.error('Error switching to tab:', error);
       this.isSwitchingTabs = false;
+      this._processTabSwitchQueue(); // Process next in queue even if error
     }
+  }
+  
+  /**
+   * Process the tab switch queue to handle queued tab switches
+   * @private
+   */
+  _processTabSwitchQueue() {
+    // Prevent concurrent queue processing
+    if (this._isProcessingQueue || this.isSwitchingTabs || this.isCleaningUp) {
+      return;
+    }
+    
+    // Check if there are items in the queue
+    if (this._tabSwitchQueue.length === 0) {
+      return;
+    }
+    
+    this._isProcessingQueue = true;
+    
+    // Process next item in queue after a short delay
+    setTimeout(() => {
+      if (this.isCleaningUp) {
+        this._isProcessingQueue = false;
+        return;
+      }
+      
+      const nextTabId = this._tabSwitchQueue.shift();
+      this._isProcessingQueue = false;
+      
+      if (nextTabId && !this.isSwitchingTabs) {
+        console.log(`🔄 Processing queued tab switch to: ${nextTabId}`);
+        this.switchToTab(nextTabId);
+      }
+    }, 800); // Wait for previous switch to complete
   }
   
   /**
@@ -542,7 +1063,7 @@ class VoyagerTabManager {
    * @param {Object} tabData - Tab data
    * @returns {Object} - Created tab
    */
-  createTab(tabData = {}) {
+  async createTab(tabData = {}) {
     if (this.isCleaningUp) return null;
     
     try {
@@ -567,7 +1088,7 @@ class VoyagerTabManager {
       const newTab = this.tabManager.addTab(newTabData);
       
       // Switch to new tab with state preservation
-      this.switchToTab(newTab.id);
+      await this.switchToTab(newTab.id);
       
       return newTab;
     } catch (error) {
@@ -698,7 +1219,7 @@ class VoyagerTabManager {
   }
   
   /**
-   * Get favicon URL from page URL
+   * Get favicon URL from page URL (fallback method)
    * @param {string} url - Page URL
    * @returns {string} - Favicon URL
    */
@@ -791,53 +1312,101 @@ class VoyagerTabManager {
     this.isCleaningUp = true;
     
     try {
-      console.log('VoyagerTabManager cleaning up...');
+      console.log('🧹 VoyagerTabManager cleaning up...');
       
-      // Stop any ongoing tab switching
+      // CIRCUIT BREAKER: Clear all ongoing operations and queues
       this.isSwitchingTabs = false;
+      this._isProcessingQueue = false;
+      this._tabSwitchQueue = [];
+      this._navigationEventCount = 0;
+      this._metadataExtractionInProgress = false;
+      this._metadataRetryAttempted = false;
+      this._refreshInProgress = false; // Clear UI refresh flag
       
-      // CRITICAL FIX: Clear navigation capture timeout
-      if (this._navigationCaptureTimeout) {
-        clearTimeout(this._navigationCaptureTimeout);
-        this._navigationCaptureTimeout = null;
+      // CRITICAL FIX: Clear all timeouts to prevent memory leaks and recursive calls
+      if (this._metadataExtractionTimeout) {
+        clearTimeout(this._metadataExtractionTimeout);
+        this._metadataExtractionTimeout = null;
+      }
+      if (this._tabSwitchTimeout) {
+        clearTimeout(this._tabSwitchTimeout);
+        this._tabSwitchTimeout = null;
+      }
+      if (this._navigationRetryTimeout) {
+        clearTimeout(this._navigationRetryTimeout);
+        this._navigationRetryTimeout = null;
       }
       
-      // Clear content processing queue
-      this.contentQueue = [];
-      this.isProcessingContent = false;
-      this.processingCount = 0;
-      
-      // Clear all event listeners safely
+      // CIRCUIT BREAKER: Clean up StyleManager circuit breaker state
       try {
-        this.eventListeners.clear();
-      } catch (error) {
-        console.warn('Error clearing event listeners:', error);
+        // Get all current tab IDs before cleanup
+        const currentTabs = this.tabManager ? this.tabManager.getAllTabs() : [];
+        currentTabs.forEach(tab => {
+          if (tab.id) {
+            StyleManager.cleanupCircuitBreakerState(tab.id);
+          }
+        });
+        
+        // Also do a complete cleanup for safety
+        StyleManager.cleanupAllCircuitBreakerState();
+        console.log('✅ StyleManager circuit breaker state cleaned up');
+      } catch (styleCleanupError) {
+        console.error('Error cleaning up StyleManager state:', styleCleanupError);
       }
       
       // Clean up webview state manager
-      try {
+      if (webviewStateManager && typeof webviewStateManager.clearAllStates === 'function') {
         webviewStateManager.clearAllStates();
-      } catch (error) {
-        console.warn('Error cleaning up webview state manager:', error);
+        console.log('✅ WebviewStateManager states cleared');
       }
       
       // Clean up tab manager
       if (this.tabManager && typeof this.tabManager.cleanup === 'function') {
-        try {
-          this.tabManager.cleanup();
-        } catch (error) {
-          console.warn('Error cleaning up tab manager:', error);
-        }
+        this.tabManager.cleanup();
+        console.log('✅ TabManager cleaned up');
       }
       
       // Clear references
-      this.voyager = null;
       this.tabManager = null;
-      this.initialized = false;
+      this.voyager = null;
       
-      console.log('VoyagerTabManager cleaned up successfully');
+      console.log('✅ VoyagerTabManager cleanup completed successfully');
     } catch (error) {
-      console.error('Error during VoyagerTabManager cleanup:', error);
+      console.error('❌ Error during VoyagerTabManager cleanup:', error);
+    } finally {
+      this.isCleaningUp = false;
+    }
+  }
+
+  /**
+   * Clean up resources for a specific tab
+   * @param {string} tabId - Tab ID to clean up
+   */
+  cleanupTab(tabId) {
+    if (!tabId) return;
+    
+    try {
+      console.log(`🧹 Cleaning up resources for tab ${tabId}`);
+      
+      // Clean up circuit breaker state
+      StyleManager.cleanupCircuitBreakerState(tabId);
+      
+      // Clean up webview state
+      if (webviewStateManager && typeof webviewStateManager.clearState === 'function') {
+        webviewStateManager.clearState(tabId);
+      }
+      
+      // Clear any pending metadata extraction for this tab
+      if (this._metadataExtractionTimeout && this._currentMetadataTabId === tabId) {
+        clearTimeout(this._metadataExtractionTimeout);
+        this._metadataExtractionTimeout = null;
+        this._currentMetadataTabId = null;
+        this._metadataExtractionInProgress = false;
+      }
+      
+      console.log(`✅ Tab ${tabId} cleanup completed`);
+    } catch (error) {
+      console.error(`❌ Error cleaning up tab ${tabId}:`, error);
     }
   }
 }

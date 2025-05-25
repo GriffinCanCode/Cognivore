@@ -136,6 +136,12 @@ function extractBasicMetadata(pageData) {
  * @returns {string} Page title
  */
 function extractTitle(metadata, pageData) {
+  // CRITICAL FIX: Prioritize actual document title from pageData (document.title)
+  // This preserves the real page title as seen in the browser
+  if (pageData && pageData.title && pageData.title !== '' && pageData.title !== 'Loading...' && pageData.title !== 'Untitled') {
+    return pageData.title;
+  }
+  
   // Try Open Graph title
   if (metadata['og:title']) {
     return metadata['og:title'];
@@ -151,7 +157,7 @@ function extractTitle(metadata, pageData) {
     return metadata['title'];
   }
   
-  // Fall back to page title
+  // Fall back to page title (last resort)
   return pageData.title || '';
 }
 
@@ -359,6 +365,12 @@ function detectLanguage(text) {
  * @returns {string} Favicon URL
  */
 function extractFavicon(metadata, pageData) {
+  // CRITICAL FIX: Prioritize favicon from pageData (extracted from DOM link elements)
+  // This preserves the actual favicon URL found in <link rel="icon"> elements
+  if (pageData && pageData.favicon && pageData.favicon !== '') {
+    return pageData.favicon;
+  }
+  
   // Check for favicon in metadata
   if (metadata['favicon']) {
     return metadata['favicon'];

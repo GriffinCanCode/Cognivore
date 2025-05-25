@@ -14,40 +14,19 @@ import TabBar from '../tabs/TabBar.js';
  * @returns {HTMLElement} Tab bar container element
  */
 export function createTabBarContainer(browser, tabManager) {
-  // Create tab bar wrapper container
+  // Create tab bar wrapper container - React will mount directly here
   const tabBarContainer = document.createElement('div');
   tabBarContainer.className = 'voyager-tab-bar-wrapper';
   
-  // Add styling for tab bar container
-  tabBarContainer.style.cssText = `
-    width: 100%;
-    background-color: var(--tab-bar-bg-color, #1e1e1e);
-    border-bottom: 1px solid var(--border-color, #444);
-    min-height: 40px;
-    display: flex;
-    align-items: center;
-    padding: 0 8px;
-    box-sizing: border-box;
-  `;
+  // Minimal styling - let CSS handle the rest
+  // Remove redundant inline styles that might conflict with CSS
   
-  // Create React container
-  const reactContainer = document.createElement('div');
-  reactContainer.className = 'voyager-tab-bar-react-container';
-  reactContainer.style.cssText = `
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-  `;
-  
-  tabBarContainer.appendChild(reactContainer);
-  
-  // Store references
+  // Store references - no need for separate React container
   browser.tabBarContainer = tabBarContainer;
-  browser.tabBarReactContainer = reactContainer;
+  browser.tabBarReactContainer = tabBarContainer; // Same container for compatibility
   
-  // Set up tab bar rendering
-  setupTabBarRendering(browser, tabManager, reactContainer);
+  // Set up tab bar rendering directly in wrapper
+  setupTabBarRendering(browser, tabManager, tabBarContainer);
   
   return tabBarContainer;
 }
@@ -206,11 +185,6 @@ function createTabBarPlaceholder(container) {
   const placeholderTab = document.createElement('div');
   placeholderTab.className = 'tab-item placeholder';
   placeholderTab.innerHTML = `<span>⏳ Initializing...</span>`;
-  placeholderTab.style.cssText = `
-    display: flex; align-items: center; height: 32px; padding: 0 10px;
-    background: rgba(100, 100, 100, 0.3); border-radius: 8px 8px 0 0;
-    margin: 4px; color: #ccc; font-size: 12px; font-style: italic;
-  `;
   
   container.appendChild(placeholderTab);
 }
@@ -234,24 +208,6 @@ function createFallbackTabBar(browser, container) {
     <span class="tab-title">New Tab</span>
     <button class="tab-close-btn" onclick="event.stopPropagation();">×</button>
   `;
-  fallbackTab.style.cssText = `
-    display: flex !important; 
-    align-items: center !important; 
-    height: 32px !important; 
-    padding: 0 10px !important; 
-    background-color: rgba(37, 99, 235, 0.25) !important; 
-    border-radius: 8px 8px 0 0 !important; 
-    margin: 4px 1px 0 !important; 
-    color: white !important; 
-    font-size: 12px !important; 
-    cursor: pointer !important;
-    border: 1px solid rgba(37, 99, 235, 0.4) !important;
-    border-bottom: none !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: relative !important;
-    z-index: 3 !important;
-  `;
   
   // Add click handler for fallback tab
   fallbackTab.addEventListener('click', () => {
@@ -267,24 +223,6 @@ function createFallbackTabBar(browser, container) {
   const fallbackNewTab = document.createElement('button');
   fallbackNewTab.className = 'new-tab-button fallback';
   fallbackNewTab.innerHTML = '+';
-  fallbackNewTab.style.cssText = `
-    display: flex !important; 
-    align-items: center !important; 
-    justify-content: center !important; 
-    width: 32px !important; 
-    height: 32px !important; 
-    margin: 4px 1px 0 !important; 
-    background-color: rgba(15, 23, 42, 0.4) !important; 
-    border-radius: 8px 8px 0 0 !important; 
-    color: white !important;
-    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    border-bottom: none !important;
-    cursor: pointer !important;
-    font-size: 16px !important;
-    font-weight: bold !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  `;
   
   // Add click handler for new tab button
   fallbackNewTab.addEventListener('click', () => {
@@ -294,13 +232,13 @@ function createFallbackTabBar(browser, container) {
     }
   });
   
-  // Add hover effects
+  // Add hover effects using classes instead of inline styles
   fallbackNewTab.addEventListener('mouseenter', () => {
-    fallbackNewTab.style.backgroundColor = 'rgba(15, 23, 42, 0.7)';
+    fallbackNewTab.classList.add('hover');
   });
   
   fallbackNewTab.addEventListener('mouseleave', () => {
-    fallbackNewTab.style.backgroundColor = 'rgba(15, 23, 42, 0.4)';
+    fallbackNewTab.classList.remove('hover');
   });
   
   container.appendChild(fallbackNewTab);

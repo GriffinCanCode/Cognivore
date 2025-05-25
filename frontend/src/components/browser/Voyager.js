@@ -2018,11 +2018,7 @@ class Voyager extends Component {
           const placeholderButton = document.createElement('div');
           placeholderButton.className = 'tab-manager-button-placeholder';
           placeholderButton.innerHTML = '⏳';
-          placeholderButton.style.cssText = `
-            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-            background: rgba(100, 100, 100, 0.3); border-radius: 4px; color: #ccc;
-            font-size: 14px; margin: 0 4px; cursor: default;
-          `;
+          // Remove inline styles - let CSS handle placeholder styling
           actionButtonsContainer.appendChild(placeholderButton);
           
           // Store reference to placeholder for later removal

@@ -1,5 +1,43 @@
 # Debug Log
 
+## 2025-01-25 - DEBUG: Comprehensive Tab Bar Layout Fix - Inline Style Conflict Resolution
+
+### Problem Analysis
+- **Issue**: Tab bar container not filling parent container width properly, rendering correctly initially then moving/repositioning
+- **Root Cause Discovery**: Multiple JavaScript files applying inline styles with `!important` declarations that override CSS
+- **Investigation Method**: 
+  - Used `grep_search` to find all inline style applications (`\.style\s*=|\\.cssText\\s*=|setAttribute.*style`)
+  - Identified major sources: StyleManager.js, BrowserLayoutManager.js, EventHandlers.js, TabBarRenderer.js, Voyager.js
+  - Added debug borders to visualize container behavior in real-time
+
+### Major Inline Style Sources Found
+1. **BrowserLayoutManager.js**: Container cssText applications (lines 30, 118, 132, 195)
+2. **TabBarRenderer.js**: Fallback/placeholder element styling 
+3. **Voyager.js**: Placeholder button styling (line 2021)
+4. **EventHandlers.js**: Document-level and container styling (lines 285, 310, 333)
+5. **StyleManager.js**: Heavy webview styling with !important (not modified - webview specific)
+
+### Solution Implementation
+- **Systematic Inline Style Removal**: Removed all tab bar related inline styles from 3 major files
+- **CSS Class Addition**: Added comprehensive CSS classes to replace all removed inline styles
+- **Container Hierarchy Fix**: Proper parent-child relationship with CSS flex layout
+- **Debug Process**: Used temporary debug borders to verify container sizing before cleanup
+
+### Technical Details
+- **Container Chain**: `browser-main-container` → `browser-header-container` → `browser-header` → `voyager-tab-bar-wrapper` → `voyager-tab-bar-container` → `voyager-tab-bar`
+- **Flex Properties**: Applied `flex: 1 1 auto`, `flex-shrink: 0`, `flex-grow: 0` strategically
+- **Width Strategy**: Used `width: 100%` on all parent containers to ensure full width inheritance
+
+### Verification Method
+- Debug borders confirmed container sizing works correctly
+- CSS-only approach prevents JavaScript timing conflicts
+- Container properly fills 646px parent width as intended
+
+### Prevention Strategy
+- All tab bar styling now handled via CSS classes only
+- No JavaScript inline style applications for tab bar components
+- Future modifications should use CSS classes, not inline styles
+
 ## 2025-01-25 - Navigation Logic Fix - Root Cause of Tab Issue
 
 ### DEBUG - Fixed formatUrl() Function Logic
@@ -75,3 +113,26 @@
 - **Root Cause Analysis**: Multiple React roots creating simultaneous DOM operations during browser initialization
 - **Solution Approach**: Eliminated competing render paths and added defensive timing delays
 - **Testing Results**: Component now initializes without React DOM conflicts
+
+## 2025-01-25 - Tab Metadata Extraction Implementation Debug
+
+### Technical Details
+- **Issue**: Tab bar showing URLs instead of page titles, incorrect favicons loading (Google favicon on Wikipedia)
+- **Root Cause Analysis**: 
+  - VoyagerTabManager was only using basic navigation events for tab titles
+  - getFaviconFromUrl() method only constructed `/favicon.ico` URLs
+  - MetadataProcessor was available but not integrated with tab system
+- **Solution Implementation**:
+  - Added `extractPageMetadata(tabId, webview)` method to VoyagerTabManager
+  - Integrated webview.executeJavaScript() to extract page content and meta tags
+  - Added comprehensive favicon detection from multiple link tag sources
+  - Enhanced handlePageNavigation() to trigger metadata extraction on webview_load events
+  - Added 1-second timeout for metadata extraction after page loads
+- **Testing Notes**: 
+  - Verified favicon extraction searches link[rel="icon"], link[rel="shortcut icon"], apple-touch-icon
+  - Added error handling for MetadataProcessor failures with fallback to basic extraction
+  - Ensured async operations don't interfere with tab switching or state capture
+- **Performance Considerations**: 
+  - Metadata extraction runs on separate timeout from state capture
+  - Graceful degradation when extraction fails
+  - Limited to essential metadata to avoid performance impact

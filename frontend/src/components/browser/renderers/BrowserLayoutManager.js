@@ -27,16 +27,8 @@ export function setupCompleteBrowserLayout(browser) {
   // Clear any existing content
   container.innerHTML = '';
   
-  // Set up container styling
-  container.style.cssText = `
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    background-color: var(--browser-bg-color, #1a1a1a);
-    color: var(--browser-text-color, #ffffff);
-    overflow: hidden;
-  `;
+  // Remove inline styles - let CSS handle container layout
+  container.className = 'browser-main-container';
   
   // Initialize or get tab manager
   const tabManager = initializeTabManager(browser);
@@ -115,26 +107,9 @@ function createBrowserHeaderContainer(browser, tabManager) {
   const headerContainer = document.createElement('div');
   headerContainer.className = 'browser-header-container';
   
-  // Add styling to ensure proper layout for all header elements
-  headerContainer.style.cssText = `
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    background-color: var(--header-bg-color, #222);
-    border-bottom: 1px solid var(--border-color, #444);
-  `;
-  
   // CRITICAL FIX: Create a browser-header element that Voyager.js expects
   const browserHeader = document.createElement('div');
   browserHeader.className = 'browser-header';
-  browserHeader.style.cssText = `
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-  `;
   
   // Create tab bar FIRST (order: 1)
   const tabBarContainer = createTabBarContainer(browser, tabManager);
@@ -193,16 +168,8 @@ function createBrowserActionToolbar(browser) {
 function createWebviewContainer(browser) {
   const webviewContainer = document.createElement('div');
   webviewContainer.className = 'browser-webview-container';
-  webviewContainer.style.cssText = `
-    position: relative !important;
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 500px !important;
-    display: flex !important;
-    flex: 1 !important;
-    overflow: hidden !important;
-    background-color: white !important;
-  `;
+  
+  // Remove inline styles - let CSS handle webview container layout
   
   return webviewContainer;
 }

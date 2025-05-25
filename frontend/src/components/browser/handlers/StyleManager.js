@@ -16,7 +16,14 @@ const styleState = {
   styleApplicationCounts: new Map(), // Count style applications by webview id
   initialStylesAppliedTimes: new Map(), // Track when initial styles were applied
   styleApplicationLocks: new Map(), // Locks to prevent concurrent style operations
-  styleOperationQueue: [] // Queue of pending style operations
+  styleOperationQueue: [], // Queue of pending style operations
+  
+  // CIRCUIT BREAKER: Add throttling and rate limiting
+  maxApplicationsPerMinute: 20, // Maximum 20 style applications per minute per webview
+  cooldownPeriod: 3000, // 3 second cooldown between style applications
+  emergencyThrottlePeriod: 10000, // 10 second emergency throttle when overloaded
+  applicationHistory: new Map(), // Track application history for rate limiting
+  isEmergencyMode: new Map() // Track if a webview is in emergency throttle mode
 };
 
 /**
@@ -347,6 +354,74 @@ function applyLoadCompleteStyling(webview) {
 }
 
 /**
+ * Check if style application should be allowed (circuit breaker)
+ * @param {string} webviewId - Webview ID
+ * @param {boolean} force - Force application even with limits
+ * @returns {boolean} - Whether style application is allowed
+ */
+function isStyleApplicationAllowed(webviewId, force = false) {
+  if (force) {
+    styleLogger.debug(`Style application forced for ${webviewId}, bypassing circuit breaker`);
+    return true;
+  }
+  
+  const now = Date.now();
+  
+  // Check if webview is in emergency throttle mode
+  const emergencyModeUntil = styleState.isEmergencyMode.get(webviewId);
+  if (emergencyModeUntil && now < emergencyModeUntil) {
+    const remainingMs = emergencyModeUntil - now;
+    styleLogger.warn(`🚨 CIRCUIT BREAKER: ${webviewId} in emergency throttle mode for ${Math.round(remainingMs/1000)}s more`);
+    return false;
+  }
+  
+  // Check basic cooldown period
+  const lastApplied = styleState.applicationTimes.get(webviewId) || 0;
+  if (now - lastApplied < styleState.cooldownPeriod) {
+    styleLogger.debug(`🔒 CIRCUIT BREAKER: ${webviewId} still in cooldown period (${now - lastApplied}ms ago)`);
+    return false;
+  }
+  
+  // Check rate limiting (applications per minute)
+  const history = styleState.applicationHistory.get(webviewId) || [];
+  const oneMinuteAgo = now - 60000;
+  
+  // Clean old entries
+  const recentApplications = history.filter(time => time > oneMinuteAgo);
+  styleState.applicationHistory.set(webviewId, recentApplications);
+  
+  if (recentApplications.length >= styleState.maxApplicationsPerMinute) {
+    styleLogger.warn(`🛑 CIRCUIT BREAKER: ${webviewId} exceeded rate limit (${recentApplications.length}/${styleState.maxApplicationsPerMinute} per minute)`);
+    
+    // Enter emergency throttle mode
+    styleState.isEmergencyMode.set(webviewId, now + styleState.emergencyThrottlePeriod);
+    return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Record style application for circuit breaker tracking
+ * @param {string} webviewId - Webview ID
+ */
+function recordStyleApplication(webviewId) {
+  const now = Date.now();
+  
+  // Update application time
+  styleState.applicationTimes.set(webviewId, now);
+  
+  // Add to history
+  const history = styleState.applicationHistory.get(webviewId) || [];
+  history.push(now);
+  styleState.applicationHistory.set(webviewId, history);
+  
+  // Update count
+  const count = styleState.styleApplicationCounts.get(webviewId) || 0;
+  styleState.styleApplicationCounts.set(webviewId, count + 1);
+}
+
+/**
  * General purpose function to apply full set of styles to a webview
  * @param {Object} browser - Browser component
  * @param {HTMLElement} webview - Webview element
@@ -360,18 +435,21 @@ function applyWebviewStyles(browser, webview, force = false) {
   
   const webviewId = webview.id || 'unknown-webview';
   
-  // Rate limiting - don't apply styles too frequently unless forced
-  const now = Date.now();
-  const lastApplied = styleState.applicationTimes.get(webviewId) || 0;
-  if (!force && (now - lastApplied < 500)) {
-    styleLogger.debug(`Skipping style application for ${webviewId} - too soon (${now - lastApplied}ms)`);
+  // CIRCUIT BREAKER: Check if style application is allowed
+  if (!isStyleApplicationAllowed(webviewId, force)) {
     return;
   }
   
   // Check if we're already applying styles to this webview
   if (styleState.styleApplicationLocks.get(webviewId)) {
     styleLogger.debug(`Style application already in progress for ${webviewId} - queueing`);
-    styleState.styleOperationQueue.push({ browser, webview, force });
+    
+    // CIRCUIT BREAKER: Limit queue size to prevent memory issues
+    if (styleState.styleOperationQueue.length < 5) {
+      styleState.styleOperationQueue.push({ browser, webview, force });
+    } else {
+      styleLogger.warn(`🛑 CIRCUIT BREAKER: Style operation queue full, dropping request for ${webviewId}`);
+    }
     return;
   }
   
@@ -379,15 +457,15 @@ function applyWebviewStyles(browser, webview, force = false) {
   styleState.styleApplicationLocks.set(webviewId, true);
   
   try {
-    styleLogger.info(`Applying full webview styles to ${webviewId}`);
+    styleLogger.info(`🎨 Applying full webview styles to ${webviewId}`);
     
-    // Update tracking
-    styleState.applicationTimes.set(webviewId, now);
+    // Record this application for circuit breaker
+    recordStyleApplication(webviewId);
+    
     const count = styleState.styleApplicationCounts.get(webviewId) || 0;
-    styleState.styleApplicationCounts.set(webviewId, count + 1);
     
-    // Log current style state for debugging
-    if (count === 0 || count % 5 === 0) {
+    // Log current style state for debugging (but less frequently)
+    if (count === 0 || count % 10 === 0) { // Reduced from every 5 to every 10
       const computedStyle = window.getComputedStyle(webview);
       styleLogger.debug(`Current computed styles for ${webviewId}:`, {
         visibility: computedStyle.visibility,
@@ -398,7 +476,8 @@ function applyWebviewStyles(browser, webview, force = false) {
         height: computedStyle.height,
         zIndex: computedStyle.zIndex,
         inDOM: document.body.contains(webview),
-        applicationCount: count + 1
+        applicationCount: count + 1,
+        isEmergencyMode: styleState.isEmergencyMode.has(webviewId)
       });
     }
     
@@ -434,20 +513,20 @@ function applyWebviewStyles(browser, webview, force = false) {
     webview.style.opacity = '1';
     webview.style.display = 'flex';
     
-    styleLogger.debug(`Styles applied to ${webviewId} - application count: ${count + 1}`);
+    styleLogger.debug(`✅ Styles applied to ${webviewId} - application count: ${count + 1}`);
   } catch (error) {
     styleLogger.error(`Error applying styles to ${webviewId}:`, error);
   } finally {
     // Release lock
     styleState.styleApplicationLocks.set(webviewId, false);
     
-    // Process any queued operations
+    // Process any queued operations (but with throttling)
     if (styleState.styleOperationQueue.length > 0) {
       const nextOperation = styleState.styleOperationQueue.shift();
       styleLogger.debug(`Processing queued style operation for ${nextOperation.webview.id || 'unknown'}`);
       setTimeout(() => {
         applyWebviewStyles(nextOperation.browser, nextOperation.webview, nextOperation.force);
-      }, 50);
+      }, 100); // Increased delay from 50ms to 100ms
     }
   }
 }
@@ -469,17 +548,25 @@ function scheduleStyleChecks(browser, webview) {
   
   const timeouts = [];
   
-  // Schedule checks at various intervals for robustness
-  const checkTimes = [100, 250, 500, 1000, 2000, 5000];
+  // CIRCUIT BREAKER: Reduced frequency and fewer checks to prevent overload
+  // Only schedule critical checks at wider intervals
+  const checkTimes = [1000, 5000, 15000]; // Reduced from [100, 250, 500, 1000, 2000, 5000]
   
   checkTimes.forEach(time => {
     const timeoutId = setTimeout(() => {
       styleLogger.debug(`Running scheduled style check at ${time}ms for ${webviewId}`);
       
       try {
+        // CIRCUIT BREAKER: Only check if we're allowed to apply styles
+        if (!isStyleApplicationAllowed(webviewId, false)) {
+          styleLogger.debug(`Style check at ${time}ms skipped - circuit breaker active for ${webviewId}`);
+          return;
+        }
+        
         // Check if styles need to be reapplied
         const computedStyle = window.getComputedStyle(webview);
         
+        // Only fix critical visibility issues
         if (computedStyle.visibility !== 'visible' || 
             computedStyle.opacity !== '1' || 
             computedStyle.display === 'none') {
@@ -490,8 +577,17 @@ function scheduleStyleChecks(browser, webview) {
             display: computedStyle.display
           });
           
-          // Fix the styling issues
-          applyWebviewStyles(browser, webview, true);
+          // CIRCUIT BREAKER: Use minimal style fixes instead of full application
+          webview.style.visibility = 'visible';
+          webview.style.opacity = '1';
+          if (computedStyle.display === 'none') {
+            webview.style.display = 'flex';
+          }
+          
+          // Record this as a style application for tracking
+          recordStyleApplication(webviewId);
+          
+          styleLogger.debug(`Applied minimal style fixes for ${webviewId}`);
         } else {
           styleLogger.debug(`Style check at ${time}ms - styles OK`);
         }
@@ -521,14 +617,33 @@ function startStyleMonitoring(webview) {
   styleLogger.info(`Starting style monitoring for ${webviewId}`);
   
   try {
+    // CIRCUIT BREAKER: Throttled mutation observer to prevent excessive operations
+    let lastMutationTime = 0;
+    const mutationThrottleDelay = 2000; // 2 second throttle between mutation handling
+    
     // Create mutation observer to watch for style changes
     const observer = new MutationObserver((mutations) => {
+      const now = Date.now();
+      
+      // CIRCUIT BREAKER: Throttle mutation handling
+      if (now - lastMutationTime < mutationThrottleDelay) {
+        styleLogger.debug(`Mutation handling throttled for ${webviewId}`);
+        return;
+      }
+      
+      // CIRCUIT BREAKER: Check if style application is allowed
+      if (!isStyleApplicationAllowed(webviewId, false)) {
+        styleLogger.debug(`Mutation handling skipped - circuit breaker active for ${webviewId}`);
+        return;
+      }
+      
       const styleChanges = mutations.filter(mutation => 
         mutation.attributeName === 'style' || 
         mutation.attributeName === 'class'
       );
       
       if (styleChanges.length > 0) {
+        lastMutationTime = now;
         styleLogger.debug(`Detected ${styleChanges.length} style changes on ${webviewId}`);
         
         // Check if styles need to be fixed
@@ -544,18 +659,23 @@ function startStyleMonitoring(webview) {
             display: computedStyle.display
           });
           
-          // Fix visibility without changing everything
+          // CIRCUIT BREAKER: Apply minimal fixes only, not full style application
           webview.style.visibility = 'visible';
           webview.style.opacity = '1';
           
           if (computedStyle.display === 'none') {
             webview.style.display = 'flex';
           }
+          
+          // Record this as a style application for tracking
+          recordStyleApplication(webviewId);
+          
+          styleLogger.debug(`Applied minimal style fixes from mutation observer for ${webviewId}`);
         }
       }
     });
     
-    // Start observing
+    // Start observing with reduced sensitivity
     observer.observe(webview, { 
       attributes: true,
       attributeFilter: ['style', 'class']
@@ -595,6 +715,55 @@ function stopStyleMonitoring(webview) {
   }
 }
 
+/**
+ * Clean up circuit breaker state for a specific webview
+ * @param {string} webviewId - Webview ID to clean up
+ */
+function cleanupCircuitBreakerState(webviewId) {
+  if (!webviewId) return;
+  
+  styleLogger.debug(`Cleaning up circuit breaker state for ${webviewId}`);
+  
+  try {
+    styleState.applicationTimes.delete(webviewId);
+    styleState.styleApplicationCounts.delete(webviewId);
+    styleState.initialStylesAppliedTimes.delete(webviewId);
+    styleState.styleApplicationLocks.delete(webviewId);
+    styleState.applicationHistory.delete(webviewId);
+    styleState.isEmergencyMode.delete(webviewId);
+    
+    // Remove any queued operations for this webview
+    styleState.styleOperationQueue = styleState.styleOperationQueue.filter(
+      op => op.webview.id !== webviewId
+    );
+    
+    styleLogger.debug(`Circuit breaker state cleaned up for ${webviewId}`);
+  } catch (error) {
+    styleLogger.error(`Error cleaning up circuit breaker state for ${webviewId}:`, error);
+  }
+}
+
+/**
+ * Clean up all circuit breaker state (for complete reset)
+ */
+function cleanupAllCircuitBreakerState() {
+  styleLogger.info('Cleaning up all circuit breaker state');
+  
+  try {
+    styleState.applicationTimes.clear();
+    styleState.styleApplicationCounts.clear();
+    styleState.initialStylesAppliedTimes.clear();
+    styleState.styleApplicationLocks.clear();
+    styleState.applicationHistory.clear();
+    styleState.isEmergencyMode.clear();
+    styleState.styleOperationQueue = [];
+    
+    styleLogger.info('All circuit breaker state cleaned up');
+  } catch (error) {
+    styleLogger.error('Error cleaning up all circuit breaker state:', error);
+  }
+}
+
 // Export functions
 export default {
   applyInitialStyles,
@@ -605,5 +774,7 @@ export default {
   startStyleMonitoring,
   stopStyleMonitoring,
   ensureApplyAllCriticalStylesMethod,
-  safeApplyStyles
+  safeApplyStyles,
+  cleanupCircuitBreakerState,
+  cleanupAllCircuitBreakerState
 }; 
