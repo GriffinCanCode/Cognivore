@@ -2,11 +2,12 @@
  * TabGroupingService.js - Handles tab content embedding generation and clustering
  * 
  * This service uses embeddings to analyze tab content similarity and create
- * meaningful clusters of related tabs. It interfaces with the LlmService to
- * generate embeddings and uses clustering algorithms to group similar tabs.
+ * meaningful clusters of related tabs. It interfaces with the LocalEmbeddingHandler
+ * to generate semantic embeddings and uses clustering algorithms to group similar tabs.
  */
 
 import LlmService from '../../../services/LlmService';
+import LocalEmbeddingHandler from '../handlers/LocalEmbeddingHandler';
 
 // Import clustering algorithms
 import { 
@@ -19,7 +20,8 @@ import {
 class TabGroupingService {
   constructor() {
     this.llmService = new LlmService();
-    this.similarityThreshold = 0.7; // Minimum similarity to consider tabs related
+    this.localEmbeddingHandler = new LocalEmbeddingHandler();
+    this.similarityThreshold = 0.6; // Adjusted for better local embeddings
     this.embeddingCache = new Map(); // Cache embeddings by URL to avoid redundant generation
     this.colorPalette = [
       '#3498db', // Blue
@@ -35,32 +37,88 @@ class TabGroupingService {
       '#27ae60', // Dark Green
       '#8e44ad', // Dark Purple
     ];
+    
+    // Semantic group names based on categories
+    this.semanticGroupNames = {
+      'news': 'News & Current Events',
+      'search': 'Search & Research',
+      'reference': 'Reference & Learning',
+      'social': 'Social Media',
+      'shopping': 'Shopping & Commerce',
+      'entertainment': 'Entertainment & Media',
+      'technology': 'Technology & Development',
+      'finance': 'Finance & Economics',
+      'education': 'Education & Learning',
+      'work': 'Work & Professional'
+    };
   }
 
   /**
-   * Generate embedding for a tab based on its content
+   * Generate embedding for a tab based on its content using local embeddings
    * @param {Object} tab - Tab object with url and extractedContent
    * @returns {Promise<Array>} - Embedding vector
    */
   async generateEmbedding(tab) {
+    console.log(`🧠 Generating local embedding for tab: ${tab.title} (${tab.url})`);
+    
     // Check if we already have this embedding cached
-    if (this.embeddingCache.has(tab.url)) {
-      return this.embeddingCache.get(tab.url);
+    const cacheKey = `local-${tab.url}`;
+    if (this.embeddingCache.has(cacheKey)) {
+      console.log(`💾 Using cached local embedding for: ${tab.url}`);
+      return this.embeddingCache.get(cacheKey);
+    }
+
+    try {
+      // Use local embedding handler for better semantic understanding
+      const embedding = await this.localEmbeddingHandler.generateEmbedding(tab);
+      
+      console.log(`✅ Generated local embedding for ${tab.title}:`, {
+        embeddingLength: embedding?.length || 0,
+        embeddingType: typeof embedding,
+        firstFewValues: embedding?.slice(0, 5)
+      });
+      
+      // Cache the embedding
+      this.embeddingCache.set(cacheKey, embedding);
+      
+      return embedding;
+    } catch (error) {
+      console.error(`❌ Error generating local embedding for ${tab.title}:`, error);
+      
+      // Fallback to LLM service if local embedding fails
+      console.log(`🔄 Falling back to LLM service for: ${tab.title}`);
+      return this.generateLLMEmbedding(tab);
+    }
+  }
+
+  /**
+   * Generate embedding using LLM service as fallback
+   * @param {Object} tab - Tab object
+   * @returns {Promise<Array>} - Embedding vector
+   */
+  async generateLLMEmbedding(tab) {
+    // Check LLM cache
+    const cacheKey = `llm-${tab.url}`;
+    if (this.embeddingCache.has(cacheKey)) {
+      console.log(`💾 Using cached LLM embedding for: ${tab.url}`);
+      return this.embeddingCache.get(cacheKey);
     }
 
     // Extract most relevant content for embedding
     const content = this.prepareContentForEmbedding(tab);
+    console.log(`📝 Prepared content for LLM embedding (${content.length} chars):`, content.substring(0, 200) + '...');
     
     try {
       // Generate embedding using LlmService
+      console.log(`🔄 Calling LlmService.getEmbedding for: ${tab.title}`);
       const embedding = await this.llmService.getEmbedding(content);
       
       // Cache the embedding
-      this.embeddingCache.set(tab.url, embedding);
+      this.embeddingCache.set(cacheKey, embedding);
       
       return embedding;
     } catch (error) {
-      console.error('Error generating embedding:', error);
+      console.error(`❌ Error generating LLM embedding for ${tab.title}:`, error);
       return null;
     }
   }
@@ -168,7 +226,7 @@ class TabGroupingService {
    */
   runDbscanClustering(tabEmbeddings, options = {}) {
     const {
-      epsilon = 0.3,
+      epsilon = 0.4, // Adjusted for local embeddings
       minPoints = 2
     } = options;
     
@@ -184,7 +242,7 @@ class TabGroupingService {
       minPoints
     );
     
-    // Process results
+    // Process results with semantic enhancement
     return this.processClusteringResults(tabs, clusterAssignments, tabEmbeddings);
   }
 
@@ -196,7 +254,7 @@ class TabGroupingService {
    */
   runKmeansClustering(tabEmbeddings, options = {}) {
     const {
-      k = Math.min(5, Math.ceil(tabEmbeddings.length / 2)) // Default: min of 5 or half the tabs
+      k = Math.min(4, Math.ceil(tabEmbeddings.length / 2)) // Reduced default clusters for better grouping
     } = options;
     
     // Extract tabs and embeddings
@@ -210,8 +268,188 @@ class TabGroupingService {
       calculateCosineSimilarity
     );
     
-    // Process results
+    // Process results with semantic enhancement
     return this.processClusteringResults(tabs, clusterAssignments, tabEmbeddings);
+  }
+
+  /**
+   * Run hybrid semantic clustering that combines category detection with embedding similarity
+   * @param {Array} tabEmbeddings - Array of [tab, embedding] pairs
+   * @param {Object} options - Clustering options
+   * @returns {Object} - Clustering result with groups and relationships
+   */
+  runSemanticClustering(tabEmbeddings, options = {}) {
+    console.log('🎯 Running semantic clustering with category detection...');
+    
+    const tabs = tabEmbeddings.map(([tab]) => tab);
+    const embeddings = tabEmbeddings.map(([_, embedding]) => embedding);
+    
+    // Step 1: Pre-categorize tabs by semantic category
+    const categoryGroups = {};
+    const uncategorizedTabs = [];
+    
+    tabs.forEach((tab, index) => {
+      const category = this.detectTabCategory(tab);
+      if (category) {
+        if (!categoryGroups[category]) {
+          categoryGroups[category] = [];
+        }
+        categoryGroups[category].push({ tab, embedding: embeddings[index], index });
+      } else {
+        uncategorizedTabs.push({ tab, embedding: embeddings[index], index });
+      }
+    });
+    
+    console.log(`📊 Semantic pre-categorization: ${Object.keys(categoryGroups).length} categories, ${uncategorizedTabs.length} uncategorized`);
+    
+    // Step 2: Within each category, use similarity clustering for sub-groups
+    const finalClusters = [];
+    let clusterIndex = 0;
+    
+    Object.entries(categoryGroups).forEach(([category, categoryTabs]) => {
+      if (categoryTabs.length === 1) {
+        // Single tab in category
+        finalClusters.push({
+          id: clusterIndex++,
+          category,
+          tabs: categoryTabs,
+          name: this.semanticGroupNames[category] || category
+        });
+      } else if (categoryTabs.length <= 3) {
+        // Small group - keep together
+        finalClusters.push({
+          id: clusterIndex++,
+          category,
+          tabs: categoryTabs,
+          name: this.semanticGroupNames[category] || category
+        });
+      } else {
+        // Large group - sub-cluster by similarity
+        const categoryEmbeddings = categoryTabs.map(item => item.embedding);
+        const subClusters = this.subClusterBySimilarity(categoryTabs, categoryEmbeddings);
+        
+        subClusters.forEach((subCluster, subIndex) => {
+          finalClusters.push({
+            id: clusterIndex++,
+            category,
+            tabs: subCluster,
+            name: subClusters.length > 1 ? 
+              `${this.semanticGroupNames[category] || category} ${subIndex + 1}` :
+              this.semanticGroupNames[category] || category
+          });
+        });
+      }
+    });
+    
+    // Step 3: Cluster uncategorized tabs by similarity
+    if (uncategorizedTabs.length > 0) {
+      const uncategorizedEmbeddings = uncategorizedTabs.map(item => item.embedding);
+      const uncategorizedClusters = this.subClusterBySimilarity(uncategorizedTabs, uncategorizedEmbeddings);
+      
+      uncategorizedClusters.forEach((cluster, index) => {
+        finalClusters.push({
+          id: clusterIndex++,
+          category: null,
+          tabs: cluster,
+          name: uncategorizedClusters.length > 1 ? `Mixed Content ${index + 1}` : 'Mixed Content'
+        });
+      });
+    }
+    
+    // Step 4: Convert to standard format
+    const clusterAssignments = new Array(tabs.length).fill(-1);
+    const groups = [];
+    
+    finalClusters.forEach((cluster, clusterIdx) => {
+      const tabIds = cluster.tabs.map(item => item.tab.id);
+      
+      // Assign cluster indices
+      cluster.tabs.forEach(item => {
+        clusterAssignments[item.index] = clusterIdx;
+      });
+      
+      groups.push({
+        id: `semantic-${cluster.id}`,
+        name: cluster.name,
+        category: cluster.category,
+        color: this.colorPalette[clusterIdx % this.colorPalette.length],
+        tabIds,
+        description: cluster.category ? this.getSemanticCategoryDescription(cluster.category) : 'Related content'
+      });
+    });
+    
+    // Calculate relationships
+    const relationships = this.calculateSimilarityMatrix(tabEmbeddings);
+    
+    console.log(`✅ Semantic clustering completed: ${groups.length} groups created`);
+    return { groups, relationships };
+  }
+
+  /**
+   * Detect semantic category for a single tab
+   * @param {Object} tab - Tab object
+   * @returns {string|null} - Detected category or null
+   */
+  detectTabCategory(tab) {
+    try {
+      return this.localEmbeddingHandler.detectSemanticCategory(tab)?.name || null;
+    } catch (error) {
+      console.warn(`Failed to detect category for tab ${tab.title}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Sub-cluster tabs within a category by similarity
+   * @param {Array} categoryTabs - Tabs in the same category
+   * @param {Array} embeddings - Corresponding embeddings
+   * @returns {Array} - Array of sub-clusters
+   */
+  subClusterBySimilarity(categoryTabs, embeddings) {
+    if (categoryTabs.length <= 2) {
+      return [categoryTabs];
+    }
+    
+    // Use DBSCAN with relaxed parameters for sub-clustering
+    const subClusterAssignments = dbscanClustering(
+      embeddings,
+      calculateCosineSimilarity,
+      0.3, // More relaxed epsilon for sub-clustering
+      2    // Minimum 2 points for sub-cluster
+    );
+    
+    // Group by cluster assignment
+    const subClusters = {};
+    const noise = [];
+    
+    subClusterAssignments.forEach((clusterId, index) => {
+      if (clusterId === -1) {
+        noise.push(categoryTabs[index]);
+      } else {
+        if (!subClusters[clusterId]) {
+          subClusters[clusterId] = [];
+        }
+        subClusters[clusterId].push(categoryTabs[index]);
+      }
+    });
+    
+    // Convert to array and add noise as separate clusters if significant
+    const result = Object.values(subClusters);
+    
+    if (noise.length > 0) {
+      if (noise.length === 1 && result.length > 0) {
+        // Single noise item - add to largest cluster
+        const largestCluster = result.reduce((max, cluster) => 
+          cluster.length > max.length ? cluster : max
+        );
+        largestCluster.push(noise[0]);
+      } else {
+        // Multiple noise items or no other clusters - create separate cluster
+        result.push(noise);
+      }
+    }
+    
+    return result.length > 0 ? result : [categoryTabs];
   }
 
   /**
@@ -234,13 +472,29 @@ class TabGroupingService {
       clusters[clusterId].push(tabs[i].id);
     });
     
-    // Create groups from clusters
-    const groups = Object.entries(clusters).map(([clusterId, tabIds], index) => ({
-      id: `cluster-${clusterId}`,
-      name: `Group ${parseInt(clusterId) + 1}`,
-      color: this.colorPalette[index % this.colorPalette.length],
-      tabIds
-    }));
+    // Create groups from clusters with semantic names
+    const groups = Object.entries(clusters).map(([clusterId, tabIds], index) => {
+      // Get tabs for this cluster
+      const clusterTabs = tabIds.map(tabId => tabs.find(tab => tab.id === tabId)).filter(Boolean);
+      
+      // Detect semantic category for this cluster
+      const semanticCategory = this.detectClusterCategory(clusterTabs);
+      
+      // Generate group name
+      let groupName = `Group ${parseInt(clusterId) + 1}`;
+      if (semanticCategory) {
+        groupName = this.semanticGroupNames[semanticCategory] || semanticCategory;
+      }
+      
+      return {
+        id: `cluster-${clusterId}`,
+        name: groupName,
+        category: semanticCategory,
+        color: this.colorPalette[index % this.colorPalette.length],
+        tabIds,
+        description: semanticCategory ? this.getSemanticCategoryDescription(semanticCategory) : null
+      };
+    });
     
     // Add a "Noise" group for tabs not in any cluster
     const noiseTabIds = [];
@@ -251,11 +505,17 @@ class TabGroupingService {
     });
     
     if (noiseTabIds.length > 0) {
+      // Try to categorize noise tabs individually
+      const noiseTabs = noiseTabIds.map(tabId => tabs.find(tab => tab.id === tabId)).filter(Boolean);
+      const noiseCategory = this.detectClusterCategory(noiseTabs);
+      
       groups.push({
         id: 'noise',
-        name: 'Ungrouped',
+        name: noiseCategory ? this.semanticGroupNames[noiseCategory] || 'Mixed Content' : 'Ungrouped',
+        category: noiseCategory,
         color: '#cccccc',
-        tabIds: noiseTabIds
+        tabIds: noiseTabIds,
+        description: 'Tabs that don\'t fit into other categories'
       });
     }
     
@@ -266,6 +526,74 @@ class TabGroupingService {
   }
 
   /**
+   * Detect semantic category for a cluster of tabs
+   * @param {Array} tabs - Array of tab objects in the cluster
+   * @returns {string|null} - Detected category name or null
+   */
+  detectClusterCategory(tabs) {
+    if (!tabs || tabs.length === 0) return null;
+    
+    // Get semantic categories from local embedding handler
+    const semanticCategories = this.localEmbeddingHandler.getSemanticCategories();
+    const categoryScores = {};
+    
+    // Initialize scores
+    Object.keys(semanticCategories).forEach(category => {
+      categoryScores[category] = 0;
+    });
+    
+    // Analyze each tab in the cluster
+    tabs.forEach(tab => {
+      const textToAnalyze = [
+        tab.title || '',
+        tab.url || '',
+        tab.extractedContent?.summary || '',
+        (tab.extractedContent?.keywords || []).join(' ')
+      ].join(' ').toLowerCase();
+      
+      // Check each category
+      Object.entries(semanticCategories).forEach(([categoryName, category]) => {
+        let score = 0;
+        
+        // Count keyword matches
+        category.keywords.forEach(keyword => {
+          if (textToAnalyze.includes(keyword.toLowerCase())) {
+            score += 1;
+          }
+        });
+        
+        // Normalize score by number of keywords and add to category total
+        const normalizedScore = score / category.keywords.length;
+        categoryScores[categoryName] += normalizedScore;
+      });
+    });
+    
+    // Find the category with the highest average score
+    let bestCategory = null;
+    let bestScore = 0;
+    
+    Object.entries(categoryScores).forEach(([category, totalScore]) => {
+      const averageScore = totalScore / tabs.length;
+      if (averageScore > bestScore && averageScore > 0.1) { // Minimum threshold
+        bestScore = averageScore;
+        bestCategory = category;
+      }
+    });
+    
+    return bestCategory;
+  }
+
+  /**
+   * Get description for a semantic category
+   * @param {string} category - Category name
+   * @returns {string} - Category description
+   */
+  getSemanticCategoryDescription(category) {
+    const semanticCategories = this.localEmbeddingHandler.getSemanticCategories();
+    return semanticCategories[category]?.description || 'Related content';
+  }
+
+  /**
    * Run clustering on tabs with specified algorithm
    * @param {Array} tabs - Array of tab objects
    * @param {string} method - Clustering method: 'dbscan' or 'kmeans'
@@ -273,17 +601,45 @@ class TabGroupingService {
    * @returns {Promise<Object>} - Clustering results
    */
   async clusterTabs(tabs, method = 'dbscan', options = {}) {
+    console.log('🔬 TabGroupingService.clusterTabs called with:', {
+      tabCount: tabs.length,
+      method,
+      options,
+      tabTitles: tabs.map(t => t.title)
+    });
+    
     // Generate embeddings for tabs
+    console.log('🧠 Generating embeddings for tabs...');
     const tabEmbeddings = await this.generateEmbeddings(tabs);
+    console.log('✅ Generated embeddings:', {
+      successfulEmbeddings: tabEmbeddings.length,
+      totalTabs: tabs.length
+    });
+    
+    if (tabEmbeddings.length === 0) {
+      console.warn('❌ No embeddings generated, returning empty result');
+      return { groups: [], relationships: {} };
+    }
     
     // Run specified clustering algorithm
+    console.log(`🎯 Running ${method} clustering algorithm...`);
+    let result;
     if (method === 'dbscan') {
-      return this.runDbscanClustering(tabEmbeddings, options);
+      result = this.runDbscanClustering(tabEmbeddings, options);
     } else if (method === 'kmeans') {
-      return this.runKmeansClustering(tabEmbeddings, options);
+      result = this.runKmeansClustering(tabEmbeddings, options);
+    } else if (method === 'semantic') {
+      result = this.runSemanticClustering(tabEmbeddings, options);
     } else {
       throw new Error(`Unsupported clustering method: ${method}`);
     }
+    
+    console.log('🎉 Clustering algorithm completed:', {
+      groupsFound: result.groups?.length || 0,
+      relationshipsFound: Object.keys(result.relationships || {}).length
+    });
+    
+    return result;
   }
 
   /**

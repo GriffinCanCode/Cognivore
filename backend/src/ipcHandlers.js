@@ -801,6 +801,31 @@ function initializeIpcHandlers() {
     }
   });
 
+  // Generate local embeddings (for tab grouping)
+  safelyRegisterHandler('generate-local-embedding', async (event, params) => {
+    try {
+      logger.info('Local embedding generation requested');
+      
+      if (!params || !params.text) {
+        throw new Error('Text is required for local embedding generation');
+      }
+      
+      // Use the local embedding service
+      const { localEmbeddingService } = require('./services/localEmbedding');
+      const embedding = await localEmbeddingService.generateEmbedding(params.text);
+      
+      logger.debug('Local embedding generated successfully');
+      return { 
+        embedding: embedding,
+        dimensions: embedding.length,
+        model: 'local'
+      };
+    } catch (error) {
+      logger.error('Error generating local embedding:', error);
+      throw error; // Let the frontend handle this error
+    }
+  });
+
   // Execute tool call (from LLM)
   safelyRegisterHandler('execute-tool-call', async (event, params) => {
     try {

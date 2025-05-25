@@ -193,6 +193,35 @@ export function handleWebviewLoad(browser, e) {
     browser.extractPageContent();
   }
   
+  // CRITICAL FIX: Add content capture for tab analysis
+  // This ensures that tab content is captured for analysis even when not in research mode
+  if (browser.capturePageContent && typeof browser.capturePageContent === 'function') {
+    console.log('🎯 Starting content capture for tab analysis');
+    browser.capturePageContent().then(content => {
+      console.log('🎯 Content captured successfully:', {
+        hasContent: !!content,
+        hasTabManager: !!browser.tabManager,
+        contentKeys: content ? Object.keys(content) : [],
+        url: content?.url || 'unknown'
+      });
+      
+      if (browser.tabManager && content) {
+        console.log('📡 Emitting contentCaptured event to tab manager');
+        browser.tabManager.emitEvent('contentCaptured', content);
+        console.log('✅ contentCaptured event emitted successfully');
+      } else {
+        console.warn('❌ Cannot emit contentCaptured event:', {
+          hasTabManager: !!browser.tabManager,
+          hasContent: !!content
+        });
+      }
+    }).catch(err => {
+      console.warn('❌ Error in capturePageContent during load:', err);
+    });
+  } else {
+    console.warn('⚠️ capturePageContent method not available on browser instance');
+  }
+  
   // Set up a content transition observer to handle page navigations within the webview
   if (browser.webview && browser.webview.tagName && 
       browser.webview.tagName.toLowerCase() === 'webview' && 

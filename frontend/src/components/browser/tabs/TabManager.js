@@ -644,54 +644,140 @@ class TabManager {
 
   /**
    * Analyze tabs to generate clusters and update groups
-   * @param {string} method - Clustering method ('dbscan' or 'kmeans')
+   * @param {string} method - Clustering method ('semantic', 'dbscan', or 'kmeans')
    * @param {Object} options - Clustering options
    * @returns {Promise<Object>} - Result with groups and relationships
    */
-  async analyzeTabs(method = 'dbscan', options = {}) {
+  async analyzeTabs(method = 'semantic', options = {}) {
     try {
-      // Only analyze tabs with content
-      const tabsToAnalyze = this.tabs.filter(tab => 
-        tab.extractedContent && 
-        (tab.extractedContent.paragraphs || tab.extractedContent.summary)
-      );
+      console.log('🔍 Starting tab analysis with', this.tabs.length, 'total tabs');
+      
+      // Debug: Log all tabs and their content structure
+      this.tabs.forEach((tab, index) => {
+        console.log(`Tab ${index + 1} (${tab.id}):`, {
+          title: tab.title,
+          url: tab.url,
+          hasExtractedContent: !!tab.extractedContent,
+          extractedContentKeys: tab.extractedContent ? Object.keys(tab.extractedContent) : [],
+          hasParagraphs: !!(tab.extractedContent?.paragraphs),
+          hasSummary: !!(tab.extractedContent?.summary),
+          hasText: !!(tab.extractedContent?.text),
+          paragraphsLength: tab.extractedContent?.paragraphs?.length || 0,
+          summaryLength: tab.extractedContent?.summary?.length || 0,
+          textLength: tab.extractedContent?.text?.length || 0
+        });
+      });
+      
+      // Only analyze tabs with content - improved filtering logic
+      const tabsToAnalyze = this.tabs.filter(tab => {
+        // Check if tab has extractedContent
+        if (!tab.extractedContent) {
+          console.log(`❌ Tab ${tab.id} has no extractedContent`);
+          return false;
+        }
+        
+        // Check for any meaningful content - updated to match actual content structure
+        const hasText = tab.extractedContent.text && tab.extractedContent.text.trim().length > 20;
+        const hasHtml = tab.extractedContent.html && tab.extractedContent.html.trim().length > 50;
+        const hasTitle = tab.extractedContent.title && tab.extractedContent.title.trim().length > 0;
+        const hasHeadings = tab.extractedContent.headings && tab.extractedContent.headings.length > 0;
+        const hasLinks = tab.extractedContent.links && tab.extractedContent.links.length > 0;
+        
+        // Legacy support for old content structure
+        const hasParagraphs = tab.extractedContent.paragraphs && tab.extractedContent.paragraphs.length > 0;
+        const hasSummary = tab.extractedContent.summary && tab.extractedContent.summary.trim().length > 10;
+        
+        // Accept tab if it has any meaningful content
+        const hasContent = hasText || hasHtml || hasTitle || hasHeadings || hasLinks || hasParagraphs || hasSummary;
+        
+        if (!hasContent) {
+          console.log(`❌ Tab ${tab.id} has extractedContent but no meaningful content:`, {
+            textLength: tab.extractedContent.text?.length || 0,
+            htmlLength: tab.extractedContent.html?.length || 0,
+            titleLength: tab.extractedContent.title?.length || 0,
+            headingsCount: tab.extractedContent.headings?.length || 0,
+            linksCount: tab.extractedContent.links?.length || 0,
+            // Legacy fields
+            paragraphs: tab.extractedContent.paragraphs?.length || 0,
+            summaryLength: tab.extractedContent.summary?.length || 0
+          });
+        } else {
+          console.log(`✅ Tab ${tab.id} has analyzable content:`, {
+            textLength: tab.extractedContent.text?.length || 0,
+            htmlLength: tab.extractedContent.html?.length || 0,
+            titleLength: tab.extractedContent.title?.length || 0,
+            headingsCount: tab.extractedContent.headings?.length || 0,
+            linksCount: tab.extractedContent.links?.length || 0,
+            extractionMethod: tab.extractedContent.extractionMethod || 'unknown'
+          });
+        }
+        
+        return hasContent;
+      });
+      
+      console.log(`📊 Found ${tabsToAnalyze.length} tabs with analyzable content out of ${this.tabs.length} total tabs`);
       
       if (tabsToAnalyze.length < 2) {
-        throw new Error('Need at least 2 tabs with content to analyze');
+        const errorMsg = `Need at least 2 tabs with content to analyze. Found ${tabsToAnalyze.length} tabs with content out of ${this.tabs.length} total tabs.`;
+        console.error('❌', errorMsg);
+        
+        // Provide more helpful error information
+        if (this.tabs.length >= 2) {
+          console.log('💡 Suggestion: Make sure tabs have loaded content. Try refreshing the pages or waiting for content extraction to complete.');
+        }
+        
+        throw new Error(errorMsg);
       }
       
       // Run clustering
+      console.log('🚀 Starting clustering with method:', method, 'and options:', options);
       const clusteringResult = await this.tabGroupingService.clusterTabs(
         tabsToAnalyze, 
         method, 
         options
       );
       
+      console.log('🎯 Clustering completed! Result:', clusteringResult);
+      console.log('📊 Clustering groups found:', clusteringResult.groups?.length || 0);
+      console.log('🔗 Clustering relationships found:', Object.keys(clusteringResult.relationships || {}).length);
+      
       // Replace existing groups (except default) with new clusters
       this.groups = [this.defaultGroup];
       
       // Add new groups from clustering
-      clusteringResult.groups.forEach(group => {
-        if (group.id !== 'noise') {
-          this.groups.push(group);
+      if (clusteringResult.groups && clusteringResult.groups.length > 0) {
+        console.log('✅ Processing clustering groups...');
+        clusteringResult.groups.forEach((group, index) => {
+          console.log(`📁 Processing group ${index + 1}:`, group);
           
-          // Update tabs with new group IDs
-          group.tabIds.forEach(tabId => {
-            const tab = this.getTabById(tabId);
-            if (tab) {
-              // Remove from default group if present
-              this.defaultGroup.tabIds = this.defaultGroup.tabIds.filter(id => id !== tabId);
-              
-              // Set new group ID
-              tab.groupId = group.id;
-            }
-          });
-        }
-      });
+          if (group.id !== 'noise') {
+            this.groups.push(group);
+            console.log(`✅ Added group "${group.name}" with ${group.tabIds?.length || 0} tabs`);
+            
+            // Update tabs with new group IDs
+            group.tabIds.forEach(tabId => {
+              const tab = this.getTabById(tabId);
+              if (tab) {
+                // Remove from default group if present
+                this.defaultGroup.tabIds = this.defaultGroup.tabIds.filter(id => id !== tabId);
+                
+                // Set new group ID
+                tab.groupId = group.id;
+                console.log(`🏷️ Updated tab ${tab.title} to group ${group.name}`);
+              }
+            });
+          } else {
+            console.log(`🗂️ Found noise group with ${group.tabIds?.length || 0} tabs`);
+          }
+        });
+      } else {
+        console.warn('⚠️ No groups returned from clustering');
+      }
       
       // Handle "noise" tabs by moving them to default group
-      const noiseGroup = clusteringResult.groups.find(g => g.id === 'noise');
+      const noiseGroup = clusteringResult.groups?.find(g => g.id === 'noise');
       if (noiseGroup) {
+        console.log(`🗂️ Processing noise group with ${noiseGroup.tabIds.length} tabs`);
         noiseGroup.tabIds.forEach(tabId => {
           const tab = this.getTabById(tabId);
           if (tab) {
@@ -701,17 +787,24 @@ class TabManager {
             if (!this.defaultGroup.tabIds.includes(tabId)) {
               this.defaultGroup.tabIds.push(tabId);
             }
+            console.log(`🗂️ Moved tab ${tab.title} to default group (noise)`);
           }
         });
       }
       
       // Update tab relationships
-      Object.entries(clusteringResult.relationships).forEach(([tabId, relations]) => {
-        const tab = this.getTabById(tabId);
-        if (tab) {
-          tab.relatedTabs = relations;
-        }
-      });
+      if (clusteringResult.relationships) {
+        console.log('🔗 Updating tab relationships...');
+        Object.entries(clusteringResult.relationships).forEach(([tabId, relations]) => {
+          const tab = this.getTabById(tabId);
+          if (tab) {
+            tab.relatedTabs = relations;
+            console.log(`🔗 Updated relationships for tab ${tab.title}: ${relations.length} related tabs`);
+          }
+        });
+      }
+      
+      console.log('🏁 Final groups after clustering:', this.groups.map(g => ({ id: g.id, name: g.name, tabCount: g.tabIds?.length || 0 })));
       
       this.notifyListeners();
       return clusteringResult;

@@ -746,9 +746,26 @@ contextBridge.exposeInMainWorld('electron', {
 // Expose the APIs to the renderer process
 try {
   contextBridge.exposeInMainWorld('electronAPI', {
-    // Example: send: (channel, data) => ipcRenderer.send(channel, data),
-    // Example: invoke: (channel, data) => ipcRenderer.invoke(channel, data),
-    // Example: on: (channel, func) => ipcRenderer.on(channel, (event, ...args) => func(...args)),
+    // Core IPC communication
+    invoke: (channel, ...args) => {
+      const validChannels = [
+        'check-health', 'get-config', 'process-pdf', 'process-url', 'process-youtube',
+        'delete-item', 'list-items', 'save-browser-content', 'search',
+        'list-all-files', 'list-files-by-type', 'list-files-with-content', 'list-recent-files',
+        'get-available-tools', 'execute-tool', 'generate-summary', 'chat',
+        'generate-embeddings', 'generate-local-embedding', 'execute-tool-call', 'semantic-search',
+        'get-story-chapters', 'get-story-chapter-content', 'setup-header-bypass',
+        'settings:get', 'settings:save', 'settings:clear', 'settings:testApiKey',
+        'save-page-to-knowledge-base', 'server-fetch', 'extract-content', 'register-extract-content',
+        'check-channel-availability'
+      ];
+      
+      if (validChannels.includes(channel)) {
+        return ipcRenderer.invoke(channel, ...args);
+      }
+      
+      throw new Error(`Channel "${channel}" is not allowed for security reasons.`);
+    },
 
     // Add new methods for anthology
     getStoryChapters: () => ipcRenderer.invoke('get-story-chapters'),

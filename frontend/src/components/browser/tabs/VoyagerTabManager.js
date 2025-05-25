@@ -772,16 +772,44 @@ class VoyagerTabManager {
    * @param {Object} content - Captured page content
    */
   handleContentCapture(content) {
-    if (!content || !content.url || this.isCleaningUp) return;
+    console.log('🎯 VoyagerTabManager received contentCaptured event:', {
+      hasContent: !!content,
+      contentKeys: content ? Object.keys(content) : [],
+      url: content?.url || 'unknown',
+      isCleaningUp: this.isCleaningUp
+    });
+    
+    if (!content || !content.url || this.isCleaningUp) {
+      console.warn('❌ Ignoring content capture:', {
+        hasContent: !!content,
+        hasUrl: !!(content?.url),
+        isCleaningUp: this.isCleaningUp
+      });
+      return;
+    }
     
     try {
       const activeTab = this.tabManager.getActiveTab();
+      console.log('📋 Active tab info:', {
+        hasActiveTab: !!activeTab,
+        activeTabId: activeTab?.id,
+        activeTabUrl: activeTab?.url,
+        contentUrl: content.url,
+        urlsMatch: activeTab?.url === content.url
+      });
+      
       if (activeTab && activeTab.url === content.url) {
+        console.log('✅ URLs match, queuing content processing for tab:', activeTab.id);
         // Queue content processing instead of processing immediately
         this.queueContentProcessing(activeTab.id, content);
+      } else {
+        console.warn('⚠️ Content URL does not match active tab URL:', {
+          activeTabUrl: activeTab?.url,
+          contentUrl: content.url
+        });
       }
     } catch (error) {
-      console.error('Error handling content capture:', error);
+      console.error('❌ Error handling content capture:', error);
     }
   }
   
@@ -856,7 +884,7 @@ class VoyagerTabManager {
 
       // Update tab content only if not cleaning up
       if (!this.isCleaningUp) {
-        this.tabManager.updateTabContent(tabId, { extractedContent });
+        this.tabManager.updateTabContent(tabId, extractedContent);
       }
     } catch (error) {
       console.error('Error processing tab content:', error);

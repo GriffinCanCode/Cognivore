@@ -1067,11 +1067,25 @@ class Voyager extends Component {
     
     // Capture page content and emit event
     this.capturePageContent().then(content => {
+      console.log('🎯 Content captured successfully:', {
+        hasContent: !!content,
+        hasTabManager: !!this.tabManager,
+        contentKeys: content ? Object.keys(content) : [],
+        url: content?.url || 'unknown'
+      });
+      
       if (this.tabManager && content) {
+        console.log('📡 Emitting contentCaptured event to tab manager');
         this.tabManager.emitEvent('contentCaptured', content);
+        console.log('✅ contentCaptured event emitted successfully');
+      } else {
+        console.warn('❌ Cannot emit contentCaptured event:', {
+          hasTabManager: !!this.tabManager,
+          hasContent: !!content
+        });
       }
     }).catch(err => {
-      console.warn('Error in capturePageContent during load:', err);
+      console.warn('❌ Error in capturePageContent during load:', err);
     });
     
     // Add to browsing history using centralized HistoryService
@@ -1994,7 +2008,12 @@ class Voyager extends Component {
     // The tabManager should have been created by setupCompleteBrowserLayout
     if (!this.tabManager) {
       console.warn('Tab manager not created by layout manager, creating fallback');
-      this.tabManager = new VoyagerTabManager(this);
+      // CRITICAL FIX: Use the same initialization logic to prevent duplicates
+      this.initializeTabManager();
+    } else {
+      console.log('Using existing tab manager instance from layout manager');
+      // Ensure event listeners are set up for existing instance
+      this.setupTabManagerEventListeners();
     }
     
     // Try to find browser header for tab manager button - with enhanced fallback
@@ -3040,33 +3059,21 @@ class Voyager extends Component {
     }
 
     try {
-      // Create tab manager instance
+      // CRITICAL FIX: Check if tab manager was already created by BrowserLayoutManager
+      // This prevents multiple VoyagerTabManager instances that cause content capture issues
+      if (this.tabManager) {
+        console.log('Using existing tab manager instance from BrowserLayoutManager');
+        // Set up event listeners for the existing instance
+        this.setupTabManagerEventListeners();
+        return;
+      }
+
+      // Create tab manager instance only if none exists
+      console.log('Creating new VoyagerTabManager instance');
       this.tabManager = new VoyagerTabManager(this);
       
-      // Set up event listeners with proper cleanup tracking
-      this._tabEventListeners = [];
-      
-      // Subscribe to tab manager events with cleanup tracking
-      const tabsUpdatedHandler = (event) => {
-        const { tabs, activeTabId } = event.detail;
-        this.setState({ tabs, activeTabId });
-      };
-      
-      const tabSwitchedHandler = (event) => {
-        const { tab } = event.detail;
-        console.log('Switching to tab:', tab.title);
-        // Navigation is handled by the tab manager itself
-      };
-      
-      // Add listeners and track them for cleanup
-      this.tabManager.addEventListener('tabsUpdated', tabsUpdatedHandler);
-      this.tabManager.addEventListener('tabSwitched', tabSwitchedHandler);
-      
-      // Store references for cleanup
-      this._tabEventListeners.push(
-        { type: 'tabsUpdated', handler: tabsUpdatedHandler },
-        { type: 'tabSwitched', handler: tabSwitchedHandler }
-      );
+      // Set up event listeners
+      this.setupTabManagerEventListeners();
       
       console.log('Tab manager initialized successfully');
     } catch (error) {
@@ -3074,6 +3081,43 @@ class Voyager extends Component {
       // Create a minimal fallback
       this.tabManager = null;
     }
+  }
+
+  /**
+   * Set up tab manager event listeners (extracted for reuse)
+   */
+  setupTabManagerEventListeners() {
+    if (!this.tabManager) {
+      console.warn('Cannot set up tab manager event listeners - no tab manager instance');
+      return;
+    }
+
+    // Set up event listeners with proper cleanup tracking
+    this._tabEventListeners = this._tabEventListeners || [];
+    
+    // Subscribe to tab manager events with cleanup tracking
+    const tabsUpdatedHandler = (event) => {
+      const { tabs, activeTabId } = event.detail;
+      this.setState({ tabs, activeTabId });
+    };
+    
+    const tabSwitchedHandler = (event) => {
+      const { tab } = event.detail;
+      console.log('Switching to tab:', tab.title);
+      // Navigation is handled by the tab manager itself
+    };
+    
+    // Add listeners and track them for cleanup
+    this.tabManager.addEventListener('tabsUpdated', tabsUpdatedHandler);
+    this.tabManager.addEventListener('tabSwitched', tabSwitchedHandler);
+    
+    // Store references for cleanup
+    this._tabEventListeners.push(
+      { type: 'tabsUpdated', handler: tabsUpdatedHandler },
+      { type: 'tabSwitched', handler: tabSwitchedHandler }
+    );
+    
+    console.log('Tab manager event listeners set up successfully');
   }
 
   /**

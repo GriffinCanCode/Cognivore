@@ -52,7 +52,7 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
   const [groups, setGroups] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'graph' or 'list'
-  const [clusteringMethod, setClusteringMethod] = useState('dbscan');
+  const [clusteringMethod, setClusteringMethod] = useState('semantic');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [sortBy, setSortBy] = useState('lastAccessed'); // 'title', 'lastAccessed', 'url'
   
@@ -87,6 +87,19 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
       tabManager.removeListener(handleUpdate);
     };
   }, [tabManager]);
+  
+  // Extract relationships from tabs for graph visualization
+  const getTabRelationships = () => {
+    const relationships = {};
+    
+    tabs.forEach(tab => {
+      if (tab.relatedTabs && tab.relatedTabs.length > 0) {
+        relationships[tab.id] = tab.relatedTabs;
+      }
+    });
+    
+    return relationships;
+  };
   
   // Handle tab click
   const handleTabClick = (tabId) => {
@@ -342,6 +355,7 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
               value={clusteringMethod}
               onChange={(e) => setClusteringMethod(e.target.value)}
             >
+              <option value="semantic">Semantic Clustering</option>
               <option value="dbscan">DBSCAN Clustering</option>
               <option value="kmeans">K-Means Clustering</option>
             </select>
@@ -360,6 +374,7 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
             <TabGraph 
               tabs={tabs}
               groups={groups}
+              relationships={getTabRelationships()}
               activeTabId={activeTabId}
               onTabClick={handleTabClick}
               onGroupClick={handleGroupClick}
