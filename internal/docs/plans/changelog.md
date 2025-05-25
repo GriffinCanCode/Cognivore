@@ -1,7 +1,94 @@
 # Changelog
 
-## 2025-01-25 - UI FIX: Tab Bar Container Width Issue - COMPLETELY RESOLVED ✅
+## 2025-05-25 - UI Enhancement: Transparent Action Toolbar Buttons
 
+### Enhanced - Action Toolbar Visual Design
+- **MAJOR UI Enhancement: Transparent Action Toolbar Buttons**: Removed background containers from action toolbar buttons for cleaner, more modern appearance
+  - **Background Removal**: Eliminated grey/dark background containers from all toolbar buttons (navigation, actions, extract, research, etc.)
+  - **Transparent Default State**: Buttons now have transparent backgrounds by default, showing only icons and text
+  - **Hover State Enhancement**: Added subtle background containers that appear only on hover for better interaction feedback
+  - **Active State Preservation**: Active buttons still show background containers to indicate current state
+  - **Text Expansion Maintained**: Preserved all existing hover text expansion animations and functionality
+  - **Icon Visibility**: Enhanced icon visibility with improved filters and opacity settings
+  - **Focus State Improved**: Added subtle focus backgrounds for better accessibility
+  - **Disabled State Updated**: Disabled buttons remain transparent with reduced opacity
+
+### Technical Implementation
+- **CSS Architecture**: Updated `action-toolbar.css` with transparent button styling
+- **Hover Effects**: Maintained all existing hover animations (gap expansion, text sliding, transform effects)
+- **State Management**: Preserved active/focus/disabled state logic while removing default backgrounds
+- **Responsive Design**: Maintained all responsive breakpoints and mobile optimizations
+- **Animation Preservation**: All existing animations and transitions remain intact
+
+### Files Modified
+- `frontend/public/styles/components/action-toolbar.css` - Comprehensive button styling updates
+
+### Result
+- **Cleaner Interface**: Action toolbar has a more modern, minimal appearance without visual clutter
+- **Better Icon Focus**: Icons are more prominent without competing background containers
+- **Maintained Functionality**: All hover effects, text expansion, and state management work exactly as before
+- **Improved Accessibility**: Focus states are more visible with subtle background indicators
+- **Consistent UX**: Hover and active states provide clear interaction feedback when needed
+
+## 2025-05-25 - Tab Title and Favicon Update Fixes
+
+### Fixed
+- **CRITICAL**: Fixed tab bar not updating when navigating to different websites
+- **Tab Title Updates**: Tab titles now properly update from "New Tab" to actual page titles (e.g., "Google")
+- **Favicon Updates**: Tab favicons now properly update when navigating to different websites
+  - Enhanced favicon extraction with better URL validation and normalization
+  - Added fallback favicon detection with multiple candidate URLs
+  - Improved favicon error handling in TabBar with retry logic
+  - Added favicon validation function to test URLs before setting them
+  - Fixed CORS and loading issues with favicon display
+- **Navigation Event Flow**: Fixed webview load event handling to properly extract URL and title from webview
+- **Metadata Extraction**: Improved timing of metadata extraction with immediate title updates followed by enhanced metadata
+- **Event Handling**: Enhanced navigation event filtering to allow legitimate title/favicon updates while preventing event storms
+- **UI Refresh**: Added proper UI refresh calls after tab metadata updates to ensure tab bar reflects changes immediately
+
+### Technical Details
+- Fixed `handleWebviewLoad` in both `EventHandlers.js` and `Voyager.js` to properly extract URL and title from webview
+- Enhanced `VoyagerTabManager.handlePageNavigation` to immediately update tab titles and schedule metadata extraction
+- Added immediate title updates before full metadata extraction to improve perceived performance
+- Improved navigation event filtering to allow title updates while preventing duplicate events
+- Added proper UI refresh calls (`forceTabUIRefresh()`) after all tab metadata updates
+
+### Files Modified
+- `frontend/src/components/browser/handlers/EventHandlers.js`
+- `frontend/src/components/browser/Voyager.js`
+- `frontend/src/components/browser/tabs/VoyagerTabManager.js`
+
+## 2025-05-24 - Tab Management System Improvements
+
+## 2025-01-25 - PREMIUM UI ENHANCEMENT: Enhanced Tab Design - Modern Visual Overhaul
+
+### Enhanced - Premium Tab Bar Visual Design
+- **MAJOR UI Enhancement: Premium Tab Bar Styling**: Completely modernized tab design with premium visual effects and contemporary aesthetics
+  - **Enhanced Visual Depth**: Added sophisticated multi-layer gradients, improved backdrop filtering (24px blur, 200% saturation), and enhanced glass morphism effects
+  - **Premium Color Palette**: Upgraded to refined color scheme with enhanced blue gradients (#3b82f6, #124, 144, 255, #168, 85, 247) and improved contrast ratios
+  - **Advanced Animations**: Implemented premium micro-animations with cubic-bezier easing, enhanced hover transformations (translateY, scale, rotate), and sophisticated loading indicators
+  - **Better Visual Hierarchy**: Enhanced tab states with clearer active/hover/loading distinctions, improved typography with better font weights and shadows
+  - **Modernized Tab Elements**:
+    - **Enhanced Tab Items**: Larger tabs (220-300px width, 40px height) with premium gradients and advanced shadow systems
+    - **Premium Favicons**: Improved favicon display (20px) with enhanced hover effects (scale 1.15, 2deg rotation) and better shadow casting
+    - **Advanced Close Buttons**: Enhanced close buttons with rotation animations, improved hover states, and premium red gradients
+    - **Sophisticated Loading Spinners**: Premium loading animations with cubic-bezier easing and enhanced visual effects
+
+- **MAJOR UI Enhancement: Enhanced Tab Manager Button**: Completely redesigned tab manager button to match premium tab bar aesthetics
+  - **Premium Visual Effects**: Advanced gradient backgrounds, backdrop filtering, and sophisticated hover animations
+  - **Enhanced Notification Badge**: Improved badge design with gradient backgrounds, pulsing animations, and better visual prominence
+  - **Modern Interaction Design**: Smooth scale transformations, rotation effects on icons, and premium button states
+  - **Responsive Enhancements**: Better mobile responsiveness with adaptive sizing and improved touch targets
+
+### Technical Implementation
+- **Advanced CSS Architecture**: 
+  - Enhanced gradient systems with 4-5 color stops for premium depth
+  - Sophisticated shadow layering (multiple box-shadow declarations for depth)
+  - Improved backdrop filtering with saturation and blur combinations
+  - Advanced animation keyframes with cubic-bezier timing functions
+- **Premium Animation System**:
+  - `activeGlow` animation for enhanced active tab highlighting
+  - `premiumSpin` loading animations with advanced easing
 ### Fixed - Tab Bar Layout Issue with Sidebar Conflicts
 - **CRITICAL UI Layout Fix**: ✅ COMPLETELY RESOLVED - Tab bar now properly fills container width and responds correctly to sidebar open/close
   - **Root Cause**: Multiple issues caused the tab bar layout problems:
@@ -2159,3 +2246,44 @@
   - **Architecture**: Centralized handlers remain available for EventHandlers.js where they have proper browser context
 
 ### Refactored
+
+## 2025-01-24 - Local Embedding Model Implementation for Tab Clustering
+
+### New Features
+- **Local Embedding Service**: Implemented `LocalEmbeddingService` using node-nlp for generating embeddings locally without API calls
+  - Hybrid embedding approach combining word frequency, character n-grams, and semantic features
+  - 384-dimensional vectors with proper normalization
+  - Caching system for improved performance
+  - Fallback mechanisms for robust operation
+
+### Improvements
+- **Tab Clustering Enhancement**: Updated tab clustering to use local embeddings by default
+  - Modified `TabGroupingService` to work with local embeddings
+  - Enhanced `LlmService` with `getEmbedding()` method for frontend compatibility
+  - Backend automatically detects tab clustering content and uses local embeddings
+  - Improved error handling and fallback mechanisms
+
+### Bug Fixes
+- **Electron Compatibility**: Fixed `prompt()` function usage in `TabManagerPanel`
+  - Replaced unsupported `prompt()` calls with custom modal dialog
+  - Added `InputModal` component with proper styling
+  - Enhanced user experience with better input validation
+
+### Technical Changes
+- **Backend Services**: 
+  - New `backend/src/services/localEmbedding.js` with comprehensive local embedding generation
+  - Updated `backend/src/services/embedding.js` to support local/API hybrid approach
+  - Enhanced `backend/src/services/llm.js` with `getEmbedding()` method
+  - Modified server endpoints to use new embedding services
+
+- **Frontend Components**:
+  - Updated `frontend/src/services/LlmService.js` with `getEmbedding()` method
+  - Enhanced `frontend/src/components/browser/tabs/TabManagerPanel.js` with modal dialog
+  - Added modal styles to `frontend/public/styles/components/tabs/TabManagerPanel.css`
+
+### Performance
+- Local embeddings eliminate API dependency for tab clustering
+- Caching system reduces redundant embedding generation
+- Batch processing optimizations for multiple tabs
+
+---

@@ -12,7 +12,69 @@ import { clearNavigationTimeout } from './NavigationService.js';
  * @param {Event} e - Load event
  */
 export function handleWebviewLoad(browser, e) {
-  console.log('Webview loaded successfully:', e);
+  // CRITICAL FIX: Get the actual URL from the webview first
+  let currentUrl = null;
+  let currentTitle = null;
+  
+  // Extract URL and title from webview
+  if (browser.webview && browser.webview.tagName && 
+      browser.webview.tagName.toLowerCase() === 'webview' && 
+      typeof browser.webview.getURL === 'function') {
+    try {
+      currentUrl = browser.webview.getURL();
+      
+      // Also try to get the title
+      if (typeof browser.webview.getTitle === 'function') {
+        currentTitle = browser.webview.getTitle();
+      }
+      
+      // Get title from webContents if available
+      if (!currentTitle && browser.webview.getWebContents && typeof browser.webview.getWebContents === 'function') {
+        try {
+          const webContents = browser.webview.getWebContents();
+          if (webContents && typeof webContents.getTitle === 'function') {
+            currentTitle = webContents.getTitle();
+          }
+        } catch (titleError) {
+          console.warn('Error getting title from webContents:', titleError);
+        }
+      }
+      
+      console.log('Webview loaded successfully:', currentUrl, 'Title:', currentTitle);
+      
+      // CRITICAL FIX: Update browser state with the actual URL and title
+      if (currentUrl && currentUrl !== 'about:blank') {
+        browser.setState({ 
+          url: currentUrl, 
+          title: currentTitle || currentUrl,
+          isLoading: false 
+        });
+        
+        // Update current URL tracking
+        browser.currentUrl = currentUrl;
+        
+        // Update address bar if it exists
+        if (browser.searchInput) {
+          browser.searchInput.value = currentUrl;
+        }
+        
+        // CRITICAL FIX: Emit navigation event to tab manager with proper URL and title
+        if (browser.tabManager && !browser.tabManager.isSwitchingTabs) {
+          console.log('Emitting webview load navigation event to tab manager:', currentUrl, currentTitle);
+          browser.tabManager.emitEvent('navigation', {
+            url: currentUrl,
+            title: currentTitle || currentUrl,
+            source: 'webview_load'
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Error getting URL/title from webview:', err);
+      console.log('Webview loaded successfully: (URL extraction failed)');
+    }
+  } else {
+    console.log('Webview loaded successfully: (no webview URL method available)');
+  }
   
   // CRITICAL FIX: Clear navigation timeout to prevent timeout message
   clearNavigationTimeout(browser, 'handleWebviewLoad');
@@ -45,9 +107,8 @@ export function handleWebviewLoad(browser, e) {
 
   // Apply specialized fixes for Google with enhanced reliability
   if (browser.webview && 
-      browser.state && 
-      browser.state.url && 
-      browser.state.url.includes('google.com') && 
+      currentUrl && 
+      currentUrl.includes('google.com') && 
       typeof browser.webview.executeJavaScript === 'function') {
     try {
       // First ensure webview is fully visible regardless of load state
@@ -130,22 +191,6 @@ export function handleWebviewLoad(browser, e) {
   // If research mode is enabled, extract content
   if (browser.researchMode) {
     browser.extractPageContent();
-  }
-  
-  // Update the URL in the search input if needed
-  // For webview in Electron, get the URL from the webview
-  if (browser.webview && browser.webview.tagName && 
-      browser.webview.tagName.toLowerCase() === 'webview' && 
-      typeof browser.webview.getURL === 'function') {
-    try {
-      const currentUrl = browser.webview.getURL();
-      if (currentUrl && currentUrl !== 'about:blank' && browser.searchInput) {
-        browser.currentUrl = currentUrl;
-        browser.searchInput.value = currentUrl;
-      }
-    } catch (err) {
-      console.warn('Error getting URL from webview:', err);
-    }
   }
   
   // Set up a content transition observer to handle page navigations within the webview

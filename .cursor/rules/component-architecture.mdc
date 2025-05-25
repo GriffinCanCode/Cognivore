@@ -1,0 +1,41 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Component Architecture
+
+## React Component Patterns for Cognivore
+
+Follow these patterns when creating or modifying React components in the Electron environment.
+
+## Component Structure
+- **Service Components**: Components that interface with Electron APIs or backend services should be in `src/components/` subdirectories
+- **UI Components**: Pure UI components should be in `src/components/ui/`
+- **Browser Components**: Browser-related components follow the pattern in `src/components/browser/`
+
+## Key Patterns
+- **Electron Integration**: Use `window.api` or `window.electron` for IPC communication, never direct require() of electron modules in renderer
+- **Event Handling**: Components should emit events up and receive props down, following React patterns
+- **State Management**: Use React hooks for local state, emit events for cross-component communication
+- **Error Boundaries**: Wrap complex components with error boundaries for graceful failure
+
+## File Organization
+```
+components/
+├── browser/          # Browser-specific functionality
+│   ├── handlers/     # Event handlers
+│   ├── renderers/    # Rendering logic
+│   ├── tabs/         # Tab management
+│   └── utils/        # Browser utilities
+├── chat/             # Chat components
+├── ui/               # Pure UI components
+└── tools/            # Tool-related components
+```
+
+## Integration Guidelines
+- Components that use webviews should implement proper cleanup in useEffect return functions
+- IPC communication should be wrapped in try/catch blocks with proper error handling
+- Components should gracefully handle Electron API unavailability for testing environments
+
+Reference [backend-communication.mdc](mdc:.cursor/rules/backend-communication.mdc) for IPC patterns.

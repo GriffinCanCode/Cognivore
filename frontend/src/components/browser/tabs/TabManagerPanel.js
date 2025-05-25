@@ -8,6 +8,45 @@
 import React, { useState, useEffect } from 'react';
 import TabGraph from './TabGraph';
 
+// Simple modal dialog component for text input
+const InputModal = ({ isOpen, title, placeholder, defaultValue, onConfirm, onCancel }) => {
+  const [value, setValue] = useState(defaultValue || '');
+  
+  useEffect(() => {
+    setValue(defaultValue || '');
+  }, [defaultValue, isOpen]);
+  
+  if (!isOpen) return null;
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (value.trim()) {
+      onConfirm(value.trim());
+    }
+  };
+  
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+        <h3>{title}</h3>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            autoFocus
+          />
+          <div className="modal-actions">
+            <button type="button" onClick={onCancel}>Cancel</button>
+            <button type="submit" disabled={!value.trim()}>OK</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
   const [tabs, setTabs] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -16,6 +55,15 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
   const [clusteringMethod, setClusteringMethod] = useState('dbscan');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [sortBy, setSortBy] = useState('lastAccessed'); // 'title', 'lastAccessed', 'url'
+  
+  // Modal state
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: '',
+    placeholder: '',
+    defaultValue: '',
+    onConfirm: null
+  });
   
   // Listen for tab manager updates
   useEffect(() => {
@@ -79,10 +127,18 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
   
   // Create a new group
   const handleCreateGroup = () => {
-    const name = prompt('Enter group name:');
-    if (name && tabManager) {
-      tabManager.createGroup(name);
-    }
+    setModalState({
+      isOpen: true,
+      title: 'Create New Group',
+      placeholder: 'Enter group name...',
+      defaultValue: '',
+      onConfirm: (name) => {
+        if (tabManager) {
+          tabManager.createGroup(name);
+        }
+        setModalState({ ...modalState, isOpen: false });
+      }
+    });
   };
   
   // Rename a group
@@ -90,10 +146,23 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
     
-    const newName = prompt('Enter new group name:', group.name);
-    if (newName && tabManager) {
-      tabManager.renameGroup(groupId, newName);
-    }
+    setModalState({
+      isOpen: true,
+      title: 'Rename Group',
+      placeholder: 'Enter new group name...',
+      defaultValue: group.name,
+      onConfirm: (newName) => {
+        if (tabManager) {
+          tabManager.renameGroup(groupId, newName);
+        }
+        setModalState({ ...modalState, isOpen: false });
+      }
+    });
+  };
+  
+  // Close modal
+  const handleCloseModal = () => {
+    setModalState({ ...modalState, isOpen: false });
   };
   
   // Delete a group
@@ -300,6 +369,16 @@ const TabManagerPanel = ({ tabManager, onTabClick, onClose }) => {
           )}
         </div>
       </div>
+      
+      {/* Input Modal */}
+      <InputModal
+        isOpen={modalState.isOpen}
+        title={modalState.title}
+        placeholder={modalState.placeholder}
+        defaultValue={modalState.defaultValue}
+        onConfirm={modalState.onConfirm}
+        onCancel={handleCloseModal}
+      />
     </>
   );
 };

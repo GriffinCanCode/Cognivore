@@ -308,15 +308,14 @@ const llmController = {
         return res.status(400).json({ message: 'Text is required' });
       }
       
-      const embeddingModel = genAI.getGenerativeModel({
-        model: model || EMBEDDING_MODEL
-      });
-      
-      const result = await embeddingModel.embedContent(text);
-      const embedding = result.embedding.values;
+      // Use the LLM service which now supports local embeddings for tab clustering
+      const llmService = require('./src/services/llm');
+      const result = await llmService.generateEmbeddings(text, model);
       
       return res.json({
-        embedding
+        embedding: result.embedding,
+        dimensions: result.dimensions,
+        model: result.model
       });
     } catch (error) {
       console.error('Error generating embeddings:', error);

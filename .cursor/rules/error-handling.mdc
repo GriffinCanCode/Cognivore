@@ -1,0 +1,64 @@
+---
+description: Errors universally
+globs: 
+alwaysApply: false
+---
+# Error Handling
+
+## Standardized Error Handling for Cognivore
+
+## Error Categories
+- **IPC Errors**: Communication failures between main and renderer processes
+- **Webview Errors**: Browser component errors and navigation failures  
+- **Backend API Errors**: Communication with backend services
+- **Tool Execution Errors**: Tool system failures
+- **State Management Errors**: Tab state preservation and restoration failures
+
+## Error Handling Patterns
+
+### IPC Communication
+```javascript
+try {
+  const result = await window.api.someMethod(params);
+  return { success: true, data: result };
+} catch (error) {
+  console.error('IPC call failed:', error);
+  // Fallback to HTTP if available
+  return { success: false, error: error.message };
+}
+```
+
+### Webview Operations
+```javascript
+// Always wrap webview operations with try/catch
+try {
+  await webview.executeJavaScript(script);
+} catch (error) {
+  console.error('Webview script execution failed:', error);
+  // Implement graceful degradation
+}
+```
+
+### Tool Execution
+- Always return standardized error objects: `{ success: false, error: message }`
+- Include tool name and parameters in error context
+- Implement fallback mechanisms where possible
+- Log errors with appropriate severity levels
+
+### Circuit Breaker Pattern
+For components prone to rapid failures (like StyleManager), implement circuit breaker logic:
+- Rate limiting to prevent excessive operations
+- Cooldown periods between failures
+- Emergency throttle modes for repeated failures
+
+## Logging Standards
+- Use emoji prefixes for quick visual parsing: 🔍 ❌ ✅ ⚠️
+- Include component name and operation context
+- Log both success and failure cases for debugging
+- Reference [memory-management.mdc](mdc:.cursor/rules/memory-management.mdc) for memory-related error handling
+
+## Error Recovery
+- Implement retry mechanisms with exponential backoff
+- Provide graceful degradation when features fail
+- Maintain application stability even when individual components fail
+- Always clean up resources in finally blocks or equivalent patterns

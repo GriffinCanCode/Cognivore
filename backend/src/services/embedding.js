@@ -11,6 +11,7 @@ const path = require('path');
 const axios = require('axios');
 const crypto = require('crypto');
 const { createContextLogger } = require('../utils/logger');
+const { localEmbeddingService } = require('./localEmbedding');
 const logger = createContextLogger('Embedding');
 
 // Ensure model cache directory exists
@@ -59,16 +60,20 @@ async function enforceRateLimit() {
 }
 
 /**
- * Generate an embedding vector for a text chunk using OpenAI's embedding API
- * 
+ * Generate an embedding vector for a text chunk
  * @param {string} text The text to generate an embedding for
+ * @param {Object} options Options for embedding generation
+ * @param {boolean} options.preferLocal Whether to prefer local embeddings over API
+ * @param {string} options.modelName Model name to use for API embeddings
  * @returns {Promise<Array<number>>} The embedding vector
  */
-async function generateEmbedding(text) {
+async function generateEmbedding(text, options = {}) {
   try {
+    const { preferLocal = false, modelName = null } = options;
+    
     // Get the model name from environment or config
-    const modelName = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
-    logger.debug(`Using embedding model: ${modelName}`);
+    const embeddingModel = modelName || process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
+    logger.debug(`Using embedding model: ${embeddingModel}`);
     
     // Preprocess text
     const processedText = text
@@ -76,7 +81,7 @@ async function generateEmbedding(text) {
       .trim();
     
     // Check for cached embedding to avoid redundant API calls
-    const cacheKey = crypto.createHash('md5').update(processedText).digest('hex');
+    const cacheKey = crypto.createHash('md5').update(processedText + (preferLocal ? '_local' : '_api')).digest('hex');
     const cachePath = path.join(config.paths.modelCache, `${cacheKey}.json`);
     
     // Try to use cached embedding first
@@ -89,16 +94,36 @@ async function generateEmbedding(text) {
         logger.warn(`Failed to use cached embedding: ${cacheError.message}`);
       }
     }
+
+    // If preferLocal is true or if this is for tab clustering, use local embeddings
+    if (preferLocal || processedText.includes('Title:') || processedText.includes('URL:')) {
+      try {
+        logger.debug('Using local embedding service for tab clustering');
+        const vector = await localEmbeddingService.generateEmbedding(processedText);
+        
+        // Cache the result
+        fs.writeFileSync(cachePath, JSON.stringify(vector));
+        
+        logger.debug(`Generated local embedding for text of length ${text.length}`, { 
+          textLength: text.length, 
+          vectorDimensions: vector.length 
+        });
+        
+        return vector;
+      } catch (localError) {
+        logger.warn('Local embedding failed, falling back to API:', localError.message);
+      }
+    }
     
-    // Make API call to get embedding
+    // Try API embedding if local is not preferred or failed
     try {
       // Use OpenAI embedding API
-      const vector = await executeWithRetry(() => getOpenAIEmbedding(processedText, modelName));
+      const vector = await executeWithRetry(() => getOpenAIEmbedding(processedText, embeddingModel));
       
       // Cache the result
       fs.writeFileSync(cachePath, JSON.stringify(vector));
       
-      logger.debug(`Generated embedding for text of length ${text.length}`, { 
+      logger.debug(`Generated API embedding for text of length ${text.length}`, { 
         textLength: text.length, 
         vectorDimensions: vector.length 
       });
@@ -111,14 +136,41 @@ async function generateEmbedding(text) {
         data: apiError.response?.data
       });
       
-      // Fall back to simple embedding if API fails
-      logger.warn('Falling back to local embedding method (not for production use)');
-      return fallbackEmbedding(processedText);
+      // Fall back to local embedding if API fails
+      logger.warn('API embedding failed, falling back to local embedding method');
+      try {
+        const vector = await localEmbeddingService.generateEmbedding(processedText);
+        
+        // Cache the result
+        fs.writeFileSync(cachePath, JSON.stringify(vector));
+        
+        return vector;
+      } catch (localFallbackError) {
+        logger.error('Local embedding fallback also failed:', localFallbackError.message);
+        // Final fallback to simple embedding
+        return fallbackEmbedding(processedText);
+      }
     }
   } catch (error) {
     logger.error('Error generating embedding', { error: error.message, stack: error.stack });
     // Return a zero vector as fallback
     return new Array(config.embeddings.dimensions).fill(0);
+  }
+}
+
+/**
+ * Generate a local embedding specifically for tab clustering
+ * @param {string} text The text to generate an embedding for
+ * @returns {Promise<Array<number>>} The embedding vector
+ */
+async function generateLocalEmbedding(text) {
+  try {
+    logger.debug('Generating local embedding for tab clustering');
+    return await localEmbeddingService.generateEmbedding(text);
+  } catch (error) {
+    logger.error('Error generating local embedding:', error);
+    // Fallback to hash-based embedding
+    return fallbackEmbedding(text);
   }
 }
 
@@ -415,6 +467,7 @@ function calculateSimilarity(a, b) {
 
 module.exports = {
   generateEmbedding,
+  generateLocalEmbedding,
   generateEmbeddings,
   generateEmbeddingsBatch,
   calculateSimilarity

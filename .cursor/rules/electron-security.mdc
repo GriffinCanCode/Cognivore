@@ -1,0 +1,78 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Electron Security
+
+## Security Guidelines for Cognivore Electron Application
+
+## Core Security Principles
+- **Context Isolation**: Always use `contextIsolation: true` in webPreferences
+- **Node Integration**: Keep `nodeIntegration: false` in renderer processes
+- **Preload Scripts**: Use preload scripts for secure API exposure, never expose Node.js APIs directly
+
+## IPC Security
+- **Channel Validation**: Validate all IPC channels in [preload.js](mdc:frontend/src/preload.js) whitelist
+- **Parameter Sanitization**: Sanitize all parameters passed through IPC channels
+- **Error Information**: Never expose sensitive error details to renderer process
+
+## Webview Security
+- **Content Isolation**: Webviews should never have access to Node.js APIs
+- **Script Injection**: Validate all scripts before injection via executeJavaScript
+- **URL Validation**: Always validate URLs before navigation to prevent malicious redirects
+
+## API Key Management
+- Store API keys in environment variables or secure storage, never in source code
+- Use the settings system for API key management with proper validation
+- Reference backend environment configuration for secure key handling
+
+## Data Security
+- **User Input Validation**: Sanitize all user inputs, especially URLs and search queries
+- **File Path Security**: Validate file paths to prevent directory traversal attacks
+- **Password Handling**: Exclude passwords from state capture in WebviewStateManager
+
+## CSP (Content Security Policy)
+- Implement proper CSP headers for all web content
+- Restrict script execution to prevent XSS attacks
+- Use nonce-based CSP for inline scripts when necessary
+
+## Security Patterns
+
+### Secure IPC Communication
+```javascript
+// In preload.js - expose only necessary methods
+contextBridge.exposeInMainWorld('api', {
+  // Whitelist specific channels
+  invoke: (channel, ...args) => {
+    const validChannels = ['check-health', 'process-pdf', /* ... */];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    throw new Error(`Channel "${channel}" is not allowed`);
+  }
+});
+```
+
+### URL Validation
+```javascript
+const isValidUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+};
+```
+
+## Security Checklist
+- [ ] All IPC channels are whitelisted in preload script
+- [ ] No Node.js APIs exposed to renderer processes
+- [ ] All user inputs are validated and sanitized
+- [ ] API keys are stored securely and not in source code
+- [ ] Webview content is properly isolated
+- [ ] File operations validate paths to prevent traversal
+- [ ] Error messages don't expose sensitive information
+- [ ] CSP is implemented for web content security

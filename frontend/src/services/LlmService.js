@@ -593,6 +593,22 @@ class LlmService {
   }
 
   /**
+   * Get embedding for text (alias for generateEmbeddings that returns just the vector)
+   * @param {string} text - The text to generate embeddings for
+   * @returns {Promise<Array>} - The embedding vector
+   */
+  async getEmbedding(text) {
+    try {
+      const result = await this.generateEmbeddings(text);
+      // Return just the embedding array for compatibility with TabGroupingService
+      return result.embedding || result;
+    } catch (error) {
+      console.error('Error in LlmService.getEmbedding:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get current memory usage information
    * Safe to use in browser environment
    * @returns {Object} - Memory usage stats or placeholder if not available

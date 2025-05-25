@@ -34,16 +34,16 @@
   align-items: center !important;
 }
 
-/* Toolbar button base styling - using cohesive browser color scheme */
+/* Toolbar button base styling - transparent with no containers */
 .browser-action-toolbar .toolbar-btn,
 .browser-action-buttons-container .toolbar-btn,
 .browser-nav-controls button.toolbar-btn {
   display: flex !important;
   align-items: center !important;
   gap: 0px !important; /* Start with no gap - will expand on hover */
-  padding: 6px 12px !important;
-  background-color: var(--browser-hover-bg, rgba(255, 255, 255, 0.1)) !important;
-  border: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.2)) !important;
+  padding: 6px 8px !important; /* Reduced padding since no background */
+  background-color: transparent !important; /* Remove background container */
+  border: none !important; /* Remove border container */
   border-radius: 6px !important;
   color: var(--browser-text-light, #f8fafc) !important;
   font-size: 13px !important;
@@ -53,17 +53,17 @@
   height: 32px !important;
   outline: none !important;
   position: relative !important;
-  overflow: hidden !important;
+  overflow: visible !important; /* Allow text to expand */
   white-space: nowrap !important;
-  min-width: 44px !important; /* Minimum width to accommodate icon and padding */
+  min-width: auto !important; /* Auto width for icon only */
 }
 
-/* Hover effects for toolbar buttons - expand to show text */
+/* Hover effects for toolbar buttons - subtle background on hover with text expansion */
 .browser-action-toolbar .toolbar-btn:hover,
 .browser-action-buttons-container .toolbar-btn:hover,
 .browser-nav-controls button.toolbar-btn:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  border-color: rgba(255, 255, 255, 0.3) !important;
+  background-color: rgba(255, 255, 255, 0.1) !important; /* Subtle background on hover */
+  border: 1px solid rgba(255, 255, 255, 0.2) !important; /* Subtle border on hover */
   transform: translateY(-1px) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
   gap: 6px !important; /* Restore gap on hover */
@@ -84,31 +84,33 @@
 .browser-action-buttons-container .toolbar-btn:focus,
 .browser-nav-controls button.toolbar-btn:focus {
   outline: none !important;
-  box-shadow: 0 0 0 2px var(--browser-accent-primary, rgba(37, 99, 235, 0.4)) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important; /* Very subtle focus background */
+  border: 1px solid var(--browser-accent-primary, rgba(37, 99, 235, 0.4)) !important;
+  box-shadow: 0 0 0 2px var(--browser-accent-primary, rgba(37, 99, 235, 0.2)) !important;
 }
 
-/* Special styling for extract button */
+/* Special styling for extract button - only show background when active */
 .browser-action-toolbar .extract-btn,
 .browser-action-buttons-container .extract-btn,
 .browser-nav-controls button.extract-btn {
-  background-color: var(--browser-active-bg, rgba(37, 99, 235, 0.3)) !important;
-  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.5)) !important;
+  background-color: transparent !important; /* Keep transparent by default */
+  border: none !important;
 }
 
 .browser-action-toolbar .extract-btn:hover,
 .browser-action-buttons-container .extract-btn:hover,
 .browser-nav-controls button.extract-btn:hover {
-  background-color: rgba(37, 99, 235, 0.4) !important;
-  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.6)) !important;
+  background-color: rgba(37, 99, 235, 0.2) !important; /* Show background on hover */
+  border: 1px solid var(--browser-accent-primary, rgba(37, 99, 235, 0.4)) !important;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
 }
 
-/* Active states for specific buttons - using cohesive color scheme */
+/* Active states for specific buttons - show background when active */
 .browser-action-toolbar .toolbar-btn.active,
 .browser-action-buttons-container .toolbar-btn.active,
 .browser-nav-controls button.toolbar-btn.active {
-  background-color: var(--browser-active-bg, rgba(37, 99, 235, 0.4)) !important;
-  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.6)) !important;
+  background-color: var(--browser-active-bg, rgba(37, 99, 235, 0.3)) !important;
+  border: 1px solid var(--browser-accent-primary, rgba(37, 99, 235, 0.5)) !important;
   color: #ffffff !important;
   gap: 6px !important; /* Show gap for active buttons */
 }
@@ -127,23 +129,23 @@
 .browser-action-buttons-container .reader-mode-btn.active,
 .browser-nav-controls button.reader-mode-btn.active {
   background-color: rgba(34, 197, 94, 0.3) !important;
-  border-color: rgba(34, 197, 94, 0.5) !important;
+  border: 1px solid rgba(34, 197, 94, 0.5) !important;
 }
 
 .browser-action-toolbar .research-btn.active,
 .browser-action-buttons-container .research-btn.active,
 .browser-nav-controls button.research-btn.active {
   background-color: rgba(168, 85, 247, 0.3) !important;
-  border-color: rgba(168, 85, 247, 0.5) !important;
+  border: 1px solid rgba(168, 85, 247, 0.5) !important;
 }
 
-/* SVG icon styling - enhanced for visibility */
+/* SVG icon styling - enhanced for visibility with larger icons */
 .browser-action-toolbar .toolbar-btn img,
 .browser-action-buttons-container .toolbar-btn img,
 .browser-nav-controls button.toolbar-btn img,
 .browser-nav-controls button img {
-  width: 14px !important;
-  height: 14px !important;
+  width: 18px !important; /* Increased from 14px */
+  height: 18px !important; /* Increased from 14px */
   flex-shrink: 0 !important;
   opacity: 1 !important;
   transition: opacity 0.2s ease, filter 0.2s ease !important;
@@ -158,20 +160,20 @@
   filter: brightness(2.2) contrast(1.6) saturate(1.7) !important;
 }
 
-/* Enhanced styling for disabled navigation buttons - keep icons visible */
+/* Enhanced styling for disabled navigation buttons - transparent with reduced opacity */
 .browser-nav-controls button.toolbar-btn:disabled,
 .browser-nav-controls button:disabled {
-  opacity: 0.5 !important;
+  opacity: 0.4 !important;
   cursor: not-allowed !important;
   pointer-events: none !important;
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background-color: transparent !important; /* Remove background container */
+  border: none !important; /* Remove border container */
 }
 
 .browser-nav-controls button.toolbar-btn:disabled img,
 .browser-nav-controls button:disabled img {
-  opacity: 0.8 !important;
-  filter: brightness(1.4) contrast(1.2) saturate(1.2) !important;
+  opacity: 0.6 !important;
+  filter: brightness(1.2) contrast(1.1) saturate(1.1) !important;
 }
 
 /* Button text styling - collapsed by default, expands on hover */
@@ -199,10 +201,12 @@
   transition: opacity 0.5s cubic-bezier(0.4, 0.0, 0.2, 1), max-width 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) !important; /* More gradual expand */
 }
 
-/* Navigation controls - keep text hidden on hover and no gap expansion */
+/* Navigation controls - keep text hidden on hover and no gap expansion, transparent background */
 .browser-nav-controls button.toolbar-btn:hover {
   gap: 0px !important; /* Keep no gap for nav controls */
-  padding-right: 12px !important; /* Standard padding */
+  padding-right: 8px !important; /* Reduced padding to match base state */
+  background-color: rgba(255, 255, 255, 0.08) !important; /* Very subtle hover background */
+  border: 1px solid rgba(255, 255, 255, 0.15) !important; /* Very subtle hover border */
 }
 
 .browser-nav-controls button.toolbar-btn:hover span {
@@ -234,8 +238,8 @@
   .browser-action-toolbar .toolbar-btn img,
   .browser-action-buttons-container .toolbar-btn img,
   .browser-nav-controls button.toolbar-btn img {
-    width: 12px !important;
-    height: 12px !important;
+    width: 16px !important; /* Increased from 12px */
+    height: 16px !important; /* Increased from 12px */
   }
 }
 

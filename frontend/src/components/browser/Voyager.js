@@ -952,20 +952,14 @@ class Voyager extends Component {
    * @param {Event} event - Load event
    */
   handleWebviewLoad(event) {
-    console.log('Webview loaded:', this.state.url);
+    // CRITICAL FIX: Get the actual URL and title from webview first
+    let currentURL = null;
+    let currentTitle = null;
     
-    // Use centralized successful page load handler for consistent timeout clearing
-    handleSuccessfulPageLoad(this, 'Voyager.handleWebviewLoad', {
-      hideDelay: 200,
-      applyStyles: true,
-      updateState: true
-    });
-    
-    // Update address bar with the actual URL from the webview
+    // Extract URL and title from webview
     try {
       if (this.webview && typeof this.webview.getURL === 'function') {
-        const currentURL = this.webview.getURL();
-        let currentTitle = this.state.title || 'Loading...';
+        currentURL = this.webview.getURL();
         
         // Try to get the actual page title
         if (this.webview.getWebContents && typeof this.webview.getWebContents === 'function') {
@@ -982,38 +976,70 @@ class Voyager extends Component {
           }
         }
         
-        if (currentURL && currentURL !== 'about:blank') {
-          // Update URL and title in state
-          this.setState({ url: currentURL, title: currentTitle });
-          
-          // Update address bar input
-          if (this.addressInput) {
-            this.addressInput.value = currentURL;
-          }
-          
-          // Update current URL tracking
-          this.currentUrl = currentURL;
-          
-          // Emit navigation event for tab manager with proper title
-          if (this.tabManager) {
-            // CRITICAL FIX: Don't emit navigation events during tab switching
-            if (this.tabManager.isSwitchingTabs) {
-              console.log(`Webview load complete during tab switch: ${currentURL} - not emitting navigation event`);
-            } else {
-              console.log(`Webview load complete, notifying tab manager: ${currentURL} - ${currentTitle}`);
-              this.tabManager.emitEvent('navigation', {
-                url: currentURL,
-                title: currentTitle,
-                source: 'webview_load'
-              });
+        // Fallback to getTitle method if available
+        if (!currentTitle && typeof this.webview.getTitle === 'function') {
+          try {
+            const webviewTitle = this.webview.getTitle();
+            if (webviewTitle && webviewTitle.trim() && webviewTitle !== 'about:blank') {
+              currentTitle = webviewTitle;
             }
+          } catch (titleError) {
+            console.warn('Error getting webview title via getTitle:', titleError);
           }
-          
-          console.log(`Address bar updated to actual URL: ${currentURL} with title: ${currentTitle}`);
         }
+        
+        console.log('Webview loaded:', currentURL, 'Title:', currentTitle);
+      } else {
+        console.log('Webview loaded:', this.state.url);
+        currentURL = this.state.url;
+        currentTitle = this.state.title;
       }
     } catch (error) {
       console.warn('Error updating address bar with actual URL:', error);
+      currentURL = this.state.url;
+      currentTitle = this.state.title;
+    }
+    
+    // Use centralized successful page load handler for consistent timeout clearing
+    handleSuccessfulPageLoad(this, 'Voyager.handleWebviewLoad', {
+      hideDelay: 200,
+      applyStyles: true,
+      updateState: true
+    });
+    
+    // CRITICAL FIX: Update state with actual URL and title from webview
+    if (currentURL && currentURL !== 'about:blank') {
+      // Update URL and title in state
+      this.setState({ 
+        url: currentURL, 
+        title: currentTitle || currentURL,
+        isLoading: false 
+      });
+      
+      // Update address bar input
+      if (this.addressInput) {
+        this.addressInput.value = currentURL;
+      }
+      
+      // Update current URL tracking
+      this.currentUrl = currentURL;
+      
+      // CRITICAL FIX: Emit navigation event for tab manager with proper title
+      if (this.tabManager) {
+        // Don't emit navigation events during tab switching
+        if (this.tabManager.isSwitchingTabs) {
+          console.log(`Webview load complete during tab switch: ${currentURL} - not emitting navigation event`);
+        } else {
+          console.log(`Webview load complete, notifying tab manager: ${currentURL} - ${currentTitle || 'No title'}`);
+          this.tabManager.emitEvent('navigation', {
+            url: currentURL,
+            title: currentTitle || currentURL,
+            source: 'webview_load'
+          });
+        }
+      }
+      
+      console.log(`Address bar updated to actual URL: ${currentURL} with title: ${currentTitle || 'No title'}`);
     }
     
     // Ensure webview is fully visible
@@ -1050,8 +1076,8 @@ class Voyager extends Component {
     
     // Add to browsing history using centralized HistoryService
     const historyRecord = HistoryService.createHistoryRecord(
-      this.state.url, 
-      this.state.title, 
+      currentURL || this.state.url, 
+      currentTitle || this.state.title, 
       new Date().toISOString()
     );
     

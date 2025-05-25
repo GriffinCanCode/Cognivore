@@ -1,0 +1,90 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Event Handling
+
+## Event Coordination Patterns for Cognivore
+
+## Event Categories and Sources
+- **Navigation Events**: User navigation, webview navigation, webview load events
+- **Tab Events**: Tab switching, creation, closure, state changes
+- **IPC Events**: Backend communication, tool execution, system events
+- **UI Events**: User interactions, component lifecycle events
+
+## Event Coordination Principles
+
+### Navigation Event Management
+- **Source Tracking**: Always track event sources (user_navigation, webview_navigation, webview_load)
+- **Timing Coordination**: Use timing-based filtering to prevent race conditions
+- **State Preservation**: Coordinate navigation events with state capture/restoration
+
+### Event Filtering and Deduplication
+```javascript
+// Prevent duplicate/conflicting events during operations
+const isOperationInProgress = () => {
+  return this._refreshInProgress || this.isSwitchingTabs || this._lastOperationTime > Date.now() - 1000;
+};
+
+if (isOperationInProgress()) {
+  console.log('Skipping event - operation in progress');
+  return;
+}
+```
+
+### Circuit Breaker for Event Handling
+- Implement rate limiting for events that can fire rapidly
+- Use cooldown periods between similar events
+- Track event frequency and implement emergency throttling
+
+## Key Event Patterns
+
+### Tab Event Coordination
+- **Tab Switching**: Suppress navigation events during tab switches
+- **State Management**: Coordinate state capture before and restoration after tab operations
+- **UI Refresh**: Use debounced UI updates to prevent excessive re-rendering
+
+### Navigation Event Sources
+```javascript
+// Always specify event source for proper coordination
+this.voyager.emit('page-navigation', {
+  url: newUrl,
+  tabId: this.activeTabId,
+  source: 'user_navigation' // or 'webview_navigation', 'webview_load'
+});
+```
+
+### Event Listener Cleanup
+- Always remove event listeners in component cleanup
+- Use WeakMap for listener references to prevent memory leaks
+- Implement proper disposal in React useEffect returns
+
+## Timing and Sequencing
+
+### Event Suppression Windows
+- Navigation events: 2-3 seconds after tab switches
+- Style operations: Implement cooldown periods between applications
+- UI updates: Use debouncing for rapid successive updates
+
+### Async Event Handling
+```javascript
+// Proper async event handling with error recovery
+async handleEvent(eventData) {
+  try {
+    await this.processEvent(eventData);
+  } catch (error) {
+    console.error('Event handling failed:', error);
+    // Implement graceful degradation
+  }
+}
+```
+
+## Best Practices
+- **Event Validation**: Always validate event data before processing
+- **Error Boundaries**: Wrap event handlers with proper error handling
+- **Performance**: Use event delegation for multiple similar elements
+- **Memory**: Clean up event listeners and avoid creating closures in hot paths
+- **Debugging**: Use descriptive event names and include context in event data
+
+Reference [performance-guidelines.mdc](mdc:.cursor/rules/performance-guidelines.mdc) for event performance optimization.

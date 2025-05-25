@@ -483,4 +483,101 @@ html body .tab-manager-panel {
   z-index: 9998 !important;
   margin: 0 !important;
   padding: 0 !important;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.modal-dialog {
+  background: var(--browser-glass-bg, rgba(15, 23, 42, 0.95));
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  max-width: 500px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.modal-dialog h3 {
+  margin: 0 0 15px 0;
+  color: var(--browser-text-light, #f8fafc);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modal-dialog input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--browser-glass-border, rgba(255, 255, 255, 0.2));
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--browser-text-light, #f8fafc);
+  font-size: 14px;
+  margin-bottom: 15px;
+  box-sizing: border-box;
+}
+
+.modal-dialog input:focus {
+  outline: none;
+  border-color: var(--browser-accent-primary, rgba(37, 99, 235, 0.6));
+  box-shadow: 0 0 0 2px var(--browser-accent-primary, rgba(37, 99, 235, 0.2));
+}
+
+.modal-dialog input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.modal-actions button {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.modal-actions button[type="button"] {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--browser-text-light, #f8fafc);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.modal-actions button[type="button"]:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.modal-actions button[type="submit"] {
+  background: var(--browser-accent-primary, rgba(37, 99, 235, 0.8));
+  color: white;
+}
+
+.modal-actions button[type="submit"]:hover:not(:disabled) {
+  background: var(--browser-accent-primary, rgba(37, 99, 235, 1));
+  transform: translateY(-1px);
+}
+
+.modal-actions button[type="submit"]:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: not-allowed;
 } 

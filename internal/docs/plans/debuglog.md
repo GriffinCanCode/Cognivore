@@ -136,3 +136,48 @@
   - Metadata extraction runs on separate timeout from state capture
   - Graceful degradation when extraction fails
   - Limited to essential metadata to avoid performance impact
+
+## 2025-01-24 - Local Embedding Implementation Debug
+
+### Issue: Tab clustering not working due to missing embedding functionality
+- **Error**: `getEmbedding` method not found in LlmService
+- **Error**: `prompt() is and will not be supported` in Electron renderer
+- **Error**: "Need at least 2 tabs with content to analyze"
+
+### Root Cause Analysis
+1. **Missing Method**: TabGroupingService calling `this.llmService.getEmbedding()` but method didn't exist
+2. **Electron Limitation**: `prompt()` function not supported in Electron renderer process
+3. **API Dependency**: Tab clustering requiring external API calls for embeddings
+
+### Solution Implemented
+1. **Local Embedding Service**: Created comprehensive local embedding generation using node-nlp
+   - Hybrid approach: word frequency + character n-grams + semantic features
+   - 384-dimensional vectors with proper normalization
+   - Built-in caching and fallback mechanisms
+
+2. **Method Compatibility**: Added `getEmbedding()` method to both frontend and backend LlmService
+   - Frontend: Returns embedding array for TabGroupingService compatibility
+   - Backend: Automatically detects tab clustering content and uses local embeddings
+
+3. **Modal Dialog**: Replaced `prompt()` with custom React modal component
+   - Proper state management and validation
+   - Consistent styling with application theme
+   - Better user experience
+
+### Technical Details
+- **Local Embedding Algorithm**: 
+  - Word frequency features (128 dims): TF-based with hash distribution
+  - Character n-gram features (128 dims): Trigram-based text representation
+  - Semantic features (128 dims): NLP sentiment + entity extraction + text stats
+  - Vector normalization for cosine similarity compatibility
+
+- **Performance Optimizations**:
+  - MD5-based caching to avoid redundant computations
+  - Batch processing support for multiple tabs
+  - Memory-efficient vector operations
+
+### Testing Notes
+- Local embeddings should work offline without API keys
+- Tab clustering should now work with 2+ tabs containing content
+- Modal dialogs should work properly in Electron environment
+- Fallback mechanisms ensure robustness

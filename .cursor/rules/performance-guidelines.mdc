@@ -1,0 +1,63 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Performance Guidelines
+
+## Performance Optimization for Cognivore
+
+## Electron-Specific Performance
+- **Memory Management**: Use [memory-management.mdc](mdc:.cursor/rules/memory-management.mdc) patterns for large document processing
+- **Process Isolation**: Keep heavy operations in the main process, UI operations in renderer
+- **IPC Optimization**: Batch IPC calls when possible, avoid frequent small messages
+
+## React Component Performance
+- **Component Memoization**: Use React.memo for components that receive frequent prop updates
+- **Event Handler Optimization**: Use useCallback for event handlers passed to child components
+- **Large Lists**: Implement virtualization for lists with >100 items
+- **State Updates**: Batch state updates and avoid unnecessary re-renders
+
+## Webview Optimization
+- **Style Application**: Apply styles in batches rather than incrementally (see [browser-webview-fix.mdc](mdc:.cursor/rules/browser-webview-fix.mdc))
+- **Script Execution**: Minimize webview.executeJavaScript calls, batch operations when possible
+- **Loading Coordination**: Use readiness flags to prevent premature visibility
+
+## Database Performance
+- **Vector Operations**: Follow [database.js.mdc](mdc:.cursor/rules/database.js.mdc) patterns for LanceDB compatibility
+- **Batch Processing**: Use memory-optimized batch processing for large datasets
+- **Search Optimization**: Implement proper filtering and pagination for search results
+
+## Critical Performance Patterns
+
+### Rate Limiting and Throttling
+```javascript
+// Implement for operations that can be called frequently
+const throttle = (func, limit) => {
+  let inThrottle;
+  return function() {
+    if (!inThrottle) {
+      func.apply(this, arguments);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  }
+};
+```
+
+### Circuit Breaker Implementation
+- Use circuit breaker patterns for components prone to rapid failures
+- Implement cooldown periods and rate limiting
+- Monitor operation frequency and implement emergency throttling
+
+## Monitoring Guidelines
+- Track memory usage during large operations
+- Monitor IPC message frequency and size
+- Use performance.mark() and performance.measure() for critical operations
+- Log performance metrics with proper context
+
+## Resource Cleanup
+- Always clean up intervals, timeouts, and event listeners
+- Dispose of heavy objects and clear references
+- Use WeakMap and WeakSet for memory-efficient caching
+- Implement proper component unmounting in React useEffect returns

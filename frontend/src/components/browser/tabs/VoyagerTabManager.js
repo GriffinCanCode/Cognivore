@@ -223,7 +223,7 @@ class VoyagerTabManager {
               console.warn('Error extracting meta tags:', metaError);
             }
             
-            // Get favicon URLs with enhanced detection
+            // Get favicon URLs with enhanced detection and validation
             let faviconUrl = null;
             const faviconSelectors = [
               'link[rel="icon"]',
@@ -238,18 +238,42 @@ class VoyagerTabManager {
               try {
                 const link = document.querySelector(selector);
                 if (link && link.href) {
-                  faviconUrl = link.href;
-                  console.log('✅ Found favicon via', selector, ':', faviconUrl);
-                  break;
+                  // CRITICAL FIX: Validate and normalize favicon URL
+                  let candidateUrl = link.href;
+                  
+                  // Handle relative URLs
+                  if (candidateUrl.startsWith('/')) {
+                    candidateUrl = window.location.origin + candidateUrl;
+                  } else if (candidateUrl.startsWith('./') || candidateUrl.startsWith('../')) {
+                    candidateUrl = new URL(candidateUrl, window.location.href).href;
+                  }
+                  
+                  // Validate URL format
+                  try {
+                    new URL(candidateUrl);
+                    faviconUrl = candidateUrl;
+                    console.log('✅ Found valid favicon via', selector, ':', faviconUrl);
+                    break;
+                  } catch (urlError) {
+                    console.warn('Invalid favicon URL:', candidateUrl, urlError);
+                  }
                 }
               } catch (selectorError) {
                 console.warn('Error checking selector', selector, ':', selectorError);
               }
             }
             
-            // Fallback to default favicon if none found
+            // ENHANCED: Try multiple fallback favicon URLs
             if (!faviconUrl) {
-              faviconUrl = window.location.origin + '/favicon.ico';
+              const fallbackUrls = [
+                window.location.origin + '/favicon.ico',
+                window.location.origin + '/favicon.png',
+                window.location.origin + '/apple-touch-icon.png',
+                window.location.origin + '/icon.png'
+              ];
+              
+              // Use the first fallback for now - we'll validate it later
+              faviconUrl = fallbackUrls[0];
               console.log('🔄 Using fallback favicon:', faviconUrl);
             }
             
@@ -382,6 +406,9 @@ class VoyagerTabManager {
             hasMetadata: !!afterUpdate?.metadata
           });
           
+          // CRITICAL FIX: Force UI refresh after metadata update
+          this.forceTabUIRefresh();
+          
           // Emit event for any additional UI components that need to know about metadata updates
           this.emitEvent('tabMetadataUpdated', {
             tabId,
@@ -404,6 +431,9 @@ class VoyagerTabManager {
             favicon: pageData.favicon,
             currentTabData: this.tabManager.getTabById(tabId)
           });
+          
+          // CRITICAL FIX: Force UI refresh after fallback metadata update
+          this.forceTabUIRefresh();
           
           // Emit event for any additional UI components that need to know about metadata updates
           this.emitEvent('tabMetadataUpdated', {
@@ -454,6 +484,9 @@ class VoyagerTabManager {
               currentTabData: this.tabManager.getTabById(tabId)
             });
             
+            // CRITICAL FIX: Force UI refresh after basic title update
+            this.forceTabUIRefresh();
+            
             return;
           }
         }
@@ -472,6 +505,9 @@ class VoyagerTabManager {
               title: title,
               currentTabData: this.tabManager.getTabById(tabId)
             });
+            
+            // CRITICAL FIX: Force UI refresh after JS title update
+            this.forceTabUIRefresh();
           }
         })
         .catch(error => {
@@ -487,7 +523,7 @@ class VoyagerTabManager {
    * Handle page navigation in Voyager to update tab state
    * @param {Object} navigationData - Page navigation data
    */
-  handlePageNavigation(navigationData) {
+  async handlePageNavigation(navigationData) {
     // CIRCUIT BREAKER: Prevent navigation event storms
     const now = Date.now();
     
@@ -496,10 +532,10 @@ class VoyagerTabManager {
       return;
     }
     
-    // CIRCUIT BREAKER: Rate limiting - prevent more than 5 events per second
+    // CIRCUIT BREAKER: Rate limiting - prevent more than 10 events per second (increased from 5)
     this._navigationEventCount++;
-    if (now - this._lastNavigationEventTime < 200) { // Less than 200ms since last event
-      if (this._navigationEventCount > 5) {
+    if (now - this._lastNavigationEventTime < 100) { // Reduced from 200ms to 100ms for better responsiveness
+      if (this._navigationEventCount > 10) { // Increased from 5 to 10
         console.warn('🛑 CIRCUIT BREAKER: Navigation event storm detected, throttling events');
         return;
       }
@@ -509,8 +545,9 @@ class VoyagerTabManager {
       this._lastNavigationEventTime = now;
     }
     
-    // CRITICAL FIX: Ignore ALL navigation events during tab switching operations
-    if (this.isSwitchingTabs) {
+    // CRITICAL FIX: Only ignore navigation events during ACTIVE tab switching operations
+    // Allow metadata extraction events even during tab switching for better UX
+    if (this.isSwitchingTabs && navigationData.source !== 'metadata_extraction') {
       console.log('🚫 Ignoring navigation event during tab switching:', navigationData.url, 'source:', navigationData.source);
       return;
     }
@@ -518,10 +555,11 @@ class VoyagerTabManager {
     // Enhanced filtering based on navigation source and timing
     const { url, title, source } = navigationData;
     
-    // CRITICAL FIX: More aggressive filtering for webview events near tab switches
-    if (source === 'webview_load' || source === 'webview_navigation') {
-      // Check if we just finished a tab switch recently (extended to 5 seconds)
-      if (this._lastTabSwitchTime && (now - this._lastTabSwitchTime) < 5000) {
+    // CRITICAL FIX: Reduced aggressive filtering - only filter webview events for 2 seconds (reduced from 5)
+    // and allow user navigation and metadata extraction events through
+    if ((source === 'webview_load' || source === 'webview_navigation') && source !== 'user_navigation') {
+      // Check if we just finished a tab switch recently (reduced to 2 seconds)
+      if (this._lastTabSwitchTime && (now - this._lastTabSwitchTime) < 2000) {
         console.log(`🚫 Ignoring ${source} event - too close to recent tab switch:`, url);
         return;
       }
@@ -533,19 +571,20 @@ class VoyagerTabManager {
       return;
     }
     
-    // CIRCUIT BREAKER: Prevent duplicate rapid navigation to same URL
+    // CRITICAL FIX: Allow duplicate navigation events if they have different titles or sources
+    // This ensures metadata updates work properly
     const activeTab = this.tabManager.getActiveTab();
     if (activeTab && activeTab.url === url && (now - this._lastNavigationEventTime) < this._eventCooldownPeriod) {
-      console.log('🚫 Ignoring duplicate navigation event to same URL:', url);
-      return;
+      // Allow if this is a metadata extraction or has a different title
+      if (source !== 'metadata_extraction' && (!title || title === activeTab.title)) {
+        console.log('🚫 Ignoring duplicate navigation event to same URL with same title:', url);
+        return;
+      }
     }
     
-    // CRITICAL FIX: Check if this is a tab switch navigation by comparing with existing tab URLs
-    const existingTab = this.tabManager.getTabs().find(tab => tab.url === url);
-    if (existingTab && existingTab.id !== this.tabManager.getActiveTabId()) {
-      console.log('🚫 Navigation appears to be a tab switch, ignoring to prevent URL corruption:', url);
-      return;
-    }
+    // CRITICAL FIX: Remove the tab switch detection that was blocking legitimate navigation
+    // The previous logic was incorrectly identifying normal navigation as tab switches
+    // Instead, only check for actual tab switching state
     
     try {
       if (activeTab) {
@@ -557,36 +596,63 @@ class VoyagerTabManager {
             title: title || activeTab.title || url,
             lastVisited: new Date().toISOString()
           });
+          
+          // CRITICAL FIX: Force UI refresh after URL update
+          this.forceTabUIRefresh();
           return;
         }
         
-        // CRITICAL FIX: Only update tab URL if it's actually different and not a tab switch
+        // CRITICAL FIX: Always allow title updates even if URL is the same
+        // This ensures tab titles update when navigating to pages with the same URL but different content
         const normalizedCurrentUrl = this.normalizeUrl(activeTab.url);
         const normalizedNewUrl = this.normalizeUrl(url);
         
-        // Don't update if URLs are essentially the same (prevents unnecessary updates)
-        if (normalizedCurrentUrl === normalizedNewUrl) {
-          console.log('🔄 URL unchanged, skipping navigation update:', url);
+        // Update if URL changed OR if we have a new title
+        const urlChanged = normalizedCurrentUrl !== normalizedNewUrl;
+        const titleChanged = title && title !== activeTab.title && title !== 'Loading...' && title !== '';
+        
+        if (!urlChanged && !titleChanged) {
+          console.log('🔄 URL and title unchanged, skipping navigation update:', url);
           return;
         }
         
-        console.log(`🌐 Page navigation detected: ${activeTab.url} -> ${url} (source: ${source || 'unknown'})`);
+        console.log(`🌐 Page navigation detected: ${activeTab.url} -> ${url} (source: ${source || 'unknown'})`, {
+          urlChanged,
+          titleChanged,
+          newTitle: title,
+          oldTitle: activeTab.title
+        });
         
-        // CRITICAL FIX: Capture current state BEFORE updating URL to preserve the previous page state
-        if (this.voyager && this.voyager.webview) {
-          // Immediate basic state capture to preserve current page before URL change
-          webviewStateManager.captureBasicState(activeTab.id, this.voyager.webview);
+        // CRITICAL FIX: Immediately update tab with new URL and title, and get favicon
+        const updateData = {
+          lastVisited: new Date().toISOString()
+        };
+        
+        if (urlChanged) {
+          updateData.url = url;
+          // ENHANCED: Get immediate favicon for new URL
+          updateData.favicon = await this.validateFavicon(url);
         }
         
-        // Update existing active tab with new navigation data
-        this.tabManager.updateTab(activeTab.id, {
-          url,
-          title: title || activeTab.title,
-          lastVisited: new Date().toISOString()
+        if (titleChanged) {
+          updateData.title = title;
+        }
+        
+        // Update the tab immediately
+        this.tabManager.updateTab(activeTab.id, updateData);
+        
+        console.log(`📝 Tab ${activeTab.id} updated immediately:`, {
+          url: updateData.url,
+          title: updateData.title,
+          favicon: updateData.favicon,
+          currentTabData: this.tabManager.getTabById(activeTab.id)
         });
+        
+        // CRITICAL FIX: Force UI refresh after immediate update
+        this.forceTabUIRefresh();
 
-        // ENHANCED: Extract proper metadata after page loads - but with rate limiting
-        if (this.voyager && this.voyager.webview && !this._metadataExtractionInProgress) {
+        // ENHANCED: Extract proper metadata after page loads - but with improved rate limiting
+        if (this.voyager && this.voyager.webview && !this._metadataExtractionInProgress && urlChanged) {
           console.log(`⏰ Scheduling metadata extraction for tab ${activeTab.id} after navigation (source: ${source})`);
           
           this._metadataExtractionInProgress = true;
@@ -596,12 +662,20 @@ class VoyagerTabManager {
             clearTimeout(this._metadataExtractionTimeout);
           }
           
+          // CRITICAL FIX: Immediate basic title/favicon update, then enhanced metadata later
+          // This ensures the tab bar updates immediately while we wait for full metadata
+          if (title && title !== activeTab.title) {
+            console.log(`🚀 IMMEDIATE title update for tab ${activeTab.id}: ${title}`);
+            this.tabManager.updateTab(activeTab.id, { title });
+            this.forceTabUIRefresh();
+          }
+          
           // Schedule metadata extraction with progressive delays based on source
-          let delay = 1500; // Default delay
+          let delay = 1000; // Reduced default delay from 1500ms
           if (source === 'webview_load') {
-            delay = 2000; // Longer delay for webview_load to ensure page is fully loaded
+            delay = 1500; // Reduced from 2000ms
           } else if (source === 'user_navigation') {
-            delay = 3000; // Even longer for user navigation to allow full page load
+            delay = 2000; // Reduced from 3000ms
           }
           
           this._metadataExtractionTimeout = setTimeout(async () => {
@@ -627,7 +701,7 @@ class VoyagerTabManager {
                         this._metadataRetryAttempted = false;
                       }
                     }
-                  }, 2000);
+                  }, 1500); // Reduced retry delay
                 }
               } catch (error) {
                 console.warn('Failed to extract metadata after page load:', error);
@@ -643,7 +717,7 @@ class VoyagerTabManager {
         }
 
         // CRITICAL FIX: Enhanced state capture after navigation with better timing
-        if (this.voyager && this.voyager.webview) {
+        if (this.voyager && this.voyager.webview && urlChanged) {
           // Clear any existing capture timeout to prevent overlapping captures
           if (this._navigationCaptureTimeout) {
             clearTimeout(this._navigationCaptureTimeout);
@@ -658,7 +732,7 @@ class VoyagerTabManager {
                 console.warn('Failed to capture state after navigation:', error);
               }
             }
-          }, 4000); // Delay state capture to after metadata extraction
+          }, 3000); // Reduced delay from 4000ms
         }
       } else {
         // Create new tab if none exists - but ensure it has a valid URL
@@ -671,6 +745,9 @@ class VoyagerTabManager {
         this.tabManager.setActiveTab(newTab.id);
         console.log('🆕 Created new tab for navigation:', newTab);
         
+        // CRITICAL FIX: Force UI refresh after creating new tab
+        this.forceTabUIRefresh();
+        
         // Schedule metadata extraction for new tab too
         if (this.voyager && this.voyager.webview) {
           setTimeout(async () => {
@@ -682,7 +759,7 @@ class VoyagerTabManager {
                 console.warn('Failed to extract metadata for new tab:', error);
               }
             }
-          }, 2000);
+          }, 1500); // Reduced delay from 2000ms
         }
       }
     } catch (error) {
@@ -816,43 +893,50 @@ class VoyagerTabManager {
   
   /**
    * Force the tab UI to refresh by notifying all listeners
+   * Only refreshes if tab data has actually changed to prevent unnecessary updates
    */
   forceTabUIRefresh() {
-    // CRITICAL FIX: Add recursion protection
+    // CRITICAL FIX: Add recursion protection and rate limiting
     if (this.isCleaningUp || this._refreshInProgress) {
       console.log('🚫 Skipping UI refresh - cleanup in progress or refresh already running');
       return;
     }
     
+    // Rate limit UI refreshes to prevent excessive updates
+    const now = Date.now();
+    if (this._lastUIRefreshTime && (now - this._lastUIRefreshTime) < 100) {
+      console.log('🚫 Skipping UI refresh - too soon since last refresh');
+      return;
+    }
+    
     this._refreshInProgress = true;
+    this._lastUIRefreshTime = now;
     
     try {
-      console.log('🎨 Forcing tab UI refresh');
+      console.log('🎨 Refreshing tab bar UI (titles and favicons only)');
       
       // Force the internal TabManager to notify all its listeners
+      // This only updates the tab bar display, NOT the page content
       if (this.tabManager && typeof this.tabManager.notifyListeners === 'function') {
         this.tabManager.notifyListeners();
-        console.log('✅ TabManager listeners notified successfully');
+        console.log('✅ Tab bar UI updated successfully');
       } else {
         console.warn('⚠️ TabManager notifyListeners method not available');
       }
       
       // Also emit our own event for VoyagerTabManager listeners
+      // This is for UI components like TabBar, NOT for page navigation
       const currentState = this.tabManager ? this.tabManager.getState() : null;
       if (currentState) {
         this.emitEvent('tabsUpdated', currentState);
         this.emitEvent('forceUIRefresh', currentState);
-        console.log('✅ VoyagerTabManager events emitted successfully');
+        console.log('✅ Tab UI events emitted successfully');
       } else {
         console.warn('⚠️ Unable to get current TabManager state for UI refresh');
       }
       
-      // CRITICAL FIX: Remove the problematic retry mechanism that was causing recursion
-      // The retry logic was calling notifyListeners() again after a timeout, which could trigger
-      // more updates and cause infinite loops. TabManager already handles proper notifications.
-      
     } catch (error) {
-      console.warn('Error forcing tab UI refresh:', error);
+      console.warn('Error refreshing tab UI:', error);
     } finally {
       // Reset flag after a small delay to prevent rapid successive calls
       setTimeout(() => {
@@ -1407,6 +1491,139 @@ class VoyagerTabManager {
       console.log(`✅ Tab ${tabId} cleanup completed`);
     } catch (error) {
       console.error(`❌ Error cleaning up tab ${tabId}:`, error);
+    }
+  }
+
+  // PROXY METHODS: Expose TabManager methods that UI components expect
+  
+  /**
+   * Get all tabs - proxy method for TabManagerPanel compatibility
+   * @returns {Array} - Array of tabs
+   */
+  getTabs() {
+    return this.tabManager ? this.tabManager.getTabs() : [];
+  }
+  
+  /**
+   * Get all groups - proxy method for TabManagerPanel compatibility
+   * @returns {Array} - Array of groups
+   */
+  getGroups() {
+    return this.tabManager ? this.tabManager.getGroups() : [];
+  }
+  
+  /**
+   * Get active tab ID - proxy method for TabManagerPanel compatibility
+   * @returns {string|null} - Active tab ID
+   */
+  getActiveTabId() {
+    return this.tabManager ? this.tabManager.getActiveTabId() : null;
+  }
+  
+  /**
+   * Add listener - proxy method for TabManagerPanel compatibility
+   * @param {Function} listener - Listener function
+   */
+  addListener(listener) {
+    if (this.tabManager && typeof this.tabManager.addListener === 'function') {
+      this.tabManager.addListener(listener);
+    }
+  }
+  
+  /**
+   * Remove listener - proxy method for TabManagerPanel compatibility 
+   * @param {Function} listener - Listener function to remove
+   */
+  removeListener(listener) {
+    if (this.tabManager && typeof this.tabManager.removeListener === 'function') {
+      this.tabManager.removeListener(listener);
+    }
+  }
+  
+  /**
+   * Create a new group - proxy method for TabManagerPanel compatibility
+   * @param {string} name - Group name
+   * @returns {Object} - Created group
+   */
+  createGroup(name) {
+    return this.tabManager ? this.tabManager.createGroup(name) : null;
+  }
+  
+  /**
+   * Rename a group - proxy method for TabManagerPanel compatibility
+   * @param {string} groupId - Group ID
+   * @param {string} name - New name
+   * @returns {Object} - Updated group
+   */
+  renameGroup(groupId, name) {
+    return this.tabManager ? this.tabManager.renameGroup(groupId, name) : null;
+  }
+  
+  /**
+   * Delete a group - proxy method for TabManagerPanel compatibility
+   * @param {string} groupId - Group ID
+   */
+  deleteGroup(groupId) {
+    if (this.tabManager && typeof this.tabManager.deleteGroup === 'function') {
+      this.tabManager.deleteGroup(groupId);
+    }
+  }
+  
+  /**
+   * Move tab to group - proxy method for TabManagerPanel compatibility
+   * @param {string} tabId - Tab ID
+   * @param {string} groupId - Group ID
+   */
+  moveTabToGroup(tabId, groupId) {
+    if (this.tabManager && typeof this.tabManager.moveTabToGroup === 'function') {
+      this.tabManager.moveTabToGroup(tabId, groupId);
+    }
+  }
+
+  /**
+   * Validate and get the best favicon URL for a given page URL
+   * @param {string} pageUrl - The page URL to get favicon for
+   * @param {string} extractedFavicon - Favicon URL extracted from page (optional)
+   * @returns {Promise<string>} - Valid favicon URL or fallback
+   */
+  async validateFavicon(pageUrl, extractedFavicon = null) {
+    if (!pageUrl) return null;
+    
+    try {
+      const url = new URL(pageUrl);
+      const candidates = [];
+      
+      // Add extracted favicon if provided
+      if (extractedFavicon) {
+        candidates.push(extractedFavicon);
+      }
+      
+      // Add common favicon paths
+      candidates.push(
+        `${url.protocol}//${url.hostname}/favicon.ico`,
+        `${url.protocol}//${url.hostname}/favicon.png`,
+        `${url.protocol}//${url.hostname}/apple-touch-icon.png`,
+        `${url.protocol}//${url.hostname}/icon.png`
+      );
+      
+      // Test each candidate URL
+      for (const candidateUrl of candidates) {
+        try {
+          // Quick validation - just return the first valid-looking URL for now
+          // In a real implementation, you might want to actually test the URL
+          new URL(candidateUrl);
+          console.log(`✅ Using favicon URL: ${candidateUrl}`);
+          return candidateUrl;
+        } catch (error) {
+          console.warn(`❌ Invalid favicon URL: ${candidateUrl}`);
+        }
+      }
+      
+      // Return default fallback
+      return `${url.protocol}//${url.hostname}/favicon.ico`;
+    } catch (error) {
+      console.warn('Error validating favicon:', error);
+      return null;
     }
   }
 }

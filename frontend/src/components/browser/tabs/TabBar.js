@@ -447,13 +447,68 @@ const TabBar = ({ tabManager, activeTabId, onTabClick, onTabClose, onNewTab }) =
                   className="tab-favicon"
                   onError={(e) => {
                     try {
-                      e.target.style.display = 'none';
-                      const placeholder = e.target.nextSibling;
-                      if (placeholder) {
+                      // CRITICAL FIX: Better favicon error handling with fallback attempts
+                      const img = e.target;
+                      const currentSrc = img.src;
+                      
+                      // Hide the failed image
+                      img.style.display = 'none';
+                      
+                      // Show the placeholder
+                      const placeholder = img.nextSibling;
+                      if (placeholder && placeholder.classList.contains('tab-favicon-placeholder')) {
                         placeholder.style.display = 'flex';
+                      }
+                      
+                      // Try fallback favicon URLs if this is the first failure
+                      if (!img.dataset.fallbackAttempted) {
+                        img.dataset.fallbackAttempted = 'true';
+                        
+                        // Extract domain from current URL for fallback
+                        try {
+                          const url = new URL(currentSrc);
+                          const fallbackUrl = `${url.protocol}//${url.hostname}/favicon.ico`;
+                          
+                          // Only try fallback if it's different from current src
+                          if (fallbackUrl !== currentSrc) {
+                            console.log(`🔄 Trying fallback favicon for tab ${tab.id}:`, fallbackUrl);
+                            
+                            // Create a new image to test the fallback
+                            const testImg = new Image();
+                            testImg.onload = () => {
+                              // Fallback worked, update the original image
+                              img.src = fallbackUrl;
+                              img.style.display = 'block';
+                              if (placeholder) {
+                                placeholder.style.display = 'none';
+                              }
+                            };
+                            testImg.onerror = () => {
+                              // Fallback also failed, keep placeholder visible
+                              console.warn(`❌ Fallback favicon also failed for tab ${tab.id}`);
+                            };
+                            testImg.src = fallbackUrl;
+                          }
+                        } catch (urlError) {
+                          console.warn('Error parsing favicon URL for fallback:', urlError);
+                        }
                       }
                     } catch (error) {
                       console.warn('Error handling favicon error:', error);
+                    }
+                  }}
+                  onLoad={(e) => {
+                    // ENHANCED: Ensure favicon is visible when it loads successfully
+                    try {
+                      const img = e.target;
+                      const placeholder = img.nextSibling;
+                      
+                      img.style.display = 'block';
+                      if (placeholder && placeholder.classList.contains('tab-favicon-placeholder')) {
+                        placeholder.style.display = 'none';
+                      }
+                    } catch (error) {
+                      console.warn('Error handling favicon load:', error);
                     }
                   }}
                 />

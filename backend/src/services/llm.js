@@ -104,11 +104,29 @@ async function generateEmbeddings(text, modelName = null) {
     const embeddingModel = modelName || process.env.EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
     logger.debug(`Generating embeddings using model: ${embeddingModel}`);
     
-    const model = getModel(embeddingModel);
+    // Check if this is for tab clustering (contains Title: or URL:)
+    const isTabClustering = truncatedText.includes('Title:') || truncatedText.includes('URL:');
     
-    // Generate embeddings
-    const result = await model.embedContent(truncatedText);
-    const embedding = result.embedding.values;
+    let embedding;
+    let dimensions;
+    let actualModel = embeddingModel;
+    
+    if (isTabClustering) {
+      // Use local embeddings for tab clustering
+      logger.debug('Using local embeddings for tab clustering');
+      const { generateLocalEmbedding } = require('./embedding');
+      embedding = await generateLocalEmbedding(truncatedText);
+      dimensions = embedding.length;
+      actualModel = 'local-nlp-embedding';
+    } else {
+      // Use Google's embedding model for other content
+      const model = getModel(embeddingModel);
+      
+      // Generate embeddings
+      const result = await model.embedContent(truncatedText);
+      embedding = result.embedding.values;
+      dimensions = embedding.length;
+    }
     
     // Monitor memory after embedding
     const memAfter = memoryManager.monitorMemory();
@@ -116,11 +134,27 @@ async function generateEmbeddings(text, modelName = null) {
     
     return {
       embedding,
-      dimensions: embedding.length,
-      model: embeddingModel
+      dimensions,
+      model: actualModel
     };
   } catch (error) {
     logger.error('Error generating embeddings:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get embedding for text (alias for generateEmbeddings for frontend compatibility)
+ * @param {string} text - The text to embed
+ * @param {string} modelName - Optional embedding model name
+ * @returns {Promise<Array>} - The embedding vector
+ */
+async function getEmbedding(text, modelName = null) {
+  try {
+    const result = await generateEmbeddings(text, modelName);
+    return result.embedding;
+  } catch (error) {
+    logger.error('Error getting embedding:', error);
     throw error;
   }
 }
@@ -602,6 +636,7 @@ async function checkApiKey() {
 
 module.exports = {
   generateEmbeddings,
+  getEmbedding,
   chat,
   executeToolCall,
   checkApiKey
