@@ -8,7 +8,7 @@ import App from './components/App.js';
 import '../public/styles/main.css';
 
 // Use DOMContentLoaded to ensure DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Get the app container from the DOM
   const appContainer = document.getElementById('app');
   
@@ -33,10 +33,49 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Initialize the app with the new initialization method
   const app = new App();
-  app.init();
+  await app.init();
   
   // Make app available globally for debugging
   window.app = app;
+  
+  // Set up data preservation on window close/refresh
+  const handleBeforeUnload = async (event) => {
+    console.log('🔍 Application closing - triggering data preservation');
+    
+    // Trigger data preservation if available
+    if (window.dataPreservationManager && window.dataPreservationManager.isInitialized) {
+      try {
+        // Use synchronous preservation for critical data
+        await window.dataPreservationManager.preserveAllData({
+          source: 'window-beforeunload',
+          priority: 'critical',
+          synchronous: true
+        });
+        console.log('✅ Data preservation completed before window close');
+      } catch (error) {
+        console.error('❌ Data preservation failed before window close:', error);
+      }
+    }
+    
+    // Clean up the app
+    if (app && typeof app.cleanup === 'function') {
+      try {
+        await app.cleanup();
+        console.log('✅ App cleanup completed');
+      } catch (error) {
+        console.error('❌ App cleanup failed:', error);
+      }
+    }
+  };
+  
+  // Add event listeners for application close
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  window.addEventListener('unload', handleBeforeUnload);
+  
+  // Handle Electron-specific close events if available
+  if (window.api && window.api.onAppWillQuit) {
+    window.api.onAppWillQuit(handleBeforeUnload);
+  }
   
   console.log('Knowledge Store application initialized');
 }); 

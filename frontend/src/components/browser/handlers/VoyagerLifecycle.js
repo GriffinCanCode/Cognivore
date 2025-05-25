@@ -65,10 +65,16 @@ function isDomReadyForBrowser(browser) {
  * Reset browser initialization state - called when component unmounts
  * @param {Object} browser - Voyager browser instance
  */
-function resetBrowserState(browser) {
+export function resetBrowserState(browser) {
   if (browser && browser.browserId) {
     browserStateTracker.delete(browser.browserId);
     lifecycleLogger.debug(`Reset browser state for ID: ${browser.browserId}`);
+    
+    // CRITICAL FIX: Also reset lifecycle flags to ensure clean remount
+    if (browser._lifecycleInitialized) {
+      browser._lifecycleInitialized = false;
+      lifecycleLogger.debug(`Reset lifecycle initialization flag for browser ${browser.browserId}`);
+    }
   }
 }
 
@@ -160,8 +166,25 @@ export function initialize(browser, options = {}) {
   console.log('🔍 VOYAGER LIFECYCLE: Initializing browser state (fresh or forced)');
   
   // Initialize browser state
-  if (forceStateReset || !browser._lifecycleInitialized) {
+  if (forceStateReset || !browser._lifecycleInitialized || browser._wasUnmounted) {
     lifecycleLogger.debug('Initializing fresh browser state');
+    
+    // CRITICAL FIX: If this is a remount after unmount, force complete reset
+    if (browser._wasUnmounted) {
+      console.log('🔍 VOYAGER LIFECYCLE: Detected remount after unmount, forcing complete state reset');
+      lifecycleLogger.debug('Forcing complete state reset for remounted browser');
+      
+      // Clear any stale state from previous mount
+      browser._isWebviewInitialized = false;
+      browser._webviewCreationAttempts = 0;
+      browser._lifecycleRetryCount = 0;
+      browser._lifecycleInitialized = false;
+      
+      // Clear any stale references
+      browser.webview = null;
+      browser.iframe = null;
+      browser.webviewContainer = null;
+    }
     
     // Reset all initialization tracking
     browser._isWebviewInitialized = false;
@@ -170,8 +193,14 @@ export function initialize(browser, options = {}) {
     browser._lifecycleRetryCount = 0;
     browser._lifecycleInitialized = true;
     
-    // CRITICAL FIX: Mark that React rendering should be deferred
-    browser._deferReactRendering = true;
+    // CRITICAL FIX: Only set defer flag if not already handling a remount
+    if (!browser._wasUnmounted) {
+      browser._deferReactRendering = true;
+    } else {
+      // For remounts, start with React rendering enabled to avoid conflicts
+      browser._deferReactRendering = false;
+      console.log('🔍 VOYAGER LIFECYCLE: Remount detected - React rendering enabled immediately');
+    }
     
     // Clear any existing timeouts
     if (browser._navigationTimeout) {
@@ -698,7 +727,8 @@ function saveState(browser) {
     url: browser.state.url,
     title: browser.state.title,
     favicon: browser.state.favicon,
-    lastActive: Date.now()
+    lastActive: Date.now(),
+    browserId: browser.browserId
   };
   
   lifecycleLogger.debug('Saving browser state snapshot', {
@@ -715,10 +745,25 @@ function saveState(browser) {
     try {
       // Fallback to localStorage if no custom handler
       lifecycleLogger.debug('Using localStorage fallback for state storage');
-      localStorage.setItem('voyager-browser-state', JSON.stringify(stateSnapshot));
+      localStorage.setItem(`voyager-browser-state-${browser.browserId}`, JSON.stringify(stateSnapshot));
       lifecycleLogger.debug('State saved successfully to localStorage');
     } catch (err) {
       lifecycleLogger.warn('Failed to save browser state:', err);
+    }
+  }
+  
+  // Trigger data preservation system if available
+  if (window.dataPreservationManager && window.dataPreservationManager.isInitialized) {
+    try {
+      // Trigger preservation of browser state and related data
+      window.dataPreservationManager.preserveAllData({
+        source: 'voyager-lifecycle',
+        priority: 'normal'
+      }).catch(error => {
+        lifecycleLogger.warn('Data preservation failed during state save:', error);
+      });
+    } catch (error) {
+      lifecycleLogger.warn('Error triggering data preservation:', error);
     }
   }
 }
@@ -728,7 +773,7 @@ function saveState(browser) {
  * 
  * @param {Object} browser - Voyager browser instance
  */
-export function cleanup(browser) {
+export async function cleanup(browser) {
   lifecycleLogger.info('Cleaning up Voyager browser component', browser.browserId);
   
   // CRITICAL FIX: Reset browser state tracking first
@@ -800,9 +845,24 @@ export function cleanup(browser) {
     }
   }
   
-  // Save final state
+  // Save final state and trigger comprehensive data preservation
   lifecycleLogger.debug('Saving final state before complete cleanup');
   saveState(browser);
+  
+  // Trigger final data preservation if available
+  if (window.dataPreservationManager && window.dataPreservationManager.isInitialized) {
+    try {
+      lifecycleLogger.debug('Triggering final data preservation during browser cleanup');
+      await window.dataPreservationManager.preserveAllData({
+        source: 'voyager-cleanup',
+        priority: 'critical',
+        synchronous: true
+      });
+      lifecycleLogger.debug('Final data preservation completed successfully');
+    } catch (error) {
+      lifecycleLogger.warn('Final data preservation failed during cleanup:', error);
+    }
+  }
   
   lifecycleLogger.info('Voyager browser cleanup complete');
 }

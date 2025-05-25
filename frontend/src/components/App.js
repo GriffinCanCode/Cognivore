@@ -1,6 +1,7 @@
 /**
  * Main App Component - Coordinates the Cognivore application
  */
+import React, { Component } from 'react';
 import Sidebar from './ui/Sidebar.js';
 import ChatHeader from './chat/ChatHeader.js';
 import ChatUI from './ChatUI.js';
@@ -17,8 +18,7 @@ import Anthology from './Anthology.js';
 import Settings from './ui/Settings.js';
 import ToolRenderer from './tools/ToolRenderer.js';
 import Browser from './browser/Voyager.js';
-import React, { Component } from 'react';
-import * as ReactDOM from 'react-dom/client';
+import { setupCompleteDataPreservation, cleanupDataPreservation } from './browser/utils/DataPreservationIntegration.js';
 
 // Create context-specific logger
 const appLogger = logger.scope('App');
@@ -59,7 +59,7 @@ class App extends Component {
   /**
    * Initialize the app
    */
-  init() {
+  async init() {
     appLogger.info('App.init called');
     
     // Load required CSS files
@@ -132,6 +132,16 @@ class App extends Component {
     
     // Register document event listeners
     this.documentManager.addDocumentListener(this.handleDocumentEvent.bind(this));
+    
+    // Initialize data preservation system
+    try {
+      appLogger.info('🔍 Initializing data preservation system...');
+      await setupCompleteDataPreservation();
+      appLogger.info('✅ Data preservation system initialized successfully');
+    } catch (error) {
+      appLogger.error('❌ Failed to initialize data preservation system:', error);
+      // Continue with app initialization even if data preservation fails
+    }
     
     // Render the app
     this.render();
@@ -593,6 +603,18 @@ class App extends Component {
         // Don't create a separate mount point - use the main content container
         appLogger.info('Rendering browser in main content container');
         
+        // Clean up any existing browser first to prevent conflicts
+        if (this._browserRoot) {
+          try {
+            console.log('Cleaning up existing browser root before creating new one');
+            this._browserRoot.unmount();
+            this._browserRoot = null;
+          } catch (err) {
+            console.warn('Error unmounting existing browser root:', err);
+            this._browserRoot = null;
+          }
+        }
+        
         // Create browser component directly in main content
         const browserElement = document.createElement('div');
         browserElement.id = 'browser-container';
@@ -615,13 +637,6 @@ class App extends Component {
         // Store reference to container for browser component initialization
         this.browserContainer = browserElement;
         
-        // CRITICAL FIX: Set container reference immediately, not in setTimeout
-        // This ensures containerRef is available when componentDidMount fires
-        if (this.browserRef && this.browserRef.current) {
-          this.browserRef.current.containerRef = { current: this.browserContainer };
-          console.log('Set containerRef immediately for React-rendered Voyager component');
-        }
-        
         // Clean up any existing browser-mount to prevent duplicates
         const oldBrowserMount = document.getElementById('browser-mount');
         if (oldBrowserMount && oldBrowserMount.parentNode) {
@@ -633,21 +648,71 @@ class App extends Component {
           }
         }
         
-        // Use React to render the Voyager component for proper browser features
-        if (!this._browserRoot) {
-          try {
-            const ReactDOM = require('react-dom/client');
-            this._browserRoot = ReactDOM.createRoot(browserElement);
-          } catch (err) {
-            console.error('Error creating React root for browser:', err);
-          }
+        // Create React root for browser rendering
+        try {
+          const ReactDOM = require('react-dom/client');
+          this._browserRoot = ReactDOM.createRoot(browserElement);
+          console.log('Created new React root for browser');
+        } catch (err) {
+          console.error('Error creating React root for browser:', err);
+          break;
         }
         
-        if (this._browserRoot) {
+        // Render the browser component with proper containerRef setup
+        try {
+          // Import React for JSX
+          const React = require('react');
+          
+          // Create a wrapper component that ensures containerRef is set before mounting
+          const BrowserWrapper = React.forwardRef((props, ref) => {
+            const containerRef = React.useRef(browserElement);
+            
+            // Set the containerRef immediately when component is created
+            React.useEffect(() => {
+              if (ref && typeof ref === 'object' && ref.current) {
+                ref.current.containerRef = containerRef;
+                console.log('ContainerRef set via BrowserWrapper useEffect');
+              }
+            }, []);
+            
+            // Also set it via ref callback for immediate availability
+            const setRef = React.useCallback((instance) => {
+              if (instance) {
+                instance.containerRef = containerRef;
+                console.log('ContainerRef set via BrowserWrapper ref callback');
+              }
+              if (ref) {
+                if (typeof ref === 'function') {
+                  ref(instance);
+                } else {
+                  ref.current = instance;
+                }
+              }
+            }, []);
+            
+            return React.createElement(Browser, {
+              ...props,
+              ref: setRef
+            });
+          });
+          
+          // Render the wrapped browser component
+          this._browserRoot.render(
+            React.createElement(BrowserWrapper, {
+              ref: this.browserRef,
+              initialUrl: 'https://www.google.com',
+              notificationService: null,
+              enableResearch: true
+            })
+          );
+          console.log('Rendered Voyager browser component with proper containerRef setup');
+          
+        } catch (err) {
+          console.error('Error rendering browser with React:', err);
+          
+          // Fallback: try direct rendering without wrapper
           try {
-            // Import React for JSX
             const React = require('react');
-            // Render the full browser component with React - use imported Browser class directly
             this._browserRoot.render(
               React.createElement(Browser, {
                 ref: this.browserRef,
@@ -656,35 +721,17 @@ class App extends Component {
                 enableResearch: true
               })
             );
-            console.log('Rendered Voyager browser component using React for full functionality');
             
-            // Ensure containerRef is set after React render (backup)
-            setTimeout(() => {
-              if (this.browserRef && this.browserRef.current && !this.browserRef.current.containerRef) {
-                this.browserRef.current.containerRef = { current: this.browserContainer };
-                console.log('Set containerRef for React-rendered Voyager component (backup)');
-              }
-            }, 10); // Very short delay as backup only
-            
-          } catch (err) {
-            console.error('Error rendering browser with React:', err);
-            
-            // Fallback to ensure container reference is set (don't reinitialize)
+            // Set containerRef as backup
             setTimeout(() => {
               if (this.browserRef && this.browserRef.current) {
-                // Check if container is properly in the DOM
-                if (this.browserContainer && this.browserContainer.isConnected) {
-                  // Set the container reference for the browser
-                  this.browserRef.current.containerRef = { current: this.browserContainer };
-                  console.log('Set browser container reference (fallback):', this.browserContainer);
-                  // Don't call initialize() - it should already be called by componentDidMount
-                } else {
-                  console.warn('Browser container not connected to DOM');
-                }
-              } else {
-                console.warn('Browser reference not available');
+                this.browserRef.current.containerRef = { current: this.browserContainer };
+                console.log('Set containerRef for React-rendered Voyager component (fallback)');
               }
-            }, 300);
+            }, 10);
+            
+          } catch (fallbackErr) {
+            console.error('Fallback browser rendering also failed:', fallbackErr);
           }
         }
         break;
@@ -759,57 +806,78 @@ class App extends Component {
   }
 
   /**
-   * Clean up app resources
+   * Clean up the app
    */
-  cleanup() {
-    window.removeEventListener('resize', this.handleResize.bind(this));
+  async cleanup() {
+    appLogger.info('App cleanup started');
+    
+    // Clean up data preservation system first
+    try {
+      appLogger.info('🔍 Cleaning up data preservation system...');
+      await cleanupDataPreservation();
+      appLogger.info('✅ Data preservation cleanup completed');
+    } catch (error) {
+      appLogger.error('❌ Data preservation cleanup failed:', error);
+    }
     
     // Remove event listeners
-    document.removeEventListener('content:selected', this.handleContentSelected);
-    document.removeEventListener('content:updated', this.handleContentUpdated);
-    document.removeEventListener('settings:changed', null);
+    window.removeEventListener('resize', this.handleResize.bind(this));
     
     // Clean up components
-    if (this.sidebar) this.sidebar.cleanup();
-    if (this.chatHeader) this.chatHeader.cleanup();
-    if (this.chatUI) this.chatUI.cleanup();
-    if (this.themeSwitcher) { /* no cleanup needed */ }
-    if (this.footer) { /* no cleanup needed */ }
-    if (this.mnemosyne) { /* no cleanup needed */ }
-    if (this.sieve) this.sieve.cleanup();
-    if (this.contentViewer) { /* no cleanup needed */ }
-    if (this.anthology) this.anthology.cleanup();
-    if (this.searchSection) { /* no cleanup needed */ }
-    if (this.header) { /* no cleanup needed */ }
-    if (this.settings) this.settings.cleanup();
-    if (this.browserRef.current) this.browserRef.current.cleanup();
+    if (this.chatUI) {
+      this.chatUI.cleanup();
+    }
     
-    // Remove document listeners from DocProcessor
+    if (this.sidebar) {
+      this.sidebar.cleanup();
+    }
+    
+    if (this.themeSwitcher) {
+      this.themeSwitcher.cleanup();
+    }
+    
+    if (this.mnemosyne) {
+      this.mnemosyne.cleanup();
+    }
+    
+    if (this.sieve) {
+      this.sieve.cleanup();
+    }
+    
+    if (this.contentViewer) {
+      this.contentViewer.cleanup();
+    }
+    
+    if (this.searchSection) {
+      this.searchSection.cleanup();
+    }
+    
+    if (this.anthology) {
+      this.anthology.cleanup();
+    }
+    
+    if (this.settings) {
+      this.settings.cleanup();
+    }
+    
     if (this.documentManager) {
-      this.documentManager.removeDocumentListener(this.handleDocumentEvent.bind(this));
+      this.documentManager.cleanup();
     }
     
-    // Remove overlay if exists
-    if (this.sidebarOverlay && this.sidebarOverlay.parentNode) {
-      this.sidebarOverlay.parentNode.removeChild(this.sidebarOverlay);
-    }
+    // Clean up browser component
+    this.cleanupBrowser();
     
-    // Remove any chat input containers that might be left in the DOM
-    const inputContainers = document.querySelectorAll('.chat-input-container');
-    inputContainers.forEach(container => {
-      if (container.parentNode) {
-        container.parentNode.removeChild(container);
+    // Clean up React root
+    if (this._browserRoot) {
+      try {
+        this._browserRoot.unmount();
+        this._browserRoot = null;
+      } catch (err) {
+        appLogger.warn('Error unmounting React root:', err);
       }
-    });
-    
-    // Remove container
-    if (this.container && this.container.parentNode) {
-      this.container.parentNode.removeChild(this.container);
     }
     
-    // Remove body classes
-    document.body.classList.remove('chat-layout', 'mobile-view', 'sidebar-visible');
-    
+    // Clear references
     this.container = null;
     this.sidebar = null;
     this.chatHeader = null;
@@ -840,21 +908,58 @@ class App extends Component {
   }
 
   cleanupBrowser() {
-    // In React 18, we don't use unmountComponentAtNode anymore
-    const browserMount = document.getElementById('browser-mount');
-    if (browserMount && browserMount.parentNode) {
+    appLogger.info('Cleaning up browser component');
+    
+    // Call cleanup on browser component first if available
+    if (this.browserRef && this.browserRef.current && typeof this.browserRef.current.cleanup === 'function') {
       try {
-        console.log('[App] Removing browser mount from DOM');
-        browserMount.parentNode.removeChild(browserMount);
+        console.log('[App] Calling browser component cleanup method');
+        this.browserRef.current.cleanup();
       } catch (error) {
-        console.error('[App] Error removing browser mount:', error);
+        console.error('[App] Error calling browser cleanup:', error);
       }
     }
     
-    // Call cleanup on component if available
-    if (this.browserRef.current && typeof this.browserRef.current.cleanup === 'function') {
-      this.browserRef.current.cleanup();
+    // Clean up React root for browser
+    if (this._browserRoot) {
+      try {
+        console.log('[App] Unmounting browser React root');
+        this._browserRoot.unmount();
+        this._browserRoot = null;
+      } catch (error) {
+        console.error('[App] Error unmounting browser React root:', error);
+        this._browserRoot = null; // Clear reference even if unmount failed
+      }
     }
+    
+    // Clean up browser container
+    if (this.browserContainer && this.browserContainer.parentNode) {
+      try {
+        console.log('[App] Removing browser container from DOM');
+        this.browserContainer.parentNode.removeChild(this.browserContainer);
+        this.browserContainer = null;
+      } catch (error) {
+        console.error('[App] Error removing browser container:', error);
+      }
+    }
+    
+    // Clean up legacy browser mount (for backward compatibility)
+    const browserMount = document.getElementById('browser-mount');
+    if (browserMount && browserMount.parentNode) {
+      try {
+        console.log('[App] Removing legacy browser mount from DOM');
+        browserMount.parentNode.removeChild(browserMount);
+      } catch (error) {
+        console.error('[App] Error removing legacy browser mount:', error);
+      }
+    }
+    
+    // Clear browser reference
+    if (this.browserRef) {
+      this.browserRef.current = null;
+    }
+    
+    console.log('[App] Browser cleanup completed');
   }
 
   componentWillUnmount() {

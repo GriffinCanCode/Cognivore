@@ -225,8 +225,8 @@ class Voyager extends Component {
   constructor(props) {
     super(props);
     
-    // CRITICAL FIX: Set defer flag IMMEDIATELY to prevent React rendering conflicts
-    this._deferReactRendering = true;
+    // CRITICAL FIX: Don't set defer flag in constructor - let it be set during initialization phases
+    // this._deferReactRendering = true; // REMOVED - causes issues on remount
     
     this.state = {
       url: props?.initialUrl || 'https://www.google.com',
@@ -252,11 +252,11 @@ class Voyager extends Component {
     // Create unique ID for component
     this.browserId = nanoid();
     
-    // CRITICAL FIX: Initialize defer flag and tracking variables immediately
+    // CRITICAL FIX: Initialize flags properly for clean state
     this._isInitialized = false;
     this._isInitializing = false;
     this._isUnloading = false;
-    this._deferReactRendering = true; // Double-set for safety
+    this._deferReactRendering = false; // Start with false, set to true only during specific phases
     
     // References
     this.containerRef = React.createRef();
@@ -309,6 +309,16 @@ class Voyager extends Component {
   componentDidMount() {
     console.log(`Voyager browser component mounted (ID: ${this.browserId})`);
     
+    // CRITICAL FIX: Reset all initialization flags on mount to ensure clean state
+    this._isInitialized = false;
+    this._isInitializing = false;
+    this._wasUnmounted = false;
+    this._deferReactRendering = false; // Reset defer flag on mount
+    this.hasNavigatedInitially = false;
+    
+    // Clear any stale timeouts from previous instances
+    this.clearAllTimeouts();
+    
     // Set isMounted state to enable rendering of child components
     this.setState({
       isMounted: true
@@ -316,6 +326,9 @@ class Voyager extends Component {
       // Initialize with a minimal delay to ensure React rendering is complete
       setTimeout(() => {
         this.initialize();
+        
+        // Integrate with data preservation system
+        this.integrateWithDataPreservation();
       }, 50); // Reduced delay - just enough for React to finish rendering
     });
   }
@@ -359,16 +372,8 @@ class Voyager extends Component {
   performAsyncCleanup() {
     console.log('Performing async Voyager cleanup');
     
-    // CRITICAL FIX: Reset VoyagerLifecycle state before cleanup to prevent race conditions
-    try {
-      const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
-      if (VoyagerLifecycle && typeof VoyagerLifecycle.resetBrowserState === 'function') {
-        console.log('Resetting VoyagerLifecycle state before component cleanup');
-        VoyagerLifecycle.resetBrowserState(this);
-      }
-    } catch (err) {
-      console.warn('Error resetting VoyagerLifecycle state:', err);
-    }
+    // CRITICAL FIX: VoyagerLifecycle state reset is now handled in main cleanup method
+    // No need to call it again here to avoid duplicate calls
     
     // Call the main cleanup method
     this.cleanup();
@@ -2263,6 +2268,17 @@ class Voyager extends Component {
     // Clear all timeouts first to prevent operations during cleanup
     this.clearAllTimeouts();
     
+    // CRITICAL FIX: Reset VoyagerLifecycle state BEFORE other cleanup to prevent race conditions
+    try {
+      const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
+      if (VoyagerLifecycle && typeof VoyagerLifecycle.resetBrowserState === 'function') {
+        console.log('Resetting VoyagerLifecycle state during cleanup');
+        VoyagerLifecycle.resetBrowserState(this);
+      }
+    } catch (err) {
+      console.warn('Error resetting VoyagerLifecycle state during cleanup:', err);
+    }
+    
     // Use VoyagerLifecycle cleanup for proper system cleanup
     try {
       const VoyagerLifecycle = require('./handlers/VoyagerLifecycle');
@@ -2274,9 +2290,10 @@ class Voyager extends Component {
       console.warn('Error during VoyagerLifecycle cleanup:', err);
     }
     
-    // Reset initialization flags
+    // Reset initialization flags for potential remount
     this._isInitialized = false;
     this._isInitializing = false;
+    this._deferReactRendering = false; // Reset defer flag for clean remount
     this.hasNavigatedInitially = false;
     
     // Clean up tab manager and its event listeners BEFORE webview cleanup
@@ -3075,6 +3092,12 @@ class Voyager extends Component {
       // Set up event listeners
       this.setupTabManagerEventListeners();
       
+      // Integrate with data preservation system
+      if (window.enhanceTabManagement && typeof window.enhanceTabManagement === 'function') {
+        console.log('🔍 Integrating tab manager with data preservation system');
+        window.enhanceTabManagement(this.tabManager);
+      }
+      
       console.log('Tab manager initialized successfully');
     } catch (error) {
       console.error('Failed to initialize tab manager:', error);
@@ -3146,6 +3169,35 @@ class Voyager extends Component {
     }
     
     this.tabManager = null;
+  }
+
+  /**
+   * Integrate this browser instance with the data preservation system
+   */
+  integrateWithDataPreservation() {
+    try {
+      // Enhance VoyagerLifecycle with data preservation
+      if (window.enhanceVoyagerLifecycle && typeof window.enhanceVoyagerLifecycle === 'function') {
+        console.log('🔍 Integrating Voyager browser with data preservation system');
+        window.enhanceVoyagerLifecycle(this);
+        
+        // Add this browser to global tracking
+        if (!window.voyagerBrowsers) {
+          window.voyagerBrowsers = [];
+        }
+        
+        // Ensure this browser is tracked
+        const existingBrowser = window.voyagerBrowsers.find(b => b.browserId === this.browserId);
+        if (!existingBrowser) {
+          window.voyagerBrowsers.push(this);
+          console.log(`✅ Browser ${this.browserId} added to data preservation tracking`);
+        }
+      } else {
+        console.warn('Data preservation enhancement not available - system may not be initialized');
+      }
+    } catch (error) {
+      console.warn('Failed to integrate with data preservation system:', error);
+    }
   }
 }
 
